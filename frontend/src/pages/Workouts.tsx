@@ -8,6 +8,7 @@ import { SkeletonCard, SkeletonText } from '../components/Skeleton'
 import PageHeader from '../components/PageHeader'
 import ExerciseDrawer from '../components/ExerciseDrawer'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
+import ConfirmModal from '../components/ConfirmModal'
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
 
@@ -777,11 +778,13 @@ function PlanList({
 }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   async function handleDelete(id: string) {
     try {
       await api.workouts.deletePlan(id)
       setPlans((p) => p.filter((x) => x.id !== id))
+      setConfirmDeleteId(null)
       showToast('Plan deleted')
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
@@ -835,14 +838,14 @@ function PlanList({
                   {!plan.is_active && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleActivate(plan.id) }}
-                      className="text-xs text-brand-500 hover:text-brand-600 font-medium px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
+                      className="text-xs text-brand-500 bg-brand-50 hover:bg-brand-100 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                     >
                       Set active
                     </button>
                   )}
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(plan.id) }}
-                    className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(plan.id) }}
+                    className="text-xs text-white bg-red-500 hover:bg-red-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                   >
                     Delete
                   </button>
@@ -851,6 +854,15 @@ function PlanList({
             </div>
           ))}
         </div>
+      )}
+      {confirmDeleteId && (
+        <ConfirmModal
+          title="Delete plan?"
+          message="This will permanently delete the workout plan and all its data. This can't be undone."
+          confirmLabel="Delete plan"
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onClose={() => setConfirmDeleteId(null)}
+        />
       )}
     </div>
   )
