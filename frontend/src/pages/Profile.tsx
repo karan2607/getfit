@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { api, type UserProfile } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
+import PageHeader from '../components/PageHeader'
 
 export default function Profile() {
   const { user, setUser } = useAuth()
@@ -83,11 +84,9 @@ export default function Profile() {
   ]
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage your personal information and fitness preferences.</p>
-      </div>
+    <div>
+      <PageHeader title="Profile" subtitle="Personal info and fitness preferences" />
+      <div className="p-6 max-w-2xl mx-auto space-y-8">
 
       {/* Account */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
@@ -309,6 +308,7 @@ export default function Profile() {
           </button>
         </form>
       </section>
+      </div>
     </div>
   )
 }

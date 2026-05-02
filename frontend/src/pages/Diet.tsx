@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type FoodScanResult, type MealLog } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
+import PageHeader from '../components/PageHeader'
 
 // ── Macro Donut ─────────────────────────────────────────────────────────────
 
@@ -670,7 +671,8 @@ export default function Diet() {
 
   return (
     <div>
-      <div className="border-b border-gray-100 px-6 pt-6 pb-0">
+      <PageHeader title="Diet" subtitle="Meal plans and nutrition tracking" />
+      <div className="border-b border-gray-100 px-6 pt-4 pb-0">
         <div className="flex gap-6">
           {TAB_ITEMS.map((tab) => (
             <button

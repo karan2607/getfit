@@ -95,9 +95,9 @@ function AppLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   if (!user) return <>{children}</>
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-900">
       <Sidebar />
-      <main className="flex-1 min-w-0" id="main-content">
+      <main className="flex-1 min-w-0 bg-stone-50" id="main-content">
         {children}
       </main>
     </div>

@@ -8,19 +8,18 @@ import ChatBubble from '../components/chat/ChatBubble'
 import ChatInput from '../components/chat/ChatInput'
 import StreamingIndicator from '../components/chat/StreamingIndicator'
 import { SkeletonText } from '../components/Skeleton'
+import PageHeader from '../components/PageHeader'
 
 // ── Session list sidebar ──────────────────────────────────────────────────
 
 function SessionList({
   sessions,
   activeId,
-  onNew,
   onDelete,
   loading,
 }: {
   sessions: ChatSession[]
   activeId?: string
-  onNew: () => void
   onDelete: (id: string) => void
   loading: boolean
 }) {
@@ -28,15 +27,7 @@ function SessionList({
 
   return (
     <div className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
-      <div className="p-4 border-b border-gray-100">
-        <button
-          onClick={onNew}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl py-2 transition-colors"
-        >
-          + New chat
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5 pt-3">
         {loading ? (
           <div className="p-3 space-y-2">
             {[1, 2, 3].map((i) => (
@@ -187,16 +178,29 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <SessionList
-        sessions={sessions}
-        activeId={sessionId}
-        onNew={handleNew}
-        onDelete={handleDelete}
-        loading={listLoading}
+    <div className="flex flex-col h-screen overflow-hidden">
+      <PageHeader
+        title="AI Trainer"
+        subtitle="Your personal fitness coach"
+        action={
+          <button
+            onClick={handleNew}
+            className="bg-white text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-50 transition-colors"
+          >
+            + New chat
+          </button>
+        }
       />
-      <div className="flex-1 flex flex-col min-w-0">
-        {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
+      <div className="flex flex-1 overflow-hidden">
+        <SessionList
+          sessions={sessions}
+          activeId={sessionId}
+          onDelete={handleDelete}
+          loading={listLoading}
+        />
+        <div className="flex-1 flex flex-col min-w-0">
+          {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
+        </div>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api, type WorkoutPlanDetail, type DietPlanDetail, type BodyScanResult, type WorkoutSessionSummary } from '../lib/api'
+import PageHeader from '../components/PageHeader'
 
 function StatCard({ label, value, sub, color = 'emerald' }: {
   label: string; value: string | number; sub?: string; color?: string
@@ -90,11 +91,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Hey, {firstName} 👋</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{todayDay} — let's keep the streak going</p>
-      </div>
+    <div>
+      <PageHeader title={`Hey, ${firstName} 👋`} subtitle={`${todayDay} — let's keep the streak going`} />
+      <div className="p-6 max-w-2xl">
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 mb-6">
@@ -259,6 +258,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
