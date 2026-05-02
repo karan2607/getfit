@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, type WorkoutPlanPreview } from '../../lib/api'
 import { useToast } from '../Toast'
 import { getErrorMessage } from '../../lib/errors'
@@ -7,9 +7,50 @@ interface Props {
   role: 'user' | 'assistant'
   content: string
   isStreaming?: boolean
+  planId?: string
 }
 
-function InlinePlanCard({ plan }: { plan: WorkoutPlanPreview }) {
+const THINKING_MESSAGES = [
+  'Warming up...',
+  'Checking your reps...',
+  'Counting sets...',
+  'Designing your workout...',
+  'Loading the barbell...',
+  'Chalking up...',
+  'Studying your form...',
+  'Plotting your gains...',
+  'Reviewing your macros...',
+  'Spotting you...',
+]
+
+function ThinkingCard() {
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % THINKING_MESSAGES.length), 2000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="mt-2 bg-brand-50 border border-brand-100 rounded-xl px-4 py-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1">
+          <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-2 h-2 rounded-full bg-brand-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+        <span className="text-xs text-brand-500 font-medium transition-all">{THINKING_MESSAGES[idx]}</span>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 bg-brand-100 rounded-full w-3/4 animate-pulse" />
+        <div className="h-3 bg-brand-100 rounded-full w-1/2 animate-pulse" />
+        <div className="h-3 bg-brand-100 rounded-full w-2/3 animate-pulse" />
+      </div>
+    </div>
+  )
+}
+
+function InlinePlanCard({ plan, planId }: { plan: WorkoutPlanPreview; planId?: string }) {
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -18,9 +59,15 @@ function InlinePlanCard({ plan }: { plan: WorkoutPlanPreview }) {
   async function handleSave() {
     setSaving(true)
     try {
-      await api.workouts.savePlan(plan)
-      setSaved(true)
-      showToast('Plan saved to Workouts!')
+      if (planId) {
+        await api.workouts.replacePlan(planId, plan)
+        setSaved(true)
+        showToast('Plan updated!')
+      } else {
+        await api.workouts.savePlan(plan)
+        setSaved(true)
+        showToast('Plan saved to Workouts!')
+      }
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
     } finally {
@@ -51,7 +98,7 @@ function InlinePlanCard({ plan }: { plan: WorkoutPlanPreview }) {
             disabled={saving || saved}
             className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
           >
-            {saved ? '✓ Saved' : saving ? 'Saving...' : 'Save plan'}
+            {saved ? '✓ Saved' : saving ? 'Saving...' : planId ? 'Update plan' : 'Save plan'}
           </button>
         </div>
       </div>
@@ -68,7 +115,10 @@ function InlinePlanCard({ plan }: { plan: WorkoutPlanPreview }) {
                 {day.is_rest_day ? (
                   <p className="text-gray-400">Rest day</p>
                 ) : (
-                  <p className="text-gray-500">{day.exercises.slice(0, 3).map((e) => e.name).join(', ')}{day.exercises.length > 3 ? ` +${day.exercises.length - 3}` : ''}</p>
+                  <p className="text-gray-500">
+                    {day.exercises.slice(0, 3).map((e) => e.name).join(', ')}
+                    {day.exercises.length > 3 ? ` +${day.exercises.length - 3}` : ''}
+                  </p>
                 )}
               </div>
             </div>
@@ -91,31 +141,40 @@ function parseWorkoutPlan(content: string): { text: string; plan: WorkoutPlanPre
   }
 }
 
-export default function ChatBubble({ role, content, isStreaming }: Props) {
+export default function ChatBubble({ role, content, isStreaming, planId }: Props) {
   const isUser = role === 'user'
-  const { text, plan } = isUser ? { text: content, plan: null } : parseWorkoutPlan(content)
+
+  // While streaming, if a workout-plan block is being built, show thinking card instead of raw JSON
+  const isGeneratingPlan = !isUser && isStreaming && content.includes('```workout-plan')
+
+  const { text, plan } = isUser || isGeneratingPlan
+    ? { text: isGeneratingPlan ? content.slice(0, content.indexOf('```workout-plan')).trim() : content, plan: null }
+    : parseWorkoutPlan(content)
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold mr-2 flex-shrink-0 mt-0.5">
+        <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-bold mr-2 flex-shrink-0 mt-0.5">
           AI
         </div>
       )}
       <div className={`max-w-[75%] ${isUser ? '' : 'w-full'}`}>
-        <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-            isUser
-              ? 'bg-emerald-600 text-white rounded-br-sm'
-              : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
-          }`}
-        >
-          {text}
-          {isStreaming && (
-            <span className="inline-block w-1.5 h-4 bg-current opacity-70 animate-pulse ml-0.5 align-text-bottom" />
-          )}
-        </div>
-        {plan && !isStreaming && <InlinePlanCard plan={plan} />}
+        {(text || (!isGeneratingPlan && isStreaming)) && (
+          <div
+            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+              isUser
+                ? 'bg-brand-500 text-white rounded-br-sm'
+                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+            }`}
+          >
+            {text}
+            {isStreaming && !isGeneratingPlan && (
+              <span className="inline-block w-1.5 h-4 bg-current opacity-70 animate-pulse ml-0.5 align-text-bottom" />
+            )}
+          </div>
+        )}
+        {isGeneratingPlan && <ThinkingCard />}
+        {plan && !isStreaming && <InlinePlanCard plan={plan} planId={planId} />}
       </div>
     </div>
   )

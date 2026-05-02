@@ -172,6 +172,12 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    replacePlan: (id: string, data: WorkoutPlanPreview) =>
+      request<WorkoutPlanDetail>(`/api/workouts/plans/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
     deletePlan: (id: string) =>
       request<void>(`/api/workouts/plans/${id}/`, { method: 'DELETE' }),
 

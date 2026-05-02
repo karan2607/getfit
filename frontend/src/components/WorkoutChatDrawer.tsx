@@ -73,11 +73,11 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId }: WorkoutCh
           ) : (
             <>
               {session.messages.map((msg) => (
-                <ChatBubble key={msg.id} role={msg.role} content={msg.content} />
+                <ChatBubble key={msg.id} role={msg.role} content={msg.content} planId={msg.role === 'assistant' ? planId : undefined} />
               ))}
 
               {streamingContent && (
-                <ChatBubble role="assistant" content={streamingContent} isStreaming />
+                <ChatBubble role="assistant" content={streamingContent} isStreaming planId={planId} />
               )}
 
               {isSending && !streamingContent && <StreamingIndicator />}

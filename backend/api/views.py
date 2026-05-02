@@ -564,7 +564,7 @@ def workout_plans(request):
     return Response(WorkoutPlanDetailSerializer(plan).data, status=status.HTTP_201_CREATED)
 
 
-@api_view(['GET', 'PATCH', 'DELETE'])
+@api_view(['GET', 'PATCH', 'PUT', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def workout_plan_detail(request, plan_id):
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
@@ -579,6 +579,41 @@ def workout_plan_detail(request, plan_id):
             plan.description = request.data['description']
         plan.save()
         return Response(WorkoutPlanSerializer(plan).data)
+
+    if request.method == 'PUT':
+        data = request.data
+        try:
+            _validate_plan_json(data)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        plan.title = data['title']
+        plan.description = data.get('description', '')
+        plan.duration_weeks = data.get('duration_weeks', plan.duration_weeks)
+        plan.save()
+
+        # Replace all days and exercises
+        plan.days.all().delete()
+        for i, day_data in enumerate(data['days']):
+            day = WorkoutDay.objects.create(
+                plan=plan,
+                day_number=day_data['day_number'],
+                name=day_data['name'],
+                focus=day_data.get('focus', ''),
+                is_rest_day=day_data.get('is_rest_day', False),
+                order=i,
+            )
+            for j, ex_data in enumerate(day_data.get('exercises', [])):
+                Exercise.objects.create(
+                    day=day,
+                    name=ex_data['name'],
+                    sets=ex_data.get('sets', 3),
+                    reps=str(ex_data.get('reps', '10')),
+                    rest_seconds=ex_data.get('rest_seconds'),
+                    notes=ex_data.get('notes', ''),
+                    order=j,
+                )
+        return Response(WorkoutPlanDetailSerializer(plan).data)
 
     plan.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
