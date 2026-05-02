@@ -9,9 +9,10 @@ interface WorkoutChatDrawerProps {
   isOpen: boolean
   onClose: () => void
   planId?: string
+  onPlanUpdated?: () => void
 }
 
-export default function WorkoutChatDrawer({ isOpen, onClose, planId }: WorkoutChatDrawerProps) {
+export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdated }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -73,11 +74,11 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId }: WorkoutCh
           ) : (
             <>
               {session.messages.map((msg) => (
-                <ChatBubble key={msg.id} role={msg.role} content={msg.content} planId={msg.role === 'assistant' ? planId : undefined} />
+                <ChatBubble key={msg.id} role={msg.role} content={msg.content} planId={msg.role === 'assistant' ? planId : undefined} onSaved={onPlanUpdated} />
               ))}
 
               {streamingContent && (
-                <ChatBubble role="assistant" content={streamingContent} isStreaming planId={planId} />
+                <ChatBubble role="assistant" content={streamingContent} isStreaming planId={planId} onSaved={onPlanUpdated} />
               )}
 
               {isSending && !streamingContent && <StreamingIndicator />}

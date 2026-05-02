@@ -8,6 +8,7 @@ interface Props {
   content: string
   isStreaming?: boolean
   planId?: string
+  onSaved?: () => void
 }
 
 const THINKING_MESSAGES = [
@@ -50,7 +51,7 @@ function ThinkingCard() {
   )
 }
 
-function InlinePlanCard({ plan, planId }: { plan: WorkoutPlanPreview; planId?: string }) {
+function InlinePlanCard({ plan, planId, onSaved }: { plan: WorkoutPlanPreview; planId?: string; onSaved?: () => void }) {
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -63,6 +64,7 @@ function InlinePlanCard({ plan, planId }: { plan: WorkoutPlanPreview; planId?: s
         await api.workouts.replacePlan(planId, plan)
         setSaved(true)
         showToast('Plan updated!')
+        onSaved?.()
       } else {
         await api.workouts.savePlan(plan)
         setSaved(true)
@@ -141,7 +143,7 @@ function parseWorkoutPlan(content: string): { text: string; plan: WorkoutPlanPre
   }
 }
 
-export default function ChatBubble({ role, content, isStreaming, planId }: Props) {
+export default function ChatBubble({ role, content, isStreaming, planId, onSaved }: Props) {
   const isUser = role === 'user'
 
   // While streaming, if a workout-plan block is being built, show thinking card instead of raw JSON
@@ -174,7 +176,7 @@ export default function ChatBubble({ role, content, isStreaming, planId }: Props
           </div>
         )}
         {isGeneratingPlan && <ThinkingCard />}
-        {plan && !isStreaming && <InlinePlanCard plan={plan} planId={planId} />}
+        {plan && !isStreaming && <InlinePlanCard plan={plan} planId={planId} onSaved={onSaved} />}
       </div>
     </div>
   )

@@ -422,7 +422,12 @@ function PlanDetail({ planId }: { planId: string }) {
       </button>
 
       <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
-      <WorkoutChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} planId={plan?.id} />
+      <WorkoutChatDrawer
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        planId={plan?.id}
+        onPlanUpdated={() => plan && api.workouts.getPlan(plan.id).then(setPlan).catch(() => {})}
+      />
     </>
   )
 }
