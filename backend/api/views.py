@@ -289,7 +289,7 @@ def chat_message_stream(request, session_id):
 
     history = [
         {'role': msg.role if msg.role == 'user' else 'model', 'parts': [{'text': msg.content}]}
-        for msg in session.messages.order_by('created_at')[-20:]
+        for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
     system_prompt = _build_system_prompt(user)
