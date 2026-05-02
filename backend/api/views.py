@@ -206,11 +206,35 @@ def _build_system_prompt(user) -> str:
     except Exception:
         profile_text = f'- Name: {user.name}'
 
+    plan_schema = (
+        '{\n'
+        '  "title": "string",\n'
+        '  "description": "string",\n'
+        '  "duration_weeks": number,\n'
+        '  "days": [\n'
+        '    {\n'
+        '      "day_number": number,\n'
+        '      "name": "string",\n'
+        '      "focus": "string",\n'
+        '      "is_rest_day": boolean,\n'
+        '      "exercises": [\n'
+        '        {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
+        '      ]\n'
+        '    }\n'
+        '  ]\n'
+        '}'
+    )
+
     return (
         'You are a certified AI personal trainer and fitness coach. '
         'Respond conversationally, helpfully, and concisely. '
         'Use markdown for formatting when helpful (e.g. bullet lists for exercises). '
         'Always recommend consulting a doctor for medical concerns.\n\n'
+        'WORKOUT PLAN CREATION: When the user asks you to create, generate, or build a workout plan, '
+        'respond with a brief intro sentence, then output the complete plan as a fenced code block '
+        'with the language identifier "workout-plan" followed by valid JSON matching this schema:\n'
+        f'```workout-plan\n{plan_schema}\n```\n'
+        'Always include all days (including rest days). Do not truncate the JSON.\n\n'
         f'User profile:\n{profile_text}'
     )
 
@@ -333,19 +357,24 @@ def _auto_title(session: ChatSession, first_user_message: str) -> str:
 # Workout Planner
 # ---------------------------------------------------------------------------
 
-def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int) -> tuple[str, str]:
+def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
+                              fitness_goal: str = '', experience_level: str = '',
+                              equipment: str = '', notes: str = '') -> tuple[str, str]:
     system = (
         'You are an expert personal trainer. Generate a structured workout plan as valid JSON only. '
         'No markdown, no explanation — just the JSON object.'
     )
     goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
-    goal = goal_map.get(getattr(profile, 'fitness_goal', '') or '', 'general fitness')
-    level = getattr(profile, 'experience_level', 'beginner') or 'beginner'
+    goal = goal_map.get(fitness_goal or getattr(profile, 'fitness_goal', '') or '', 'general fitness')
+    level = experience_level or getattr(profile, 'experience_level', 'beginner') or 'beginner'
+    equip = equipment or 'full gym'
 
     user = (
         f'Generate a {duration_weeks}-week workout plan for a {level} with the goal of {goal}. '
         f'Train {days_per_week} days per week. '
-        'Return JSON matching exactly this schema:\n'
+        f'Available equipment: {equip}. '
+        + (f'Additional notes: {notes}. ' if notes else '')
+        + 'Return JSON matching exactly this schema:\n'
         '{\n'
         '  "title": "string",\n'
         '  "description": "string",\n'
@@ -390,13 +419,21 @@ def workout_plan_generate(request):
     duration_weeks = int(request.data.get('duration_weeks', 8))
     days_per_week = max(1, min(days_per_week, 7))
     duration_weeks = max(1, min(duration_weeks, 16))
+    fitness_goal = request.data.get('fitness_goal', '')
+    experience_level = request.data.get('experience_level', '')
+    equipment = request.data.get('equipment', '')
+    notes = request.data.get('notes', '')
 
     try:
         profile = request.user.profile
     except Exception:
         profile = None
 
-    system, user_prompt = _workout_generate_prompt(profile, days_per_week, duration_weeks)
+    system, user_prompt = _workout_generate_prompt(
+        profile, days_per_week, duration_weeks,
+        fitness_goal=fitness_goal, experience_level=experience_level,
+        equipment=equipment, notes=notes,
+    )
 
     try:
         plan_data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)

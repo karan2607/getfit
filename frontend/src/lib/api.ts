@@ -127,7 +127,14 @@ export const api = {
   },
 
   workouts: {
-    generatePlan: (data: { days_per_week: number; duration_weeks: number }) =>
+    generatePlan: (data: {
+      days_per_week: number
+      duration_weeks: number
+      fitness_goal?: string
+      experience_level?: string
+      equipment?: string
+      notes?: string
+    }) =>
       request<WorkoutPlanPreview>('/api/workouts/plans/generate/', {
         method: 'POST',
         body: JSON.stringify(data),

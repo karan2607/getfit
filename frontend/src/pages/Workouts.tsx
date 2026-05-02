@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type SetLog } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../hooks/useAuth'
 import { SkeletonCard, SkeletonText } from '../components/Skeleton'
 
 // ── Plan List ──────────────────────────────────────────────────────────────
@@ -118,7 +119,24 @@ function PlanList() {
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
 
+const GOAL_OPTIONS = [
+  { value: 'lose_fat', label: 'Lose Fat', icon: '🔥' },
+  { value: 'build_muscle', label: 'Build Muscle', icon: '💪' },
+  { value: 'maintain', label: 'Maintain', icon: '⚖️' },
+]
+const LEVEL_OPTIONS = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+]
+const EQUIPMENT_OPTIONS = [
+  { value: 'bodyweight', label: 'Bodyweight only' },
+  { value: 'home gym', label: 'Home gym' },
+  { value: 'full gym', label: 'Full gym' },
+]
+
 function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p: WorkoutPlan) => void }) {
+  const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [step, setStep] = useState<'form' | 'preview'>('form')
@@ -127,11 +145,22 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   const [preview, setPreview] = useState<WorkoutPlanPreview | null>(null)
   const [daysPerWeek, setDaysPerWeek] = useState(4)
   const [durationWeeks, setDurationWeeks] = useState(8)
+  const [fitnessGoal, setFitnessGoal] = useState<string>(user?.profile?.fitness_goal ?? 'build_muscle')
+  const [experienceLevel, setExperienceLevel] = useState<string>(user?.profile?.experience_level ?? 'intermediate')
+  const [equipment, setEquipment] = useState('full gym')
+  const [notes, setNotes] = useState('')
 
   async function handleGenerate() {
     setGenerating(true)
     try {
-      const data = await api.workouts.generatePlan({ days_per_week: daysPerWeek, duration_weeks: durationWeeks })
+      const data = await api.workouts.generatePlan({
+        days_per_week: daysPerWeek,
+        duration_weeks: durationWeeks,
+        fitness_goal: fitnessGoal,
+        experience_level: experienceLevel,
+        equipment,
+        notes,
+      })
       setPreview(data)
       setStep('preview')
     } catch (err) {
@@ -167,16 +196,35 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Generate workout plan</h1>
           <p className="text-sm text-gray-500 mb-6">AI will create a plan based on your profile and preferences below.</p>
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Goal</label>
+              <div className="flex gap-2">
+                {GOAL_OPTIONS.map((g) => (
+                  <button key={g.value} onClick={() => setFitnessGoal(g.value)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors flex flex-col items-center gap-1 ${fitnessGoal === g.value ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    <span>{g.icon}</span><span>{g.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Experience level</label>
+              <div className="flex gap-2">
+                {LEVEL_OPTIONS.map((l) => (
+                  <button key={l.value} onClick={() => setExperienceLevel(l.value)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${experienceLevel === l.value ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Days per week</label>
               <div className="flex gap-2">
                 {[2, 3, 4, 5, 6].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setDaysPerWeek(d)}
-                    className={`w-10 h-10 rounded-xl text-sm font-semibold transition-colors ${daysPerWeek === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  >
+                  <button key={d} onClick={() => setDaysPerWeek(d)}
+                    className={`w-10 h-10 rounded-xl text-sm font-semibold transition-colors ${daysPerWeek === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {d}
                   </button>
                 ))}
@@ -186,15 +234,35 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <label className="block text-sm font-medium text-gray-700 mb-3">Duration</label>
               <div className="flex gap-2">
                 {[4, 6, 8, 12].map((w) => (
-                  <button
-                    key={w}
-                    onClick={() => setDurationWeeks(w)}
-                    className={`px-3 h-10 rounded-xl text-sm font-semibold transition-colors ${durationWeeks === w ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  >
+                  <button key={w} onClick={() => setDurationWeeks(w)}
+                    className={`px-3 h-10 rounded-xl text-sm font-semibold transition-colors ${durationWeeks === w ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {w}w
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Equipment</label>
+              <div className="flex gap-2">
+                {EQUIPMENT_OPTIONS.map((e) => (
+                  <button key={e.value} onClick={() => setEquipment(e.value)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${equipment === e.value ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes <span className="text-gray-400 font-normal">(injuries, preferences, specific goals)</span>
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. bad lower back, want to focus on upper body, no squats..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
             </div>
             <button
               onClick={handleGenerate}
