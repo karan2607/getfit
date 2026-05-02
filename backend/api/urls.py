@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from . import views
 
 urlpatterns = [
@@ -16,7 +17,7 @@ urlpatterns = [
     # Chat
     path('chat/sessions/', views.chat_sessions, name='chat-sessions'),
     path('chat/sessions/<uuid:session_id>/', views.chat_session_detail, name='chat-session-detail'),
-    path('chat/sessions/<uuid:session_id>/messages/', views.chat_message_stream, name='chat-message-stream'),
+    path('chat/sessions/<uuid:session_id>/messages/', csrf_exempt(views.chat_message_stream), name='chat-message-stream'),
     # Workout Planner
     path('workouts/plans/generate/', views.workout_plan_generate, name='workout-plan-generate'),
     path('workouts/plans/', views.workout_plans, name='workout-plans'),

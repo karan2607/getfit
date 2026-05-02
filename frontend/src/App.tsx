@@ -97,8 +97,7 @@ function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      {/* ml-16 = collapsed sidebar (4rem), sidebar handles its own expand/collapse */}
-      <main className="flex-1 min-w-0 pl-16 transition-all duration-200" id="main-content">
+      <main className="flex-1 min-w-0" id="main-content">
         {children}
       </main>
     </div>
