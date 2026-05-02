@@ -39,17 +39,17 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {/* Stats */}
           <div className="flex gap-2 mb-5">
-            <div className="flex-1 bg-rose-50 rounded-xl px-3 py-2.5 text-center">
-              <p className="text-base font-bold text-rose-700">{exercise.sets}</p>
+            <div className="flex-1 bg-brand-50 rounded-xl px-3 py-2.5 text-center">
+              <p className="text-base font-bold text-brand-500">{exercise.sets}</p>
               <p className="text-xs text-gray-500 mt-0.5">Sets</p>
             </div>
-            <div className="flex-1 bg-rose-50 rounded-xl px-3 py-2.5 text-center">
-              <p className="text-base font-bold text-rose-700">{exercise.reps}</p>
+            <div className="flex-1 bg-brand-50 rounded-xl px-3 py-2.5 text-center">
+              <p className="text-base font-bold text-brand-500">{exercise.reps}</p>
               <p className="text-xs text-gray-500 mt-0.5">Reps</p>
             </div>
             {exercise.rest_seconds != null && (
-              <div className="flex-1 bg-rose-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-base font-bold text-rose-700">{exercise.rest_seconds}s</p>
+              <div className="flex-1 bg-brand-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-base font-bold text-brand-500">{exercise.rest_seconds}s</p>
                 <p className="text-xs text-gray-500 mt-0.5">Rest</p>
               </div>
             )}

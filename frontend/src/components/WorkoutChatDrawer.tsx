@@ -43,12 +43,12 @@ export default function WorkoutChatDrawer({ isOpen, onClose }: WorkoutChatDrawer
       <div className="fixed inset-0 z-30 bg-black/30 animate-fade-in" onClick={onClose} />
       <div className="fixed right-0 top-0 h-full w-[400px] max-w-[calc(100vw-2rem)] z-40 bg-white shadow-2xl flex flex-col animate-slide-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-rose-700">
+        <div className="flex items-center justify-between px-5 py-4 bg-brand-500">
           <div>
             <p className="text-base font-bold text-white">AI Trainer</p>
-            <p className="text-xs text-rose-200">Ask anything about your workout</p>
+            <p className="text-xs text-white/75">Ask anything about your workout</p>
           </div>
-          <button onClick={onClose} className="text-rose-200 hover:text-white text-xl leading-none transition-colors">
+          <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">
             ✕
           </button>
         </div>
@@ -57,7 +57,7 @@ export default function WorkoutChatDrawer({ isOpen, onClose }: WorkoutChatDrawer
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {busy ? (
             <div className="flex items-center justify-center h-full">
-              <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : !session || session.messages.length === 0 && !streamingContent ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 py-8">

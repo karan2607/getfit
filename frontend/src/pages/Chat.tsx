@@ -185,7 +185,7 @@ export default function Chat() {
         action={
           <button
             onClick={handleNew}
-            className="bg-white text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-50 transition-colors"
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
           >
             + New chat
           </button>

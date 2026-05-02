@@ -92,7 +92,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="flex gap-2">
                 {GOAL_OPTIONS.map((g) => (
                   <button key={g.value} onClick={() => setFitnessGoal(g.value)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors flex flex-col items-center gap-1 ${fitnessGoal === g.value ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors flex flex-col items-center gap-1 ${fitnessGoal === g.value ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     <span>{g.icon}</span><span>{g.label}</span>
                   </button>
                 ))}
@@ -103,7 +103,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="flex gap-2">
                 {LEVEL_OPTIONS.map((l) => (
                   <button key={l.value} onClick={() => setExperienceLevel(l.value)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${experienceLevel === l.value ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${experienceLevel === l.value ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {l.label}
                   </button>
                 ))}
@@ -114,7 +114,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="flex gap-2">
                 {[2, 3, 4, 5, 6].map((d) => (
                   <button key={d} onClick={() => setDaysPerWeek(d)}
-                    className={`w-10 h-10 rounded-xl text-sm font-semibold transition-colors ${daysPerWeek === d ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`w-10 h-10 rounded-xl text-sm font-semibold transition-colors ${daysPerWeek === d ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {d}
                   </button>
                 ))}
@@ -125,7 +125,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="flex gap-2">
                 {[4, 6, 8, 12].map((w) => (
                   <button key={w} onClick={() => setDurationWeeks(w)}
-                    className={`px-3 h-10 rounded-xl text-sm font-semibold transition-colors ${durationWeeks === w ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`px-3 h-10 rounded-xl text-sm font-semibold transition-colors ${durationWeeks === w ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {w}w
                   </button>
                 ))}
@@ -136,7 +136,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="flex gap-2">
                 {EQUIPMENT_OPTIONS.map((e) => (
                   <button key={e.value} onClick={() => setEquipment(e.value)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${equipment === e.value ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${equipment === e.value ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     {e.label}
                   </button>
                 ))}
@@ -151,13 +151,13 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 placeholder="e.g. bad lower back, want to focus on upper body, no squats..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="w-full bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
             >
               {generating ? (
                 <span className="flex items-center justify-center gap-2">
@@ -179,7 +179,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="text-sm text-rose-700 hover:text-rose-800 font-medium px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-50"
+                className="text-sm text-brand-500 hover:text-brand-600 font-medium px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors disabled:opacity-50"
               >
                 {generating ? 'Regenerating...' : '↺ Regenerate'}
               </button>
@@ -189,7 +189,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               {preview.days.map((day) => (
                 <div key={day.day_number} className="bg-white rounded-2xl border border-gray-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center">
+                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center">
                       {day.day_number}
                     </span>
                     <div>
@@ -215,7 +215,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
             >
               {saving ? 'Saving...' : 'Save this plan'}
             </button>
@@ -232,11 +232,11 @@ function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: 
   return (
     <div
       onClick={() => onClick(exercise)}
-      className="flex-shrink-0 w-40 h-[120px] bg-white rounded-xl shadow-sm border-l-4 border-rose-500 cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-md flex flex-col justify-between p-3 overflow-hidden"
+      className="flex-shrink-0 w-40 h-[120px] bg-white rounded-xl shadow-sm border-l-4 border-brand-500 cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-md flex flex-col justify-between p-3 overflow-hidden"
     >
       <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
       <div>
-        <span className="text-xs font-semibold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">
+        <span className="text-xs font-semibold bg-brand-100 text-brand-500 px-1.5 py-0.5 rounded-full">
           {exercise.sets} × {exercise.reps}
         </span>
         {exercise.rest_seconds != null && (
@@ -311,7 +311,7 @@ function PlanDetail({ planId }: { planId: string }) {
         subtitle={`${durationWeeks} ${durationWeeks === 1 ? 'week' : 'weeks'} · ${trainingDays} training day${trainingDays !== 1 ? 's' : ''}`}
         action={
           !plan.is_active ? (
-            <button onClick={handleActivate} className="bg-white text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-50 transition-colors">
+            <button onClick={handleActivate} className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors">
               Set active
             </button>
           ) : (
@@ -339,7 +339,7 @@ function PlanDetail({ planId }: { planId: string }) {
               <div key={day.id}>
                 {/* Day header */}
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
                     {day.day_number}
                   </span>
                   <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
@@ -350,7 +350,7 @@ function PlanDetail({ planId }: { planId: string }) {
                     <button
                       onClick={() => handleStartSession(day.id)}
                       disabled={startingDay === day.id}
-                      className="ml-auto text-sm bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      className="ml-auto text-sm bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                     >
                       {startingDay === day.id ? '...' : 'Start'}
                     </button>
@@ -415,7 +415,7 @@ function PlanDetail({ planId }: { planId: string }) {
       {/* Chat FAB */}
       <button
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-6 right-6 z-30 bg-rose-700 hover:bg-rose-800 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
+        className="fixed bottom-6 right-6 z-30 bg-brand-500 hover:bg-brand-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
         title="Chat with AI Trainer"
       >
         💬
@@ -513,7 +513,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           <button
             onClick={handleComplete}
             disabled={completing}
-            className="bg-white text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-50 transition-colors disabled:opacity-50"
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors disabled:opacity-50"
           >
             {completing ? 'Finishing...' : 'Finish workout'}
           </button>
@@ -532,7 +532,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           </div>
           <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-rose-500 rounded-full transition-all duration-300"
+              className="h-full bg-brand-500 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -556,13 +556,13 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                       type="number" min={0} step={0.5} placeholder="—"
                       defaultValue={log.weight_kg ?? ''}
                       onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-rose-400 w-full"
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
                     />
                     <input
                       type="number" min={0} placeholder="—"
                       defaultValue={log.reps_completed ?? ''}
                       onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-rose-400 w-full"
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
                     />
                     <button
                       onClick={() => handleToggleSet(log)}
@@ -684,11 +684,11 @@ function ProgressTab() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search.trim() && loadExercise(search.trim())}
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <button
           onClick={() => search.trim() && loadExercise(search.trim())}
-          className="bg-rose-700 hover:bg-rose-800 text-white text-sm font-medium px-4 rounded-xl transition-colors"
+          className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 rounded-xl transition-colors"
         >
           View
         </button>
@@ -700,7 +700,7 @@ function ProgressTab() {
             <button
               key={name}
               onClick={() => loadExercise(name)}
-              className="text-xs bg-gray-100 hover:bg-rose-100 hover:text-rose-700 text-gray-600 px-3 py-1.5 rounded-full transition-colors"
+              className="text-xs bg-gray-100 hover:bg-brand-100 hover:text-brand-500 text-gray-600 px-3 py-1.5 rounded-full transition-colors"
             >
               {name}
             </button>
@@ -801,7 +801,7 @@ function PlanList({
         <div className="text-center py-16">
           <div className="text-4xl mb-3">🏋️</div>
           <p className="text-gray-500 text-sm mb-4">No plans yet. Generate your first one!</p>
-          <button onClick={onGenerate} className="bg-rose-700 hover:bg-rose-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
+          <button onClick={onGenerate} className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
             Generate plan
           </button>
         </div>
@@ -810,14 +810,14 @@ function PlanList({
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`bg-white rounded-2xl border-2 p-5 cursor-pointer transition-colors ${plan.is_active ? 'border-rose-400' : 'border-gray-100 hover:border-gray-200'}`}
+              className={`bg-white rounded-2xl border-2 p-5 cursor-pointer transition-colors ${plan.is_active ? 'border-brand-400' : 'border-gray-100 hover:border-gray-200'}`}
               onClick={() => navigate(`/workouts/${plan.id}`)}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     {plan.is_active && (
-                      <span className="text-xs font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">Active</span>
+                      <span className="text-xs font-semibold text-brand-500 bg-brand-50 px-2 py-0.5 rounded-full">Active</span>
                     )}
                     <h3 className="font-semibold text-gray-900 truncate">{plan.title}</h3>
                   </div>
@@ -830,7 +830,7 @@ function PlanList({
                   {!plan.is_active && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleActivate(plan.id) }}
-                      className="text-xs text-rose-700 hover:text-rose-800 font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors"
+                      className="text-xs text-brand-500 hover:text-brand-600 font-medium px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
                     >
                       Set active
                     </button>
@@ -891,7 +891,7 @@ function WorkoutsHome() {
         action={
           <button
             onClick={() => setShowGenerate(true)}
-            className="bg-white text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-50 transition-colors"
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
           >
             + Generate
           </button>
@@ -904,7 +904,7 @@ function WorkoutsHome() {
               key={t}
               onClick={() => setTab(t)}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors capitalize ${
-                tab === t ? 'border-rose-600 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                tab === t ? 'border-brand-500 text-brand-500' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               {t}
