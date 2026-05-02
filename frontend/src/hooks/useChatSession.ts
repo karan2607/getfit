@@ -42,6 +42,7 @@ export function useChatSession(sessionId: string | undefined) {
     setError(null)
 
     try {
+      let accumulated = ''
       for await (const event of streamChatMessage(sessionId, content, token)) {
         if (event.error) {
           setError(event.error)
@@ -49,13 +50,14 @@ export function useChatSession(sessionId: string | undefined) {
           break
         }
         if (event.chunk) {
-          setStreamingContent((prev) => prev + event.chunk)
+          accumulated += event.chunk
+          setStreamingContent(accumulated)
         }
         if (event.done && event.message_id) {
           const assistantMsg: ChatMessage = {
             id: event.message_id,
             role: 'assistant',
-            content: streamingContent + (event.chunk ?? ''),
+            content: accumulated,
             created_at: new Date().toISOString(),
           }
           setSession((prev) =>
@@ -70,7 +72,7 @@ export function useChatSession(sessionId: string | undefined) {
     } finally {
       setIsSending(false)
     }
-  }, [sessionId, isSending, streamingContent])
+  }, [sessionId, isSending])
 
   return { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage, setSession }
 }
