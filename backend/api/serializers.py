@@ -5,7 +5,7 @@ from rest_framework import serializers
 from .models import (
     UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
-    DietPlan, Meal, FoodScanResult, BodyScanResult,
+    MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
 )
 
 User = get_user_model()
@@ -41,6 +41,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'height_cm', 'weight_kg', 'age', 'gender',
             'fitness_goal', 'experience_level', 'dietary_preference', 'activity_level',
+            'personal_notes',
         ]
 
 
@@ -165,6 +166,17 @@ class WorkoutSessionListSerializer(serializers.ModelSerializer):
         model = WorkoutSession
         fields = ['id', 'day_name', 'started_at', 'completed_at', 'is_completed']
         read_only_fields = ['id', 'started_at']
+
+
+# ---------------------------------------------------------------------------
+# Meal Log
+# ---------------------------------------------------------------------------
+
+class MealLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MealLog
+        fields = ['id', 'date', 'meal_type', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 # ---------------------------------------------------------------------------

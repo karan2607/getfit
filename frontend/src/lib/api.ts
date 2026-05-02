@@ -9,6 +9,20 @@ export interface UserProfile {
   experience_level: 'beginner' | 'intermediate' | 'advanced' | null
   dietary_preference: 'non_veg' | 'vegetarian' | 'vegan' | null
   activity_level: 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active' | null
+  personal_notes: string
+}
+
+export interface MealLog {
+  id: string
+  date: string
+  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  food_name: string
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  notes: string
+  created_at: string
 }
 
 export interface User {
@@ -226,6 +240,15 @@ export const api = {
 
     foodScanHistory: () =>
       request<FoodScanResult[]>('/api/diet/food-scan/history/'),
+
+    getMealLogs: (date?: string) =>
+      request<MealLog[]>(`/api/diet/meal-logs/${date ? `?date=${date}` : ''}`),
+
+    addMealLog: (data: Omit<MealLog, 'id' | 'created_at'>) =>
+      request<MealLog>('/api/diet/meal-logs/', { method: 'POST', body: JSON.stringify(data) }),
+
+    deleteMealLog: (id: string) =>
+      request<void>(`/api/diet/meal-logs/${id}/`, { method: 'DELETE' }),
   },
 
   body: {

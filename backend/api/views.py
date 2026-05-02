@@ -10,7 +10,7 @@ from rest_framework import status
 from .models import (
     PasswordResetToken, UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
-    DietPlan, Meal, FoodScanResult, BodyScanResult,
+    MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
 )
 from .serializers import (
     RegisterSerializer,
@@ -28,6 +28,7 @@ from .serializers import (
     WorkoutSessionSerializer,
     WorkoutSessionListSerializer,
     SetLogSerializer,
+    MealLogSerializer,
     DietPlanSerializer,
     DietPlanDetailSerializer,
     FoodScanResultSerializer,
@@ -225,6 +226,34 @@ def _build_system_prompt(user) -> str:
         '}'
     )
 
+    # Personal notes (injuries, preferences)
+    notes_text = ''
+    try:
+        if user.profile.personal_notes:
+            notes_text = f'\nPersonal notes / injuries / preferences:\n{user.profile.personal_notes}'
+    except Exception:
+        pass
+
+    # Today's meal log summary
+    meal_text = ''
+    try:
+        from django.utils import timezone as _tz
+        today = _tz.now().date()
+        todays_logs = MealLog.objects.filter(user=user, date=today)
+        if todays_logs.exists():
+            total_cal = sum(m.calories for m in todays_logs)
+            total_p = sum(m.protein_g for m in todays_logs)
+            total_c = sum(m.carbs_g for m in todays_logs)
+            total_f = sum(m.fat_g for m in todays_logs)
+            meal_names = ', '.join(m.food_name for m in todays_logs[:5])
+            meal_text = (
+                f"\nToday's nutrition log: {total_cal} kcal eaten "
+                f"({total_p:.0f}g protein, {total_c:.0f}g carbs, {total_f:.0f}g fat). "
+                f"Foods: {meal_names}."
+            )
+    except Exception:
+        pass
+
     return (
         'You are a certified AI personal trainer and fitness coach. '
         'Respond conversationally, helpfully, and concisely. '
@@ -236,6 +265,8 @@ def _build_system_prompt(user) -> str:
         f'```workout-plan\n{plan_schema}\n```\n'
         'Always include all days (including rest days). Do not truncate the JSON.\n\n'
         f'User profile:\n{profile_text}'
+        f'{notes_text}'
+        f'{meal_text}'
     )
 
 
@@ -919,3 +950,35 @@ def body_scan(request):
 def body_scan_history(request):
     scans = BodyScanResult.objects.filter(user=request.user)[:20]
     return Response(BodyScanResultSerializer(scans, many=True).data)
+
+
+# ---------------------------------------------------------------------------
+# Meal Log
+# ---------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def meal_logs(request):
+    if request.method == 'GET':
+        date_str = request.query_params.get('date')
+        qs = MealLog.objects.filter(user=request.user)
+        if date_str:
+            qs = qs.filter(date=date_str)
+        else:
+            from django.utils import timezone as _tz
+            qs = qs.filter(date=_tz.now().date())
+        return Response(MealLogSerializer(qs, many=True).data)
+
+    ser = MealLogSerializer(data=request.data)
+    if not ser.is_valid():
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    ser.save(user=request.user)
+    return Response(ser.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def meal_log_detail(request, log_id):
+    log = get_object_or_404(MealLog, pk=log_id, user=request.user)
+    log.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

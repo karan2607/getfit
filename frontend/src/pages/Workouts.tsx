@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type SetLog } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type SetLog, type ExerciseHistoryPoint } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
@@ -610,6 +610,185 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   )
 }
 
+// ── Progress Chart ─────────────────────────────────────────────────────────
+
+function LineChart({ points }: { points: { date: string; weight: number }[] }) {
+  if (points.length < 2) return (
+    <p className="text-sm text-gray-400 text-center py-8">Log at least 2 sessions to see a trend.</p>
+  )
+
+  const W = 480, H = 180, PAD = { top: 16, right: 16, bottom: 32, left: 40 }
+  const weights = points.map((p) => p.weight)
+  const minW = Math.min(...weights)
+  const maxW = Math.max(...weights)
+  const range = maxW - minW || 1
+
+  const x = (i: number) => PAD.left + (i / (points.length - 1)) * (W - PAD.left - PAD.right)
+  const y = (w: number) => PAD.top + (1 - (w - minW) / range) * (H - PAD.top - PAD.bottom)
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(p.weight)}`).join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      {/* Grid lines */}
+      {[0, 0.5, 1].map((t) => {
+        const yPos = PAD.top + t * (H - PAD.top - PAD.bottom)
+        const val = maxW - t * range
+        return (
+          <g key={t}>
+            <line x1={PAD.left} y1={yPos} x2={W - PAD.right} y2={yPos} stroke="#f3f4f6" strokeWidth="1" />
+            <text x={PAD.left - 4} y={yPos + 4} textAnchor="end" fontSize="10" fill="#9ca3af">{val.toFixed(1)}</text>
+          </g>
+        )
+      })}
+      {/* Line */}
+      <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" />
+      {/* Dots + labels */}
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle cx={x(i)} cy={y(p.weight)} r="4" fill="#10b981" />
+          <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#9ca3af">
+            {new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </text>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+function ProgressTab() {
+  const [exerciseName, setExerciseName] = useState('')
+  const [search, setSearch] = useState('')
+  const [history, setHistory] = useState<ExerciseHistoryPoint[]>([])
+  const [loading, setLoading] = useState(false)
+  const [recentExercises, setRecentExercises] = useState<string[]>([])
+
+  useEffect(() => {
+    api.workouts.listSessions()
+      .then(async (sessions) => {
+        const completed = sessions.filter((s) => s.is_completed).slice(0, 5)
+        const names = new Set<string>()
+        for (const s of completed) {
+          const detail = await api.workouts.getSession(s.id).catch(() => null)
+          detail?.set_logs.forEach((l) => l.exercise_name && names.add(l.exercise_name))
+        }
+        setRecentExercises(Array.from(names).slice(0, 10))
+      })
+      .catch(() => {})
+  }, [])
+
+  async function loadExercise(name: string) {
+    setExerciseName(name)
+    setLoading(true)
+    try {
+      const data = await api.workouts.getExerciseHistory(name)
+      setHistory(data)
+    } catch {
+      setHistory([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Group history: max weight per session date
+  const chartPoints = (() => {
+    const byDate = new Map<string, number>()
+    for (const p of history) {
+      const date = p.workout_session__started_at.split('T')[0]
+      const existing = byDate.get(date) ?? 0
+      if (p.weight_kg > existing) byDate.set(date, p.weight_kg)
+    }
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, weight]) => ({ date, weight }))
+  })()
+
+  const filtered = recentExercises.filter((n) => n.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Progress</h1>
+      <p className="text-sm text-gray-500 mb-6">Track strength gains per exercise over time</p>
+
+      <div className="flex gap-3 mb-4">
+        <input
+          placeholder="Search exercise..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && search.trim() && loadExercise(search.trim())}
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <button
+          onClick={() => search.trim() && loadExercise(search.trim())}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 rounded-xl transition-colors"
+        >
+          View
+        </button>
+      </div>
+
+      {filtered.length > 0 && !exerciseName && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {filtered.map((name) => (
+            <button
+              key={name}
+              onClick={() => loadExercise(name)}
+              className="text-xs bg-gray-100 hover:bg-emerald-100 hover:text-emerald-700 text-gray-600 px-3 py-1.5 rounded-full transition-colors"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {exerciseName && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-base font-semibold text-gray-900">{exerciseName}</h2>
+            <button onClick={() => { setExerciseName(''); setHistory([]) }} className="text-xs text-gray-400 hover:text-gray-600">✕ clear</button>
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-gray-400">Loading...</div>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-gray-400">No weight data logged for this exercise yet.</p>
+          ) : (
+            <>
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Max weight per session (kg)</p>
+                <LineChart points={chartPoints} />
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400">Date</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Set</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Weight</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Reps</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.slice(0, 20).map((p, i) => (
+                      <tr key={i} className="border-b border-gray-50 last:border-0">
+                        <td className="px-4 py-2.5 text-gray-600">
+                          {new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-gray-500">{p.set_number}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{p.weight_kg}kg</td>
+                        <td className="px-4 py-2.5 text-right text-gray-500">{p.reps_completed ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export default function Workouts() {
@@ -617,5 +796,30 @@ export default function Workouts() {
 
   if (sessionId) return <ActiveSession sessionId={sessionId} />
   if (planId) return <PlanDetail planId={planId} />
-  return <PlanList />
+  return <WorkoutsHome />
+}
+
+function WorkoutsHome() {
+  const [tab, setTab] = useState<'plans' | 'progress'>('plans')
+
+  return (
+    <div>
+      <div className="border-b border-gray-100 px-6 pt-6 pb-0">
+        <div className="flex gap-6">
+          {(['plans', 'progress'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors capitalize ${
+                tab === t ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === 'plans' ? <PlanList /> : <ProgressTab />}
+    </div>
+  )
 }

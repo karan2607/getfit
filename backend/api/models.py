@@ -68,6 +68,8 @@ class UserProfile(models.Model):
     def __str__(self):
         return f'Profile of {self.user.email}'
 
+    personal_notes = models.TextField(blank=True)  # injuries, preferences, AI-remembered context
+
     @property
     def is_complete(self):
         return all([self.fitness_goal, self.experience_level, self.dietary_preference])
@@ -220,6 +222,28 @@ class SetLog(models.Model):
 # ---------------------------------------------------------------------------
 # Diet Planner
 # ---------------------------------------------------------------------------
+
+class MealLog(models.Model):
+    MEAL_CHOICES = [('breakfast', 'Breakfast'), ('lunch', 'Lunch'), ('dinner', 'Dinner'), ('snack', 'Snack')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='meal_logs')
+    date = models.DateField()
+    meal_type = models.CharField(max_length=15, choices=MEAL_CHOICES)
+    food_name = models.CharField(max_length=200)
+    calories = models.PositiveIntegerField(default=0)
+    protein_g = models.FloatField(default=0)
+    carbs_g = models.FloatField(default=0)
+    fat_g = models.FloatField(default=0)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date', 'meal_type', 'created_at']
+
+    def __str__(self):
+        return f'{self.food_name} on {self.date} ({self.user.email})'
+
 
 class DietPlan(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

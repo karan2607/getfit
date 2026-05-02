@@ -37,4 +37,7 @@ urlpatterns = [
     # Body Scanner
     path('body/scan/', views.body_scan, name='body-scan'),
     path('body/scan/history/', views.body_scan_history, name='body-scan-history'),
+    # Meal Log
+    path('diet/meal-logs/', views.meal_logs, name='meal-logs'),
+    path('diet/meal-logs/<uuid:log_id>/', views.meal_log_detail, name='meal-log-detail'),
 ]
