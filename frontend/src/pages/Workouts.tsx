@@ -320,7 +320,7 @@ function PlanDetail({ planId }: { planId: string }) {
         }
       />
 
-      <div className="p-6 max-w-3xl">
+      <div className="p-6">
         <button onClick={() => navigate('/workouts')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
           ← All plans
         </button>
