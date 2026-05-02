@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { api } from '../lib/api'
+import { api, type WorkoutPlanPreview } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
 import ChatBubble from './chat/ChatBubble'
 import ChatInput from './chat/ChatInput'
@@ -10,9 +10,13 @@ interface WorkoutChatDrawerProps {
   onClose: () => void
   planId?: string
   onPlanUpdated?: () => void
+  planPreview?: WorkoutPlanPreview
+  onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
 }
 
-export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdated }: WorkoutChatDrawerProps) {
+export default function WorkoutChatDrawer({
+  isOpen, onClose, planId, onPlanUpdated, planPreview, onPreviewUpdate,
+}: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -20,7 +24,12 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdat
   const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } =
     useChatSession(sessionId)
 
-  const handleSend = (content: string) => sendMessage(content, planId ? { plan_id: planId } : undefined)
+  const handleSend = (content: string) => {
+    const extra: Record<string, unknown> = {}
+    if (planId) extra.plan_id = planId
+    else if (planPreview) extra.plan_context = JSON.stringify(planPreview)
+    sendMessage(content, Object.keys(extra).length ? extra : undefined)
+  }
 
   useEffect(() => {
     if (!isOpen || sessionId) return
@@ -41,6 +50,7 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdat
   if (!isOpen) return null
 
   const busy = initializing || isLoading
+  const isPreviewMode = !planId && !!planPreview
 
   return (
     <>
@@ -50,7 +60,9 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdat
         <div className="flex items-center justify-between px-5 py-4 bg-brand-500">
           <div>
             <p className="text-base font-bold text-white">AI Trainer</p>
-            <p className="text-xs text-white/75">Ask anything about your workout</p>
+            <p className="text-xs text-white/75">
+              {isPreviewMode ? 'Describe changes to refine this plan' : 'Ask anything about your workout'}
+            </p>
           </div>
           <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">
             ✕
@@ -65,20 +77,38 @@ export default function WorkoutChatDrawer({ isOpen, onClose, planId, onPlanUpdat
             </div>
           ) : !session || session.messages.length === 0 && !streamingContent ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 py-8">
-              <div className="text-4xl mb-3">🏋️</div>
-              <p className="text-sm font-semibold text-gray-800 mb-1">Your AI Trainer</p>
+              <div className="text-4xl mb-3">{isPreviewMode ? '✏️' : '🏋️'}</div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">
+                {isPreviewMode ? 'Refine your plan' : 'Your AI Trainer'}
+              </p>
               <p className="text-sm text-gray-500">
-                Ask me to modify this plan, swap exercises, adjust difficulty, or create a whole new plan.
+                {isPreviewMode
+                  ? 'Tell me what to change — swap exercises, adjust volume, change focus, or anything else.'
+                  : 'Ask me to modify this plan, swap exercises, adjust difficulty, or create a whole new plan.'}
               </p>
             </div>
           ) : (
             <>
               {session.messages.map((msg) => (
-                <ChatBubble key={msg.id} role={msg.role} content={msg.content} planId={msg.role === 'assistant' ? planId : undefined} onSaved={onPlanUpdated} />
+                <ChatBubble
+                  key={msg.id}
+                  role={msg.role}
+                  content={msg.content}
+                  planId={msg.role === 'assistant' ? planId : undefined}
+                  onSaved={onPlanUpdated}
+                  onPreviewUpdate={msg.role === 'assistant' ? onPreviewUpdate : undefined}
+                />
               ))}
 
               {streamingContent && (
-                <ChatBubble role="assistant" content={streamingContent} isStreaming planId={planId} onSaved={onPlanUpdated} />
+                <ChatBubble
+                  role="assistant"
+                  content={streamingContent}
+                  isStreaming
+                  planId={planId}
+                  onSaved={onPlanUpdated}
+                  onPreviewUpdate={onPreviewUpdate}
+                />
               )}
 
               {isSending && !streamingContent && <StreamingIndicator />}

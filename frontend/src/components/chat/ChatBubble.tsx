@@ -9,6 +9,7 @@ interface Props {
   isStreaming?: boolean
   planId?: string
   onSaved?: () => void
+  onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
 }
 
 const THINKING_MESSAGES = [
@@ -51,13 +52,24 @@ function ThinkingCard() {
   )
 }
 
-function InlinePlanCard({ plan, planId, onSaved }: { plan: WorkoutPlanPreview; planId?: string; onSaved?: () => void }) {
+function InlinePlanCard({
+  plan, planId, onSaved, onPreviewUpdate,
+}: {
+  plan: WorkoutPlanPreview
+  planId?: string
+  onSaved?: () => void
+  onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
+}) {
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   async function handleSave() {
+    if (onPreviewUpdate) {
+      onPreviewUpdate(plan)
+      return
+    }
     setSaving(true)
     try {
       if (planId) {
@@ -100,7 +112,7 @@ function InlinePlanCard({ plan, planId, onSaved }: { plan: WorkoutPlanPreview; p
             disabled={saving || saved}
             className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
           >
-            {saved ? '✓ Saved' : saving ? 'Saving...' : planId ? 'Update plan' : 'Save plan'}
+            {saved ? '✓ Applied' : saving ? 'Saving...' : onPreviewUpdate ? 'Use this plan' : planId ? 'Update plan' : 'Save plan'}
           </button>
         </div>
       </div>
@@ -143,7 +155,7 @@ function parseWorkoutPlan(content: string): { text: string; plan: WorkoutPlanPre
   }
 }
 
-export default function ChatBubble({ role, content, isStreaming, planId, onSaved }: Props) {
+export default function ChatBubble({ role, content, isStreaming, planId, onSaved, onPreviewUpdate }: Props) {
   const isUser = role === 'user'
 
   // While streaming, if a workout-plan block is being built, show thinking card instead of raw JSON
@@ -176,7 +188,7 @@ export default function ChatBubble({ role, content, isStreaming, planId, onSaved
           </div>
         )}
         {isGeneratingPlan && <ThinkingCard />}
-        {plan && !isStreaming && <InlinePlanCard plan={plan} planId={planId} onSaved={onSaved} />}
+        {plan && !isStreaming && <InlinePlanCard plan={plan} planId={planId} onSaved={onSaved} onPreviewUpdate={onPreviewUpdate} />}
       </div>
     </div>
   )

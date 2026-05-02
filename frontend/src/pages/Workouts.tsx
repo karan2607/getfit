@@ -36,6 +36,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<WorkoutPlanPreview | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
   const [daysPerWeek, setDaysPerWeek] = useState(4)
   const [durationWeeks, setDurationWeeks] = useState(8)
   const [fitnessGoal, setFitnessGoal] = useState<string>(user?.profile?.fitness_goal ?? 'build_muscle')
@@ -178,11 +179,10 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
                 {preview.description && <p className="text-sm text-gray-500 mt-1">{preview.description}</p>}
               </div>
               <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className="text-sm text-brand-500 hover:text-brand-600 font-medium px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors disabled:opacity-50"
+                onClick={() => setChatOpen(true)}
+                className="text-sm text-brand-500 bg-brand-50 hover:bg-brand-100 font-semibold px-3 py-1.5 rounded-lg transition-colors"
               >
-                {generating ? 'Regenerating...' : '↺ Regenerate'}
+                ✨ Regenerate with AI
               </button>
             </div>
 
@@ -220,6 +220,13 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
             >
               {saving ? 'Saving...' : 'Save this plan'}
             </button>
+
+            <WorkoutChatDrawer
+              isOpen={chatOpen}
+              onClose={() => setChatOpen(false)}
+              planPreview={preview}
+              onPreviewUpdate={(updated) => { setPreview(updated); setChatOpen(false) }}
+            />
           </>
         )}
       </div>

@@ -189,7 +189,7 @@ def profile(request):
 # Chat
 # ---------------------------------------------------------------------------
 
-def _build_system_prompt(user, plan_id=None) -> str:
+def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
     try:
         p = user.profile
         profile_lines = [
@@ -254,7 +254,7 @@ def _build_system_prompt(user, plan_id=None) -> str:
     except Exception:
         pass
 
-    # Current workout plan context (when chatting from the plan detail page)
+    # Current workout plan context (when chatting from the plan detail or preview page)
     plan_text = ''
     if plan_id:
         try:
@@ -283,7 +283,6 @@ def _build_system_prompt(user, plan_id=None) -> str:
             }, indent=2)
             plan_text = (
                 f'\n\nCURRENT WORKOUT PLAN (the user is viewing this plan and may ask you to modify it):\n'
-                f'Plan ID: {plan_obj.id}\n'
                 f'```json\n{plan_json}\n```\n'
                 'When the user asks to modify, adjust, swap exercises, or update this plan, '
                 'output the COMPLETE updated plan as a "workout-plan" code block (not just the changes). '
@@ -291,6 +290,14 @@ def _build_system_prompt(user, plan_id=None) -> str:
             )
         except Exception:
             pass
+    elif plan_context:
+        plan_text = (
+            f'\n\nCURRENT WORKOUT PLAN PREVIEW (not yet saved — the user is reviewing this generated plan):\n'
+            f'```json\n{plan_context}\n```\n'
+            'The user wants to refine this plan before saving it. '
+            'When they describe changes, output the COMPLETE updated plan as a "workout-plan" code block. '
+            'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
+        )
 
     return (
         'You are a certified AI personal trainer and fitness coach. '
@@ -374,6 +381,7 @@ def chat_message_stream(request, session_id):
         return HttpResponse(status=400)
 
     plan_id = body.get('plan_id')
+    plan_context = body.get('plan_context')  # raw plan JSON for unsaved previews
 
     try:
         session = ChatSession.objects.get(pk=session_id, user=user)
@@ -388,7 +396,7 @@ def chat_message_stream(request, session_id):
         for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
-    system_prompt = _build_system_prompt(user, plan_id=plan_id)
+    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context)
 
     def event_stream():
         full_response = ''
