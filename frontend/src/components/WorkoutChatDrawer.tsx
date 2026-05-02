@@ -8,15 +8,18 @@ import StreamingIndicator from './chat/StreamingIndicator'
 interface WorkoutChatDrawerProps {
   isOpen: boolean
   onClose: () => void
+  planId?: string
 }
 
-export default function WorkoutChatDrawer({ isOpen, onClose }: WorkoutChatDrawerProps) {
+export default function WorkoutChatDrawer({ isOpen, onClose, planId }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } =
     useChatSession(sessionId)
+
+  const handleSend = (content: string) => sendMessage(content, planId ? { plan_id: planId } : undefined)
 
   useEffect(() => {
     if (!isOpen || sessionId) return
@@ -91,7 +94,7 @@ export default function WorkoutChatDrawer({ isOpen, onClose }: WorkoutChatDrawer
 
         {/* Input */}
         <div className="px-4 pb-4 pt-2 border-t border-gray-100">
-          <ChatInput onSend={sendMessage} disabled={isSending || busy} />
+          <ChatInput onSend={handleSend} disabled={isSending || busy} />
         </div>
       </div>
     </>

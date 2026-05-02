@@ -24,7 +24,7 @@ export function useChatSession(sessionId: string | undefined) {
     }
   }, [])
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, extra?: Record<string, unknown>) => {
     if (!sessionId || isSending) return
     const token = getToken()
     if (!token) return
@@ -43,7 +43,7 @@ export function useChatSession(sessionId: string | undefined) {
 
     try {
       let accumulated = ''
-      for await (const event of streamChatMessage(sessionId, content, token)) {
+      for await (const event of streamChatMessage(sessionId, content, token, extra)) {
         if (event.error) {
           setError(event.error)
           setStreamingContent('')

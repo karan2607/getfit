@@ -422,7 +422,7 @@ function PlanDetail({ planId }: { planId: string }) {
       </button>
 
       <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
-      <WorkoutChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} />
+      <WorkoutChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} planId={plan?.id} />
     </>
   )
 }

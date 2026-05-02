@@ -189,7 +189,7 @@ def profile(request):
 # Chat
 # ---------------------------------------------------------------------------
 
-def _build_system_prompt(user) -> str:
+def _build_system_prompt(user, plan_id=None) -> str:
     try:
         p = user.profile
         profile_lines = [
@@ -254,6 +254,44 @@ def _build_system_prompt(user) -> str:
     except Exception:
         pass
 
+    # Current workout plan context (when chatting from the plan detail page)
+    plan_text = ''
+    if plan_id:
+        try:
+            import json as _json2
+            from .models import WorkoutPlan
+            plan_obj = WorkoutPlan.objects.prefetch_related('days__exercises').get(pk=plan_id, user=user)
+            days_data = []
+            for day in plan_obj.days.order_by('day_number').prefetch_related('exercises'):
+                exercises_data = [
+                    {'name': ex.name, 'sets': ex.sets, 'reps': ex.reps,
+                     'rest_seconds': ex.rest_seconds, 'notes': ex.notes or ''}
+                    for ex in day.exercises.all()
+                ]
+                days_data.append({
+                    'day_number': day.day_number,
+                    'name': day.name,
+                    'focus': day.focus or '',
+                    'is_rest_day': day.is_rest_day,
+                    'exercises': exercises_data,
+                })
+            plan_json = _json2.dumps({
+                'title': plan_obj.title,
+                'description': plan_obj.description or '',
+                'duration_weeks': plan_obj.duration_weeks,
+                'days': days_data,
+            }, indent=2)
+            plan_text = (
+                f'\n\nCURRENT WORKOUT PLAN (the user is viewing this plan and may ask you to modify it):\n'
+                f'Plan ID: {plan_obj.id}\n'
+                f'```json\n{plan_json}\n```\n'
+                'When the user asks to modify, adjust, swap exercises, or update this plan, '
+                'output the COMPLETE updated plan as a "workout-plan" code block (not just the changes). '
+                'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
+            )
+        except Exception:
+            pass
+
     return (
         'You are a certified AI personal trainer and fitness coach. '
         'Respond conversationally, helpfully, and concisely. '
@@ -267,6 +305,7 @@ def _build_system_prompt(user) -> str:
         f'User profile:\n{profile_text}'
         f'{notes_text}'
         f'{meal_text}'
+        f'{plan_text}'
     )
 
 
@@ -334,6 +373,8 @@ def chat_message_stream(request, session_id):
         from django.http import HttpResponse
         return HttpResponse(status=400)
 
+    plan_id = body.get('plan_id')
+
     try:
         session = ChatSession.objects.get(pk=session_id, user=user)
     except ChatSession.DoesNotExist:
@@ -347,7 +388,7 @@ def chat_message_stream(request, session_id):
         for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
-    system_prompt = _build_system_prompt(user)
+    system_prompt = _build_system_prompt(user, plan_id=plan_id)
 
     def event_stream():
         full_response = ''

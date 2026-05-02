@@ -4,6 +4,7 @@ export async function* streamChatMessage(
   sessionId: string,
   content: string,
   token: string,
+  extra?: Record<string, unknown>,
 ): AsyncGenerator<{ chunk?: string; done?: boolean; message_id?: string; error?: string }> {
   const res = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages/`, {
     method: 'POST',
@@ -11,7 +12,7 @@ export async function* streamChatMessage(
       Authorization: `Token ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...extra }),
   })
 
   if (!res.ok || !res.body) {
