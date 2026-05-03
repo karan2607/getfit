@@ -49,7 +49,7 @@ export default function Sidebar() {
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-gray-200 text-gray-800 border-r border-gray-200">
+    <div className="flex flex-col h-full bg-gray-300 text-gray-800 border-r border-gray-200">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-6 overflow-hidden">
         <span className="text-2xl flex-shrink-0">💪</span>
@@ -67,7 +67,7 @@ export default function Sidebar() {
             onClick={() => isMobile && setIsOpen(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors overflow-hidden
-               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
+               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-500 hover:bg-gray-300 hover:text-gray-900'}
                ${!isOpen ? 'justify-center px-0' : ''}
               `
             }
