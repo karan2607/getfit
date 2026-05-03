@@ -347,7 +347,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
         f'Always express weights in {preferred_unit}. '
         'When suggesting weights for exercises, put the recommendation in the exercise "notes" field only '
         f'(e.g. "Start at 135 lb. Add 5 lb when all sets are clean."). '
-        'The "reps" field must stay a short rep range only, like "8-12" or "AMRAP" — never include weight there.\n\n'
+        'The "reps" field should be a rep range or scheme like "8-15", "8-25", "AMRAP", "30 sec" — never include weight in reps.\n\n'
         'WORKOUT PLAN CREATION: When the user asks you to create, generate, or build a workout plan, '
         'respond with a brief intro sentence, then output the complete plan as a fenced code block '
         'with the language identifier "workout-plan" followed by valid JSON matching this schema:\n'
