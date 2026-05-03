@@ -190,18 +190,27 @@ def profile(request):
 # ---------------------------------------------------------------------------
 
 def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
+    preferred_unit = 'lb'
     try:
         p = user.profile
+        preferred_unit = getattr(p, 'preferred_unit', 'lb') or 'lb'
+        body_weight = None
+        if p.weight_kg:
+            if preferred_unit == 'lb':
+                body_weight = f'{round(p.weight_kg * 2.20462, 1)} lb'
+            else:
+                body_weight = f'{p.weight_kg} kg'
         profile_lines = [
             f'- Name: {user.name}',
             f'- Height: {p.height_cm}cm' if p.height_cm else None,
-            f'- Weight: {p.weight_kg}kg' if p.weight_kg else None,
+            f'- Body weight: {body_weight}' if body_weight else None,
             f'- Age: {p.age}' if p.age else None,
             f'- Gender: {p.gender}' if p.gender else None,
             f'- Fitness goal: {p.fitness_goal}' if p.fitness_goal else None,
             f'- Experience level: {p.experience_level}' if p.experience_level else None,
             f'- Dietary preference: {p.dietary_preference}' if p.dietary_preference else None,
             f'- Activity level: {p.activity_level}' if p.activity_level else None,
+            f'- Preferred weight unit: {preferred_unit}',
         ]
         profile_text = '\n'.join(line for line in profile_lines if line)
     except Exception:
@@ -251,6 +260,37 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
                 f"({total_p:.0f}g protein, {total_c:.0f}g carbs, {total_f:.0f}g fat). "
                 f"Foods: {meal_names}."
             )
+    except Exception:
+        pass
+
+    # Recent weight history — last 3 completed sessions
+    weight_history_text = ''
+    try:
+        from .models import WorkoutSession, SetLog as _SetLog
+        recent_sessions = (
+            WorkoutSession.objects
+            .filter(user=user, is_completed=True)
+            .prefetch_related('set_logs')
+            .order_by('-completed_at')[:3]
+        )
+        session_lines = []
+        for ws in recent_sessions:
+            date_str = ws.completed_at.strftime('%b %d') if ws.completed_at else 'unknown date'
+            sets_by_exercise: dict = {}
+            for sl in ws.set_logs.filter(is_completed=True, weight_kg__isnull=False):
+                name = sl.exercise_name
+                w_kg = sl.weight_kg
+                if preferred_unit == 'lb':
+                    w_display = f'{round(w_kg * 2.20462, 1)} lb'
+                else:
+                    w_display = f'{w_kg} kg'
+                reps = f'×{sl.reps_completed}' if sl.reps_completed else ''
+                sets_by_exercise.setdefault(name, []).append(f'{w_display}{reps}')
+            if sets_by_exercise:
+                exercises_str = '; '.join(f'{ex}: {", ".join(sets)}' for ex, sets in sets_by_exercise.items())
+                session_lines.append(f'  {date_str}: {exercises_str}')
+        if session_lines:
+            weight_history_text = '\n\nRecent workout weight history (use this to suggest appropriate weights and track progression):\n' + '\n'.join(session_lines)
     except Exception:
         pass
 
@@ -304,6 +344,10 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
         'Respond conversationally, helpfully, and concisely. '
         'Use markdown for formatting when helpful (e.g. bullet lists for exercises). '
         'Always recommend consulting a doctor for medical concerns.\n\n'
+        f'Always express weights in {preferred_unit}. '
+        'When suggesting weights for exercises, use the user\'s recent history to recommend appropriate starting '
+        'weights and progressive overload — put the specific weight recommendation in the exercise "notes" field '
+        f'(e.g. "Start at 135 lb. Increase by 5 lb when you hit all sets cleanly.").\n\n'
         'WORKOUT PLAN CREATION: When the user asks you to create, generate, or build a workout plan, '
         'respond with a brief intro sentence, then output the complete plan as a fenced code block '
         'with the language identifier "workout-plan" followed by valid JSON matching this schema:\n'
@@ -312,6 +356,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
         f'User profile:\n{profile_text}'
         f'{notes_text}'
         f'{meal_text}'
+        f'{weight_history_text}'
         f'{plan_text}'
     )
 
@@ -439,10 +484,13 @@ def _auto_title(session: ChatSession, first_user_message: str) -> str:
 
 def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
                               fitness_goal: str = '', experience_level: str = '',
-                              equipment: str = '', notes: str = '') -> tuple[str, str]:
+                              equipment: str = '', notes: str = '',
+                              body_context: str = '', preferred_unit: str = 'lb') -> tuple[str, str]:
     system = (
-        'You are an expert personal trainer. Generate a structured workout plan as valid JSON only. '
-        'No markdown, no explanation — just the JSON object.'
+        f'You are an expert personal trainer. Generate a structured workout plan as valid JSON only. '
+        f'No markdown, no explanation — just the JSON object. '
+        f'Express all weights in {preferred_unit}. '
+        f'Include specific starting weight recommendations in each exercise\'s "notes" field based on the user\'s level and body context.'
     )
     goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
     goal = goal_map.get(fitness_goal or getattr(profile, 'fitness_goal', '') or '', 'general fitness')
@@ -454,6 +502,7 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         f'Train {days_per_week} days per week. '
         f'Available equipment: {equip}. '
         + (f'Additional notes: {notes}. ' if notes else '')
+        + (f'Body context: {body_context}. ' if body_context else '')
         + 'Return JSON matching exactly this schema:\n'
         '{\n'
         '  "title": "string",\n'
@@ -494,7 +543,7 @@ def _validate_plan_json(data: dict) -> None:
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def workout_plan_generate(request):
-    from .gemini import call_gemini_json, GeminiError as _GeminiError
+    from .gemini import call_gemini_json, call_gemini_vision_text, GeminiError as _GeminiError
     days_per_week = int(request.data.get('days_per_week', 4))
     duration_weeks = int(request.data.get('duration_weeks', 8))
     days_per_week = max(1, min(days_per_week, 7))
@@ -503,16 +552,42 @@ def workout_plan_generate(request):
     experience_level = request.data.get('experience_level', '')
     equipment = request.data.get('equipment', '')
     notes = request.data.get('notes', '')
+    body_context = request.data.get('body_context', '')  # pre-built text from latest scan
+
+    # If a new photo is uploaded, run a quick body analysis and append it to notes
+    photo_file = request.FILES.get('body_photo')
+    if photo_file and not body_context:
+        try:
+            photo_bytes = photo_file.read()
+            mime = photo_file.content_type or 'image/jpeg'
+            scan_system = 'You are a fitness assessment AI. Briefly describe the person\'s physique, estimated body fat %, muscle development, and any notes relevant for building a workout plan. Be concise — 3-5 sentences.'
+            scan_user = 'Analyze this photo and provide a brief physique assessment for workout planning purposes.'
+            analysis = call_gemini_vision_text(
+                system_prompt=scan_system,
+                user_prompt=scan_user,
+                image_bytes=photo_bytes,
+                mime_type=mime,
+            )
+            body_context = f'Body photo analysis: {analysis}'
+        except Exception:
+            pass
 
     try:
         profile = request.user.profile
     except Exception:
         profile = None
 
+    preferred_unit = 'lb'
+    try:
+        preferred_unit = getattr(profile, 'preferred_unit', 'lb') or 'lb'
+    except Exception:
+        pass
+
     system, user_prompt = _workout_generate_prompt(
         profile, days_per_week, duration_weeks,
         fitness_goal=fitness_goal, experience_level=experience_level,
-        equipment=equipment, notes=notes,
+        equipment=equipment, notes=notes, body_context=body_context,
+        preferred_unit=preferred_unit,
     )
 
     try:

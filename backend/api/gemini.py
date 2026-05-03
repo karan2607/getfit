@@ -50,6 +50,27 @@ def call_gemini_json(*, system_prompt: str, user_prompt: str) -> dict:
         raise GeminiError('AI request failed') from exc
 
 
+def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes: bytes, mime_type: str) -> str:
+    """Like call_gemini_vision_json but returns raw text instead of parsed JSON."""
+    import base64
+    b64 = base64.b64encode(image_bytes).decode()
+    payload = json.dumps({
+        'system_instruction': {'parts': [{'text': system_prompt}]},
+        'contents': [{'role': 'user', 'parts': [
+            {'inline_data': {'mime_type': mime_type, 'data': b64}},
+            {'text': user_prompt},
+        ]}],
+    }).encode()
+    url = f'{BASE_URL}:generateContent?key={_api_key()}'
+    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read())
+        return data['candidates'][0]['content']['parts'][0]['text']
+    except Exception as exc:
+        raise GeminiError('AI request failed') from exc
+
+
 def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes: bytes, mime_type: str) -> dict:
     import base64
     b64 = base64.b64encode(image_bytes).decode()

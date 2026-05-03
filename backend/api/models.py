@@ -45,6 +45,7 @@ class UserProfile(models.Model):
     GOAL_CHOICES = [('lose_fat', 'Lose Fat'), ('build_muscle', 'Build Muscle'), ('maintain', 'Maintain')]
     EXPERIENCE_CHOICES = [('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advanced', 'Advanced')]
     DIET_CHOICES = [('non_veg', 'Non-Vegetarian'), ('vegetarian', 'Vegetarian'), ('vegan', 'Vegan')]
+    UNIT_CHOICES = [('lb', 'Pounds (lb)'), ('kg', 'Kilograms (kg)')]
     ACTIVITY_CHOICES = [
         ('sedentary', 'Sedentary'),
         ('lightly_active', 'Lightly Active'),
@@ -62,6 +63,7 @@ class UserProfile(models.Model):
     experience_level = models.CharField(max_length=15, choices=EXPERIENCE_CHOICES, null=True, blank=True)
     dietary_preference = models.CharField(max_length=15, choices=DIET_CHOICES, null=True, blank=True)
     activity_level = models.CharField(max_length=20, choices=ACTIVITY_CHOICES, null=True, blank=True)
+    preferred_unit = models.CharField(max_length=2, choices=UNIT_CHOICES, default='lb')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

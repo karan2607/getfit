@@ -10,6 +10,7 @@ export interface UserProfile {
   dietary_preference: 'non_veg' | 'vegetarian' | 'vegan' | null
   activity_level: 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active' | null
   personal_notes: string
+  preferred_unit: 'lb' | 'kg'
 }
 
 export interface MealLog {
@@ -148,11 +149,19 @@ export const api = {
       experience_level?: string
       equipment?: string
       notes?: string
-    }) =>
-      request<WorkoutPlanPreview>('/api/workouts/plans/generate/', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+      body_context?: string
+      body_photo?: File
+    }) => {
+      if (data.body_photo) {
+        const fd = new FormData()
+        Object.entries(data).forEach(([k, v]) => {
+          if (k === 'body_photo') fd.append('body_photo', v as File)
+          else if (v !== undefined) fd.append(k, String(v))
+        })
+        return request<WorkoutPlanPreview>('/api/workouts/plans/generate/', { method: 'POST', body: fd })
+      }
+      return request<WorkoutPlanPreview>('/api/workouts/plans/generate/', { method: 'POST', body: JSON.stringify(data) })
+    },
 
     savePlan: (data: WorkoutPlanPreview) =>
       request<WorkoutPlanDetail>('/api/workouts/plans/', {

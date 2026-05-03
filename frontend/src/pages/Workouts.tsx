@@ -43,10 +43,26 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   const [experienceLevel, setExperienceLevel] = useState<string>(user?.profile?.experience_level ?? 'intermediate')
   const [equipment, setEquipment] = useState('full gym')
   const [notes, setNotes] = useState('')
+  const [latestScan, setLatestScan] = useState<{ physique_category: string; body_fat_pct: number | null; muscle_mass_note: string; recommendations: string } | null>(null)
+  const [bodyPhoto, setBodyPhoto] = useState<File | null>(null)
+
+  const [useBodyContext, setUseBodyContext] = useState(false)
+
+  useEffect(() => {
+    api.body.history().then((results) => {
+      if (results.length > 0) {
+        setLatestScan(results[0])
+        setUseBodyContext(true)
+      }
+    }).catch(() => {})
+  }, [])
 
   async function handleGenerate() {
     setGenerating(true)
     try {
+      const body_context = useBodyContext && latestScan
+        ? `Physique: ${latestScan.physique_category}. Body fat: ${latestScan.body_fat_pct}%. ${latestScan.muscle_mass_note} ${latestScan.recommendations}`.trim()
+        : undefined
       const data = await api.workouts.generatePlan({
         days_per_week: daysPerWeek,
         duration_weeks: durationWeeks,
@@ -54,6 +70,8 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
         experience_level: experienceLevel,
         equipment,
         notes,
+        body_context,
+        body_photo: bodyPhoto ?? undefined,
       })
       setPreview(data)
       setStep('preview')
@@ -155,6 +173,30 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
                 placeholder="e.g. bad lower back, want to focus on upper body, no squats..."
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+            </div>
+            <div className="border-t border-gray-100 pt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Body context <span className="text-gray-400 font-normal">(optional — helps AI personalise weights)</span></label>
+
+              {latestScan ? (
+                <div className="flex items-start gap-3">
+                  <div className={`flex-1 rounded-xl border p-3 cursor-pointer transition-colors ${useBodyContext ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-white'}`} onClick={() => setUseBodyContext(v => !v)}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${useBodyContext ? 'border-brand-500 bg-brand-500' : 'border-gray-300'}`} />
+                      <p className="text-sm font-semibold text-gray-900">Use latest body scan</p>
+                    </div>
+                    <p className="text-xs text-gray-500 pl-6">{latestScan.physique_category}{latestScan.body_fat_pct ? ` · ${latestScan.body_fat_pct}% body fat` : ''}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-2">
+                <label className="block text-xs text-gray-500 mb-1.5">Or upload a new photo</label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-brand-500 hover:text-brand-600 font-medium">
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setBodyPhoto(e.target.files?.[0] ?? null)} />
+                  {bodyPhoto ? `📷 ${bodyPhoto.name}` : '+ Upload photo'}
+                </label>
+                {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-red-400 mt-1">Remove</button>}
+              </div>
             </div>
             <button
               onClick={handleGenerate}
@@ -445,6 +487,9 @@ function PlanDetail({ planId }: { planId: string }) {
 function ActiveSession({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const { user } = useAuth()
+  const unit = user?.profile?.preferred_unit ?? 'lb'
+  const KG_PER_LB = 0.453592
   const [session, setSession] = useState<WorkoutSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
@@ -458,7 +503,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
   async function handleLogSet(log: SetLog, field: 'weight_kg' | 'reps_completed', value: string) {
     if (!session) return
-    const numVal = value === '' ? undefined : Number(value)
+    let numVal: number | undefined = value === '' ? undefined : Number(value)
+    if (field === 'weight_kg' && numVal !== undefined) {
+      numVal = unit === 'lb' ? numVal * KG_PER_LB : numVal
+    }
     try {
       const updated = await api.workouts.logSet(session.id, {
         exercise_id: log.exercise_id ?? '',
@@ -558,7 +606,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
               <div className="space-y-2">
                 <div className="grid grid-cols-[1.5rem_1fr_1fr_2rem] gap-2 text-xs text-gray-400 px-1">
                   <span>Set</span>
-                  <span>Weight (kg)</span>
+                  <span>Weight ({unit})</span>
                   <span>Reps</span>
                   <span />
                 </div>
@@ -566,8 +614,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   <div key={log.id} className={`grid grid-cols-[1.5rem_1fr_1fr_2rem] gap-2 items-center rounded-lg px-1 py-1 transition-colors ${log.is_completed ? 'bg-emerald-50' : ''}`}>
                     <span className="text-xs text-gray-500 font-medium">{log.set_number}</span>
                     <input
-                      type="number" min={0} step={0.5} placeholder="—"
-                      defaultValue={log.weight_kg ?? ''}
+                      type="number" min={0} step={0.5}
+                      placeholder={`Weight (${unit})`}
+                      defaultValue={log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : ''}
                       onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
                       className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
                     />

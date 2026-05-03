@@ -157,6 +157,25 @@ export default function Profile() {
           </div>
         </div>
         <div>
+          <label className={labelCls}>Weight unit</label>
+          <div className="flex gap-2">
+            {(['lb', 'kg'] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => update({ preferred_unit: u })}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  (form.preferred_unit ?? 'lb') === u
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
           <label className={labelCls}>Activity Level</label>
           <div className="grid grid-cols-2 gap-2">
             {activity.map((a) => (
