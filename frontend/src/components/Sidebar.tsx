@@ -103,19 +103,7 @@ export default function Sidebar() {
     </div>
   )
 
-  if (isMobile) {
-    return (
-      <>
-        {isOpen && <div className="fixed inset-0 z-20 bg-black/40" onClick={() => setIsOpen(false)} />}
-        <aside
-          onClick={() => !isOpen && setIsOpen(true)}
-          className={`fixed top-0 left-0 h-full z-30 transition-all duration-200 ${isOpen ? 'w-64' : 'w-16'}`}
-        >
-          {sidebarContent}
-        </aside>
-      </>
-    )
-  }
+  if (isMobile) return null
 
   return (
     <aside

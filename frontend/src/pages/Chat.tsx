@@ -26,7 +26,7 @@ function SessionList({
   const navigate = useNavigate()
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
+    <div className="w-full md:w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5 pt-3">
         {loading ? (
           <div className="p-3 space-y-2">
@@ -65,6 +65,7 @@ function SessionList({
 
 function ChatPane({ sessionId }: { sessionId: string }) {
   const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } = useChatSession(sessionId)
+  const navigate = useNavigate()
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -85,8 +86,14 @@ function ChatPane({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {/* Mobile back button */}
+      <div className="md:hidden px-4 pt-3 pb-1">
+        <button onClick={() => navigate('/chat')} className="text-sm text-gray-500 hover:text-gray-700">
+          ← All chats
+        </button>
+      </div>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
         {session?.messages.length === 0 && !streamingContent && (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="text-4xl mb-3">💬</div>
@@ -192,13 +199,16 @@ export default function Chat() {
         }
       />
       <div className="flex flex-1 overflow-hidden">
-        <SessionList
-          sessions={sessions}
-          activeId={sessionId}
-          onDelete={handleDelete}
-          loading={listLoading}
-        />
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* On mobile: show session list when no session selected, chat pane when selected */}
+        <div className={`${sessionId ? 'hidden md:flex' : 'flex'} md:flex flex-col`} style={{ width: undefined }}>
+          <SessionList
+            sessions={sessions}
+            activeId={sessionId}
+            onDelete={handleDelete}
+            loading={listLoading}
+          />
+        </div>
+        <div className={`${sessionId ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
           {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
         </div>
       </div>

@@ -5,6 +5,7 @@ import { api, ApiError, type User } from './lib/api'
 import { setToken, clearToken, getToken } from './lib/auth'
 import { ToastProvider } from './components/Toast'
 import Sidebar from './components/Sidebar'
+import BottomNav from './components/BottomNav'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
@@ -97,9 +98,10 @@ function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-[#3E4A3F]">
       <Sidebar />
-      <main className="flex-1 min-w-0 bg-stone-50" id="main-content">
+      <main className="flex-1 min-w-0 bg-stone-50 pb-16 md:pb-0 overflow-x-hidden" id="main-content">
         {children}
       </main>
+      <BottomNav />
     </div>
   )
 }

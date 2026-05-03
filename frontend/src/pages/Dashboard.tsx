@@ -81,7 +81,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-2xl">
+      <div className="p-4 md:p-6 max-w-2xl">
         <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-6" />
         <div className="grid grid-cols-2 gap-3 mb-6">
           {[1, 2, 3, 4].map((i) => (
@@ -95,7 +95,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title={`Hey, ${firstName} 👋`} subtitle={`${todayDay} — let's keep the streak going`} />
-      <div className="p-6 max-w-2xl">
+      <div className="p-4 md:p-6 max-w-2xl">
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 mb-6">
