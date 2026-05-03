@@ -576,16 +576,30 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="p-6"><SkeletonText lines={10} /></div>
   if (!session) return null
 
+  // Build ordered exercise list preserving plan order
+  const exerciseOrder = session.exercise_day?.exercises.map((e) => e.name) ?? []
   const byExercise = session.set_logs.reduce<Record<string, SetLog[]>>((acc, log) => {
     if (!acc[log.exercise_name]) acc[log.exercise_name] = []
     acc[log.exercise_name].push(log)
     return acc
   }, {})
+  const exerciseEntries = Object.entries(byExercise).sort(([a], [b]) => {
+    const ai = exerciseOrder.indexOf(a)
+    const bi = exerciseOrder.indexOf(b)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+
+  // Look up plan exercise details (reps target, rest) by name
+  const planExerciseMap = Object.fromEntries(
+    (session.exercise_day?.exercises ?? []).map((e) => [e.name, e])
+  )
 
   const completedSets = session.set_logs.filter((l) => l.is_completed).length
   const totalSets = session.set_logs.length
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
-
   const isCompleted = session.is_completed
 
   return (
@@ -609,79 +623,124 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           </span>
         )}
       />
-      <div className="p-6 max-w-lg">
+      <div className="p-4 md:p-6 max-w-lg">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-5 transition-colors">
           ← Back
         </button>
 
         {/* Progress bar */}
         <div className="mb-6">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{completedSets} / {totalSets} sets</span>
-            <span>{progress}%</span>
+          <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+            <span>{completedSets} of {totalSets} sets done</span>
+            <span className="font-semibold text-brand-500">{progress}%</span>
           </div>
-          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand-500 rounded-full transition-all duration-300"
+              className="h-full bg-brand-500 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
 
-        <div className="space-y-5 mb-8">
-          {Object.entries(byExercise).map(([exerciseName, logs]) => (
-            <div key={exerciseName} className="bg-white rounded-2xl border border-gray-100 p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">{exerciseName}</h3>
-              <div className="space-y-2">
-                <div className="grid grid-cols-[1.5rem_1fr_1fr_2rem] gap-2 text-xs text-gray-400 px-1">
-                  <span>Set</span>
+        <div className="space-y-4 mb-8">
+          {exerciseEntries.map(([exerciseName, logs]) => {
+            const planEx = planExerciseMap[exerciseName]
+            const doneCount = logs.filter((l) => l.is_completed).length
+            const allDone = doneCount === logs.length && logs.length > 0
+
+            return (
+              <div key={exerciseName} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
+                {/* Exercise header */}
+                <div className={`flex items-center justify-between px-4 py-3 ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}>
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
+                    {planEx && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {planEx.sets} sets · {planEx.reps}
+                        {planEx.rest_seconds ? ` · ${planEx.rest_seconds}s rest` : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      allDone
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : doneCount > 0
+                          ? 'bg-brand-100 text-brand-600'
+                          : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {doneCount}/{logs.length}
+                    </span>
+                    {allDone && <span className="text-emerald-500 font-bold">✓</span>}
+                  </div>
+                </div>
+
+                {/* Column labels */}
+                <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                  <span>#</span>
                   <span>Weight ({unit})</span>
-                  <span>Reps</span>
+                  <span>Reps done</span>
                   <span />
                 </div>
-                {logs.map((log) => (
-                  <div key={log.id} className={`grid grid-cols-[1.5rem_1fr_1fr_2rem] gap-2 items-center rounded-lg px-1 py-1 transition-colors ${log.is_completed ? 'bg-emerald-50' : ''}`}>
-                    <span className="text-xs text-gray-500 font-medium">{log.set_number}</span>
-                    {isCompleted ? (
-                      <span className="text-sm text-center text-gray-700 py-1.5">
-                        {log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : '—'}
-                      </span>
-                    ) : (
-                      <input
-                        type="number" min={0} step={0.5}
-                        placeholder={`Weight (${unit})`}
-                        defaultValue={log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : ''}
-                        onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
-                      />
-                    )}
-                    {isCompleted ? (
-                      <span className="text-sm text-center text-gray-700 py-1.5">
-                        {log.reps_completed ?? '—'}
-                      </span>
-                    ) : (
-                      <input
-                        type="number" min={0} placeholder="—"
-                        defaultValue={log.reps_completed ?? ''}
-                        onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
-                      />
-                    )}
+
+                {/* Set rows */}
+                <div className="divide-y divide-gray-50 pb-1">
+                  {logs.map((log) => (
                     <div
-                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${
-                        log.is_completed
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-gray-300 text-transparent'
-                      }${!isCompleted ? ' cursor-pointer hover:border-emerald-400' : ''}`}
-                      onClick={!isCompleted ? () => handleToggleSet(log) : undefined}
+                      key={log.id}
+                      className={`grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 items-center px-4 py-2.5 transition-colors ${
+                        log.is_completed ? 'bg-emerald-50/70' : ''
+                      }`}
                     >
-                      ✓
+                      <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
+                        {log.set_number}
+                      </span>
+                      {isCompleted ? (
+                        <span className="text-sm text-gray-700 font-medium">
+                          {log.weight_kg != null
+                            ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
+                            : '—'}
+                        </span>
+                      ) : (
+                        <input
+                          type="number" min={0} step={0.5}
+                          placeholder="0"
+                          defaultValue={log.weight_kg != null
+                            ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
+                            : ''}
+                          onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
+                          className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                        />
+                      )}
+                      {isCompleted ? (
+                        <span className="text-sm text-gray-700 font-medium">
+                          {log.reps_completed ?? '—'}
+                        </span>
+                      ) : (
+                        <input
+                          type="number" min={0} placeholder="0"
+                          defaultValue={log.reps_completed ?? ''}
+                          onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
+                          className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                        />
+                      )}
+                      <button
+                        onClick={!isCompleted ? () => handleToggleSet(log) : undefined}
+                        disabled={isCompleted}
+                        className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
+                          log.is_completed
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                            : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
+                        } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
+                      >
+                        ✓
+                      </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </>

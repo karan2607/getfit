@@ -81,7 +81,12 @@ export default function Dashboard() {
 
   const todayCompletedSession = todayWorkout
     ? recentSessions.find((s) => {
-        if (!s.is_completed || s.exercise_day_id !== todayWorkout.id) return false
+        if (!s.is_completed) return false
+        // Match by exercise_day_id if available, fall back to day_name
+        const dayMatches = s.exercise_day_id
+          ? s.exercise_day_id === todayWorkout.id
+          : s.day_name === todayWorkout.name
+        if (!dayMatches) return false
         const sessionDate = new Date(s.started_at)
         const today = new Date()
         return (
@@ -167,7 +172,7 @@ export default function Dashboard() {
                 </Link>
               ) : (
                 <Link
-                  to="/workouts"
+                  to={`/workouts/${activePlan.id}`}
                   className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Start
