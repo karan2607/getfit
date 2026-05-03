@@ -894,7 +894,7 @@ function PlanList({
                   {!plan.is_active && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleActivate(plan.id) }}
-                      className="text-xs text-brand-500 bg-brand-50 hover:bg-brand-100 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      className="text-xs text-white bg-emerald-500 hover:bg-emerald-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                     >
                       Set active
                     </button>
