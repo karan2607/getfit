@@ -45,25 +45,25 @@ export default function Dashboard() {
       api.workouts.listSessions(),
       api.diet.listPlans(),
       api.body.history(),
-    ]).then(([plansRes, sessionsRes, dietRes, bodyRes]) => {
+    ]).then(async ([plansRes, sessionsRes, dietRes, bodyRes]) => {
+      const secondary: Promise<unknown>[] = []
+
       if (plansRes.status === 'fulfilled') {
         const active = plansRes.value.find((p) => p.is_active)
-        if (active) {
-          api.workouts.getPlan(active.id).then(setActivePlan).catch(() => {})
-        }
+        if (active) secondary.push(api.workouts.getPlan(active.id).then(setActivePlan).catch(() => {}))
       }
       if (sessionsRes.status === 'fulfilled') {
         setRecentSessions(sessionsRes.value.slice(0, 5))
       }
       if (dietRes.status === 'fulfilled') {
         const active = dietRes.value.find((p) => p.is_active)
-        if (active) {
-          api.diet.getPlan(active.id).then(setActiveDiet).catch(() => {})
-        }
+        if (active) secondary.push(api.diet.getPlan(active.id).then(setActiveDiet).catch(() => {}))
       }
       if (bodyRes.status === 'fulfilled' && bodyRes.value.length > 0) {
         setLatestBodyScan(bodyRes.value[0])
       }
+
+      await Promise.all(secondary)
       setLoading(false)
     })
   }, [])
