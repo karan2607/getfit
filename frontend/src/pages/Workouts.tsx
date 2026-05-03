@@ -315,8 +315,11 @@ function PlanDetail({ planId }: { planId: string }) {
   const [loading, setLoading] = useState(true)
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [editDayId, setEditDayId] = useState<string | null>(null)
+  const [explicitChatOpen, setExplicitChatOpen] = useState(false)
   const [weeksExpanded, setWeeksExpanded] = useState(false)
+
+  const chatOpen = explicitChatOpen || editDayId !== null
 
   useEffect(() => {
     api.workouts.getPlan(planId)
@@ -397,13 +400,21 @@ function PlanDetail({ planId }: { planId: string }) {
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{day.focus}</span>
                   )}
                   {!day.is_rest_day && (
-                    <button
-                      onClick={() => handleStartSession(day.id)}
-                      disabled={startingDay === day.id}
-                      className="ml-auto text-sm bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      {startingDay === day.id ? '...' : 'Start'}
-                    </button>
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => setEditDayId(day.id)}
+                        className="text-xs text-brand-500 border border-brand-300 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleStartSession(day.id)}
+                        disabled={startingDay === day.id}
+                        className="text-sm bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {startingDay === day.id ? '...' : 'Start'}
+                      </button>
+                    </div>
                   )}
                 </div>
                 {/* Exercises */}
@@ -464,7 +475,7 @@ function PlanDetail({ planId }: { planId: string }) {
 
       {/* Chat FAB */}
       <button
-        onClick={() => setChatOpen(true)}
+        onClick={() => setExplicitChatOpen(true)}
         className="fixed bottom-6 right-6 z-30 bg-brand-500 hover:bg-brand-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
         title="Chat with AI Trainer"
       >
@@ -474,8 +485,9 @@ function PlanDetail({ planId }: { planId: string }) {
       <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
       <WorkoutChatDrawer
         isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
+        onClose={() => { setExplicitChatOpen(false); setEditDayId(null) }}
         planId={plan?.id}
+        dayId={editDayId ?? undefined}
         onPlanUpdated={() => plan && api.workouts.getPlan(plan.id).then(setPlan).catch(() => {})}
       />
     </>

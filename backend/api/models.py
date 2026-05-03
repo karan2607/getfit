@@ -279,6 +279,7 @@ class Meal(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     plan = models.ForeignKey(DietPlan, on_delete=models.CASCADE, related_name='meals')
+    day_number = models.PositiveIntegerField(default=1)
     meal_type = models.CharField(max_length=15, choices=MEAL_CHOICES)
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)

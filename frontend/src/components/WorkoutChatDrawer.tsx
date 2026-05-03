@@ -9,13 +9,16 @@ interface WorkoutChatDrawerProps {
   isOpen: boolean
   onClose: () => void
   planId?: string
+  dayId?: string
+  dietPlanId?: string
   onPlanUpdated?: () => void
+  onDietPlanUpdated?: () => void
   planPreview?: WorkoutPlanPreview
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
 }
 
 export default function WorkoutChatDrawer({
-  isOpen, onClose, planId, onPlanUpdated, planPreview, onPreviewUpdate,
+  isOpen, onClose, planId, dayId, dietPlanId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
 }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
@@ -28,6 +31,8 @@ export default function WorkoutChatDrawer({
     const extra: Record<string, unknown> = {}
     if (planId) extra.plan_id = planId
     else if (planPreview) extra.plan_context = JSON.stringify(planPreview)
+    if (dayId) extra.day_id = dayId
+    if (dietPlanId) extra.diet_plan_id = dietPlanId
     sendMessage(content, Object.keys(extra).length ? extra : undefined)
   }
 
@@ -51,6 +56,8 @@ export default function WorkoutChatDrawer({
 
   const busy = initializing || isLoading
   const isPreviewMode = !planId && !!planPreview
+  const isEditDayMode = !!planId && !!dayId
+  const isDietMode = !!dietPlanId && !planId
 
   return (
     <>
@@ -61,7 +68,13 @@ export default function WorkoutChatDrawer({
           <div>
             <p className="text-base font-bold text-white">AI Trainer</p>
             <p className="text-xs text-white/75">
-              {isPreviewMode ? 'Describe changes to refine this plan' : 'Ask anything about your workout'}
+              {isPreviewMode
+                ? 'Describe changes to refine this plan'
+                : isEditDayMode
+                  ? 'Describe changes to update this day'
+                  : isDietMode
+                    ? 'Ask me to modify your diet plan'
+                    : 'Ask anything about your workout'}
             </p>
           </div>
           <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">
@@ -77,14 +90,18 @@ export default function WorkoutChatDrawer({
             </div>
           ) : !session || session.messages.length === 0 && !streamingContent ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 py-8">
-              <div className="text-4xl mb-3">{isPreviewMode ? '✏️' : '🏋️'}</div>
+              <div className="text-4xl mb-3">{isPreviewMode || isEditDayMode ? '✏️' : isDietMode ? '🥗' : '🏋️'}</div>
               <p className="text-sm font-semibold text-gray-800 mb-1">
-                {isPreviewMode ? 'Refine your plan' : 'Your AI Trainer'}
+                {isPreviewMode ? 'Refine your plan' : isEditDayMode ? 'Edit this day' : isDietMode ? 'Your AI Nutritionist' : 'Your AI Trainer'}
               </p>
               <p className="text-sm text-gray-500">
                 {isPreviewMode
                   ? 'Tell me what to change — swap exercises, adjust volume, change focus, or anything else.'
-                  : 'Ask me to modify this plan, swap exercises, adjust difficulty, or create a whole new plan.'}
+                  : isEditDayMode
+                    ? 'Describe what to change for this day — swap exercises, add sets, change the focus, or anything else.'
+                    : isDietMode
+                      ? 'Ask me to adjust meals, swap foods, change macros, add a day, or anything else about your diet plan.'
+                      : 'Ask me to modify this plan, swap exercises, adjust difficulty, or create a whole new plan.'}
               </p>
             </div>
           ) : (
@@ -95,7 +112,9 @@ export default function WorkoutChatDrawer({
                   role={msg.role}
                   content={msg.content}
                   planId={msg.role === 'assistant' ? planId : undefined}
+                  dietPlanId={msg.role === 'assistant' ? dietPlanId : undefined}
                   onSaved={onPlanUpdated}
+                  onDietSaved={onDietPlanUpdated}
                   onPreviewUpdate={msg.role === 'assistant' ? onPreviewUpdate : undefined}
                 />
               ))}
@@ -106,7 +125,9 @@ export default function WorkoutChatDrawer({
                   content={streamingContent}
                   isStreaming
                   planId={planId}
+                  dietPlanId={dietPlanId}
                   onSaved={onPlanUpdated}
+                  onDietSaved={onDietPlanUpdated}
                   onPreviewUpdate={onPreviewUpdate}
                 />
               )}

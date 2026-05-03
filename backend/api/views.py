@@ -189,7 +189,7 @@ def profile(request):
 # Chat
 # ---------------------------------------------------------------------------
 
-def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
+def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, diet_plan_id=None) -> str:
     preferred_unit = 'lb'
     try:
         p = user.profile
@@ -321,12 +321,34 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
                 'duration_weeks': plan_obj.duration_weeks,
                 'days': days_data,
             }, indent=2)
+            day_focus_text = ''
+            if day_id:
+                try:
+                    from .models import WorkoutDay
+                    day_obj = WorkoutDay.objects.prefetch_related('exercises').get(pk=day_id, plan=plan_obj)
+                    day_exercises = [
+                        f'  - {ex.name}: {ex.sets} sets × {ex.reps}'
+                        + (f', {ex.rest_seconds}s rest' if ex.rest_seconds else '')
+                        + (f' | {ex.notes}' if ex.notes else '')
+                        for ex in day_obj.exercises.order_by('order')
+                    ]
+                    day_focus_text = (
+                        f'\n\nThe user clicked "Edit" on Day {day_obj.day_number}: {day_obj.name}'
+                        + (f' ({day_obj.focus})' if day_obj.focus else '')
+                        + '.\nCurrent exercises for this day:\n'
+                        + '\n'.join(day_exercises)
+                        + '\n\nFocus your suggestions on this specific day. '
+                        'When outputting an updated plan, include ALL days in the workout-plan block but only modify this day unless the user asks otherwise.'
+                    )
+                except Exception:
+                    pass
             plan_text = (
                 f'\n\nCURRENT WORKOUT PLAN (the user is viewing this plan and may ask you to modify it):\n'
                 f'```json\n{plan_json}\n```\n'
                 'When the user asks to modify, adjust, swap exercises, or update this plan, '
                 'output the COMPLETE updated plan as a "workout-plan" code block (not just the changes). '
                 'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
+                f'{day_focus_text}'
             )
         except Exception:
             pass
@@ -338,6 +360,69 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
             'When they describe changes, output the COMPLETE updated plan as a "workout-plan" code block. '
             'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
         )
+
+    # Diet plan context (when chatting from a diet plan detail page)
+    diet_plan_text = ''
+    if diet_plan_id:
+        try:
+            import json as _json3
+            from .models import DietPlan as _DietPlan
+            diet_obj = _DietPlan.objects.prefetch_related('meals').get(pk=diet_plan_id, user=user)
+            meals_data = [
+                {
+                    'day_number': m.day_number,
+                    'meal_type': m.meal_type,
+                    'name': m.name,
+                    'calories': m.calories,
+                    'protein_g': m.protein_g,
+                    'carbs_g': m.carbs_g,
+                    'fat_g': m.fat_g,
+                    'description': m.description or '',
+                }
+                for m in diet_obj.meals.order_by('day_number', 'order')
+            ]
+            diet_json = _json3.dumps({
+                'title': diet_obj.title,
+                'description': diet_obj.description or '',
+                'target_calories': diet_obj.target_calories,
+                'protein_g': diet_obj.protein_g,
+                'carbs_g': diet_obj.carbs_g,
+                'fat_g': diet_obj.fat_g,
+                'meals': meals_data,
+            }, indent=2)
+            diet_schema = (
+                '{\n'
+                '  "title": "string",\n'
+                '  "description": "string",\n'
+                '  "target_calories": number,\n'
+                '  "protein_g": number,\n'
+                '  "carbs_g": number,\n'
+                '  "fat_g": number,\n'
+                '  "meals": [\n'
+                '    {\n'
+                '      "day_number": number,\n'
+                '      "meal_type": "breakfast|lunch|dinner|snack",\n'
+                '      "name": "string",\n'
+                '      "description": "string",\n'
+                '      "calories": number,\n'
+                '      "protein_g": number,\n'
+                '      "carbs_g": number,\n'
+                '      "fat_g": number\n'
+                '    }\n'
+                '  ]\n'
+                '}'
+            )
+            diet_plan_text = (
+                f'\n\nCURRENT DIET PLAN (the user is viewing this plan and may ask you to modify it):\n'
+                f'```json\n{diet_json}\n```\n'
+                'When the user asks to modify, adjust meals, change macros, or update this plan, '
+                'output the COMPLETE updated plan as a fenced code block with the language identifier "diet-plan" '
+                'followed by valid JSON matching this schema:\n'
+                f'```diet-plan\n{diet_schema}\n```\n'
+                'Include ALL days and ALL meals. Do not truncate the JSON.'
+            )
+        except Exception:
+            pass
 
     return (
         'You are a certified AI personal trainer and fitness coach. '
@@ -358,6 +443,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None) -> str:
         f'{meal_text}'
         f'{weight_history_text}'
         f'{plan_text}'
+        f'{diet_plan_text}'
     )
 
 
@@ -427,6 +513,8 @@ def chat_message_stream(request, session_id):
 
     plan_id = body.get('plan_id')
     plan_context = body.get('plan_context')  # raw plan JSON for unsaved previews
+    day_id = body.get('day_id')
+    diet_plan_id = body.get('diet_plan_id')
 
     try:
         session = ChatSession.objects.get(pk=session_id, user=user)
@@ -441,7 +529,7 @@ def chat_message_stream(request, session_id):
         for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
-    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context)
+    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id)
 
     def event_stream():
         full_response = ''
@@ -881,21 +969,40 @@ def diet_plan_generate(request):
     diet_pref = getattr(profile, 'dietary_preference', 'non_veg') or 'non_veg'
     protein_g, carbs_g, fat_g = _diet_macro_splits(target_calories, goal)
 
+    # Cultural/preference fields from request
+    country = (request.data.get('country') or '').strip()
+    cuisine_preference = (request.data.get('cuisine_preference') or '').strip()
+    usual_foods = (request.data.get('usual_foods') or '').strip()
+    duration_days = int(request.data.get('duration_days') or 7)
+    if duration_days not in (7, 14):
+        duration_days = 7
+
+    cultural_lines = []
+    if country:
+        cultural_lines.append(f'Country/region: {country}')
+    if cuisine_preference:
+        cultural_lines.append(f'Cuisine preference: {cuisine_preference}')
+    if usual_foods:
+        cultural_lines.append(f'Usual foods / preferences: {usual_foods}')
+    cultural_text = ('\n' + '\n'.join(cultural_lines)) if cultural_lines else ''
+
     system = (
-        'You are a certified nutritionist. Generate a structured daily diet plan as valid JSON only. '
+        'You are a certified nutritionist. Generate a structured multi-day diet plan as valid JSON only. '
         'No markdown, no explanation — just the JSON object.'
     )
     user_prompt = (
-        f'Generate a daily diet plan with target {target_calories} kcal, '
+        f'Generate a {duration_days}-day diet plan with daily targets of {target_calories} kcal, '
         f'{protein_g}g protein, {carbs_g}g carbs, {fat_g}g fat. '
-        f'Dietary preference: {diet_pref}. Fitness goal: {goal}. '
-        'Include 4-5 meals (breakfast, lunch, dinner, snacks). '
+        f'Dietary preference: {diet_pref}. Fitness goal: {goal}.{cultural_text}\n'
+        f'Each day should have 4 meals (breakfast, lunch, dinner, snack). '
+        f'Vary meals across days — do not repeat the same meals every day. '
         'Return JSON matching exactly this schema:\n'
         '{\n'
         '  "title": "string",\n'
         '  "description": "string",\n'
         '  "meals": [\n'
         '    {\n'
+        '      "day_number": number,\n'
         '      "meal_type": "breakfast|lunch|dinner|snack",\n'
         '      "name": "string",\n'
         '      "description": "string",\n'
@@ -905,7 +1012,9 @@ def diet_plan_generate(request):
         '      "fat_g": number\n'
         '    }\n'
         '  ]\n'
-        '}'
+        '}\n'
+        f'Include meals for all {duration_days} days (day_number 1 through {duration_days}). '
+        'Do not truncate the JSON.'
     )
 
     try:
@@ -947,6 +1056,7 @@ def diet_plans(request):
     for i, meal_data in enumerate(data['meals']):
         Meal.objects.create(
             plan=plan,
+            day_number=meal_data.get('day_number', 1),
             meal_type=meal_data.get('meal_type', 'snack'),
             name=meal_data['name'],
             description=meal_data.get('description', ''),

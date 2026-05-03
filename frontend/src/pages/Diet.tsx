@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type FoodScanResult, type MealLog } from '../lib/api'
+import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type Meal, type FoodScanResult, type MealLog } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
+import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
 
 // ── Macro Donut ─────────────────────────────────────────────────────────────
 
@@ -171,23 +172,95 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack']
 const MEAL_ICONS: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍎' }
 
+function MealCard({ meal, onClick }: { meal: { meal_type: string; name: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; description?: string }; onClick?: () => void }) {
+  return (
+    <div
+      className={`bg-white rounded-2xl border border-gray-100 p-4 ${onClick ? 'cursor-pointer hover:border-emerald-200 hover:shadow-sm transition-all' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">{MEAL_ICONS[meal.meal_type] || '🍽️'}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm truncate">{meal.name}</p>
+          <p className="text-xs text-gray-400 capitalize">{meal.meal_type}</p>
+        </div>
+        <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{meal.calories} kcal</span>
+      </div>
+      {meal.description && <p className="text-xs text-gray-500 mt-1 pl-8 line-clamp-2">{meal.description}</p>}
+      <div className="flex gap-3 pl-8 mt-1 text-xs text-gray-500">
+        <span className="text-emerald-600 font-medium">{meal.protein_g}g P</span>
+        <span className="text-blue-500 font-medium">{meal.carbs_g}g C</span>
+        <span className="text-amber-500 font-medium">{meal.fat_g}g F</span>
+      </div>
+    </div>
+  )
+}
+
+function MealDrawer({ meal, onClose }: { meal: Meal | null; onClose: () => void }) {
+  useEffect(() => {
+    document.body.style.overflow = meal ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [meal])
+
+  if (!meal) return null
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 animate-fade-in" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-80 z-50 bg-white shadow-2xl flex flex-col animate-slide-in">
+        <div className="flex items-center justify-between px-5 py-4 bg-brand-500">
+          <div>
+            <p className="text-base font-bold text-white">{meal.name}</p>
+            <p className="text-xs text-white/75 capitalize">{meal.meal_type} · Day {meal.day_number}</p>
+          </div>
+          <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {[
+              { label: 'Calories', value: `${meal.calories} kcal`, color: 'bg-gray-50 text-gray-700' },
+              { label: 'Protein', value: `${meal.protein_g}g`, color: 'bg-emerald-50 text-emerald-700' },
+              { label: 'Carbs', value: `${meal.carbs_g}g`, color: 'bg-blue-50 text-blue-700' },
+              { label: 'Fat', value: `${meal.fat_g}g`, color: 'bg-amber-50 text-amber-700' },
+            ].map((item) => (
+              <div key={item.label} className={`${item.color} rounded-xl p-3 text-center`}>
+                <p className="text-lg font-bold">{item.value}</p>
+                <p className="text-xs opacity-70 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {meal.description && (
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Description</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{meal.description}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }) {
   const { showToast } = useToast()
-  const [step, setStep] = useState<'generating' | 'preview'>('generating')
+  const [step, setStep] = useState<'form' | 'generating' | 'preview'>('form')
+  const [form, setForm] = useState({ country: '', cuisine_preference: '', usual_foods: '', duration_days: 7 })
   const [preview, setPreview] = useState<DietPlanPreview | null>(null)
   const [saving, setSaving] = useState(false)
+  const [previewDay, setPreviewDay] = useState(1)
 
-  useEffect(() => {
-    api.diet.generatePlan()
-      .then((data) => {
-        setPreview(data)
-        setStep('preview')
-      })
-      .catch((err) => {
-        showToast(getErrorMessage(err), 'error')
-        onBack()
-      })
-  }, [])
+  async function handleGenerate() {
+    setStep('generating')
+    try {
+      const data = await api.diet.generatePlan(form)
+      setPreview(data)
+      setPreviewDay(1)
+      setStep('preview')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+      setStep('form')
+    }
+  }
 
   async function handleSave() {
     if (!preview) return
@@ -203,20 +276,89 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
     }
   }
 
+  if (step === 'form') {
+    return (
+      <div className="p-6 max-w-lg">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
+          ← Back to plans
+        </button>
+        <h2 className="text-xl font-bold text-gray-900 mb-1">Generate Diet Plan</h2>
+        <p className="text-sm text-gray-500 mb-6">Tell us about your food preferences for a more personalised plan.</p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Country / Region</label>
+            <input
+              placeholder="e.g. United States, India, Mexico"
+              value={form.country}
+              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cuisine Preference</label>
+            <input
+              placeholder="e.g. Mediterranean, Indian, Asian fusion"
+              value={form.cuisine_preference}
+              onChange={(e) => setForm((f) => ({ ...f, cuisine_preference: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Usual Foods / Foods to Avoid</label>
+            <textarea
+              rows={3}
+              placeholder="e.g. I usually eat rice and lentils, avoid nuts and shellfish"
+              value={form.usual_foods}
+              onChange={(e) => setForm((f) => ({ ...f, usual_foods: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Plan Duration</label>
+            <div className="flex gap-3">
+              {[7, 14].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setForm((f) => ({ ...f, duration_days: d }))}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    form.duration_days === d
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {d} days
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleGenerate}
+          className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+        >
+          Generate my plan
+        </button>
+      </div>
+    )
+  }
+
   if (step === 'generating') {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-64 text-gray-400">
         <div className="text-3xl mb-3 animate-bounce">🥗</div>
-        <p className="text-sm font-medium text-gray-600">Generating your personalized diet plan...</p>
+        <p className="text-sm font-medium text-gray-600">Generating your personalised {form.duration_days}-day plan...</p>
       </div>
     )
   }
 
   if (!preview) return null
 
-  const sortedMeals = [...preview.meals].sort(
-    (a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type)
-  )
+  const numDays = preview.meals.reduce((max, m) => Math.max(max, m.day_number ?? 1), 1)
+  const dayMeals = [...preview.meals]
+    .filter((m) => (m.day_number ?? 1) === previewDay)
+    .sort((a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type))
 
   return (
     <div className="p-6 max-w-2xl">
@@ -237,24 +379,24 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
         />
       </div>
 
+      {/* Day selector */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+        {Array.from({ length: numDays }, (_, i) => i + 1).map((d) => (
+          <button
+            key={d}
+            onClick={() => setPreviewDay(d)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              previewDay === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            Day {d}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-3 mb-6">
-        {sortedMeals.map((meal, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">{MEAL_ICONS[meal.meal_type] || '🍽️'}</span>
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">{meal.name}</p>
-                <p className="text-xs text-gray-400 capitalize">{meal.meal_type}</p>
-              </div>
-              <span className="ml-auto text-sm font-semibold text-gray-700">{meal.calories} kcal</span>
-            </div>
-            {meal.description && <p className="text-xs text-gray-500 mb-2 pl-8">{meal.description}</p>}
-            <div className="flex gap-3 pl-8 text-xs text-gray-500">
-              <span className="text-emerald-600 font-medium">{meal.protein_g}g P</span>
-              <span className="text-blue-500 font-medium">{meal.carbs_g}g C</span>
-              <span className="text-amber-500 font-medium">{meal.fat_g}g F</span>
-            </div>
-          </div>
+        {dayMeals.map((meal, i) => (
+          <MealCard key={i} meal={meal} />
         ))}
       </div>
 
@@ -274,65 +416,97 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
 function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void }) {
   const [plan, setPlan] = useState<DietPlanDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [activeDay, setActiveDay] = useState(1)
+  const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
-  useEffect(() => {
+  function loadPlan() {
     api.diet.getPlan(planId)
       .then(setPlan)
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadPlan()
   }, [planId])
 
   if (loading) return <div className="p-6 text-sm text-gray-400">Loading...</div>
   if (!plan) return null
 
-  const sortedMeals = [...plan.meals].sort(
-    (a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type)
-  )
+  const numDays = plan.meals.reduce((max, m) => Math.max(max, m.day_number), 1)
+  const dayMeals = [...plan.meals]
+    .filter((m) => m.day_number === activeDay)
+    .sort((a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type))
 
   return (
-    <div className="p-6 max-w-2xl">
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
-        ← Back to plans
+    <>
+      <div className="p-6 max-w-2xl">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
+          ← Back to plans
+        </button>
+
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-2xl font-bold text-gray-900">{plan.title}</h1>
+          {plan.is_active && (
+            <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
+          )}
+        </div>
+        {plan.description && <p className="text-sm text-gray-500 mb-4">{plan.description}</p>}
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Daily Targets</p>
+          <MacroDonut
+            protein={plan.protein_g}
+            carbs={plan.carbs_g}
+            fat={plan.fat_g}
+            calories={plan.target_calories}
+          />
+        </div>
+
+        {/* Day selector */}
+        {numDays > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+            {Array.from({ length: numDays }, (_, i) => i + 1).map((d) => (
+              <button
+                key={d}
+                onClick={() => setActiveDay(d)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  activeDay === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                Day {d}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {dayMeals.map((meal) => (
+            <MealCard key={meal.id} meal={meal} onClick={() => setSelectedMeal(meal)} />
+          ))}
+          {dayMeals.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-8">No meals for this day.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Chat FAB */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-30 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
+        title="Chat with AI Nutritionist"
+      >
+        💬
       </button>
 
-      <div className="flex items-center gap-2 mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">{plan.title}</h1>
-        {plan.is_active && (
-          <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
-        )}
-      </div>
-      {plan.description && <p className="text-sm text-gray-500 mb-4">{plan.description}</p>}
-
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Daily Targets</p>
-        <MacroDonut
-          protein={plan.protein_g}
-          carbs={plan.carbs_g}
-          fat={plan.fat_g}
-          calories={plan.target_calories}
-        />
-      </div>
-
-      <div className="space-y-3">
-        {sortedMeals.map((meal) => (
-          <div key={meal.id} className="bg-white rounded-2xl border border-gray-100 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">{MEAL_ICONS[meal.meal_type] || '🍽️'}</span>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900 text-sm">{meal.name}</p>
-                <p className="text-xs text-gray-400 capitalize">{meal.meal_type}</p>
-              </div>
-              <span className="text-sm font-semibold text-gray-700">{meal.calories} kcal</span>
-            </div>
-            {meal.description && <p className="text-xs text-gray-500 mb-2 pl-8">{meal.description}</p>}
-            <div className="flex gap-3 pl-8 text-xs text-gray-500">
-              <span className="text-emerald-600 font-medium">{meal.protein_g}g P</span>
-              <span className="text-blue-500 font-medium">{meal.carbs_g}g C</span>
-              <span className="text-amber-500 font-medium">{meal.fat_g}g F</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      <MealDrawer meal={selectedMeal} onClose={() => setSelectedMeal(null)} />
+      <WorkoutChatDrawer
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        dietPlanId={plan.id}
+        onDietPlanUpdated={() => { setLoading(true); loadPlan() }}
+      />
+    </>
   )
 }
 

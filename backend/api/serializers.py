@@ -187,7 +187,7 @@ class MealLogSerializer(serializers.ModelSerializer):
 class MealSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meal
-        fields = ['id', 'meal_type', 'name', 'description', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'order']
+        fields = ['id', 'day_number', 'meal_type', 'name', 'description', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'order']
         read_only_fields = ['id']
 
 

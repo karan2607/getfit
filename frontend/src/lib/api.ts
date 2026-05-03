@@ -229,8 +229,8 @@ export const api = {
   },
 
   diet: {
-    generatePlan: () =>
-      request<DietPlanPreview>('/api/diet/plans/generate/', { method: 'POST' }),
+    generatePlan: (data?: { country?: string; cuisine_preference?: string; usual_foods?: string; duration_days?: number }) =>
+      request<DietPlanPreview>('/api/diet/plans/generate/', { method: 'POST', body: JSON.stringify(data ?? {}) }),
 
     savePlan: (data: DietPlanPreview) =>
       request<DietPlanDetail>('/api/diet/plans/', { method: 'POST', body: JSON.stringify(data) }),
@@ -390,6 +390,7 @@ export interface ExerciseHistoryPoint {
 
 export interface Meal {
   id: string
+  day_number: number
   meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
   name: string
   description: string
@@ -426,6 +427,7 @@ export interface DietPlanPreview {
   carbs_g: number
   fat_g: number
   meals: Array<{
+    day_number?: number
     meal_type: string
     name: string
     description?: string
