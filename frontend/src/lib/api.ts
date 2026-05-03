@@ -375,6 +375,7 @@ export interface WorkoutSessionDetail {
 export interface WorkoutSessionSummary {
   id: string
   day_name: string
+  exercise_day_id: string | null
   started_at: string
   completed_at: string | null
   is_completed: boolean

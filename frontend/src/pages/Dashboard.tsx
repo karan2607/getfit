@@ -79,6 +79,19 @@ export default function Dashboard() {
     return d.order === daysSince % activePlan.days.length
   })
 
+  const todayCompletedSession = todayWorkout
+    ? recentSessions.find((s) => {
+        if (!s.is_completed || s.exercise_day_id !== todayWorkout.id) return false
+        const sessionDate = new Date(s.started_at)
+        const today = new Date()
+        return (
+          sessionDate.getFullYear() === today.getFullYear() &&
+          sessionDate.getMonth() === today.getMonth() &&
+          sessionDate.getDate() === today.getDate()
+        )
+      })
+    : undefined
+
   if (loading) {
     return (
       <div className="p-4 md:p-6 max-w-2xl">
@@ -137,7 +150,7 @@ export default function Dashboard() {
       <div className="mb-6">
         <SectionHeader title="Today's Workout" to="/workouts" linkLabel="All workouts" />
         {activePlan && todayWorkout ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+          <div className={`bg-white rounded-2xl border p-4 ${todayCompletedSession ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-100'}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="font-semibold text-gray-900">{todayWorkout.name}</p>
@@ -145,6 +158,13 @@ export default function Dashboard() {
               </div>
               {todayWorkout.is_rest_day ? (
                 <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">Rest day</span>
+              ) : todayCompletedSession ? (
+                <Link
+                  to={`/workouts/session/${todayCompletedSession.id}`}
+                  className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-3 py-1.5 rounded-lg"
+                >
+                  Done ✓
+                </Link>
               ) : (
                 <Link
                   to="/workouts"

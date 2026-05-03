@@ -545,7 +545,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     try {
       await api.workouts.completeSession(session.id)
       showToast('Workout complete! Great work 💪')
-      navigate('/workouts')
+      navigate('/dashboard')
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
       setCompleting(false)
@@ -565,12 +565,16 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const totalSets = session.set_logs.length
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
 
+  const isCompleted = session.is_completed
+
   return (
     <>
       <PageHeader
         title={session.exercise_day?.name ?? 'Workout'}
-        subtitle={session.exercise_day?.focus ?? ''}
-        action={
+        subtitle={isCompleted
+          ? `Completed ${new Date(session.completed_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : (session.exercise_day?.focus ?? '')}
+        action={!isCompleted ? (
           <button
             onClick={handleComplete}
             disabled={completing}
@@ -578,7 +582,11 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           >
             {completing ? 'Finishing...' : 'Finish workout'}
           </button>
-        }
+        ) : (
+          <span className="bg-white/20 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+            Done ✓
+          </span>
+        )}
       />
       <div className="p-6 max-w-lg">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-5 transition-colors">
@@ -613,29 +621,41 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                 {logs.map((log) => (
                   <div key={log.id} className={`grid grid-cols-[1.5rem_1fr_1fr_2rem] gap-2 items-center rounded-lg px-1 py-1 transition-colors ${log.is_completed ? 'bg-emerald-50' : ''}`}>
                     <span className="text-xs text-gray-500 font-medium">{log.set_number}</span>
-                    <input
-                      type="number" min={0} step={0.5}
-                      placeholder={`Weight (${unit})`}
-                      defaultValue={log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : ''}
-                      onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
-                    />
-                    <input
-                      type="number" min={0} placeholder="—"
-                      defaultValue={log.reps_completed ?? ''}
-                      onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
-                    />
-                    <button
-                      onClick={() => handleToggleSet(log)}
-                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    {isCompleted ? (
+                      <span className="text-sm text-center text-gray-700 py-1.5">
+                        {log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : '—'}
+                      </span>
+                    ) : (
+                      <input
+                        type="number" min={0} step={0.5}
+                        placeholder={`Weight (${unit})`}
+                        defaultValue={log.weight_kg != null ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg) : ''}
+                        onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
+                      />
+                    )}
+                    {isCompleted ? (
+                      <span className="text-sm text-center text-gray-700 py-1.5">
+                        {log.reps_completed ?? '—'}
+                      </span>
+                    ) : (
+                      <input
+                        type="number" min={0} placeholder="—"
+                        defaultValue={log.reps_completed ?? ''}
+                        onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-brand-400 w-full"
+                      />
+                    )}
+                    <div
+                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${
                         log.is_completed
                           ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-gray-300 text-transparent hover:border-emerald-400'
-                      }`}
+                          : 'border-gray-300 text-transparent'
+                      }${!isCompleted ? ' cursor-pointer hover:border-emerald-400' : ''}`}
+                      onClick={!isCompleted ? () => handleToggleSet(log) : undefined}
                     >
                       ✓
-                    </button>
+                    </div>
                   </div>
                 ))}
               </div>

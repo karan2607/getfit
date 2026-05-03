@@ -161,10 +161,11 @@ class WorkoutSessionSerializer(serializers.ModelSerializer):
 
 class WorkoutSessionListSerializer(serializers.ModelSerializer):
     day_name = serializers.CharField(source='exercise_day.name', read_only=True, default='')
+    exercise_day_id = serializers.UUIDField(source='exercise_day.id', read_only=True, default=None)
 
     class Meta:
         model = WorkoutSession
-        fields = ['id', 'day_name', 'started_at', 'completed_at', 'is_completed']
+        fields = ['id', 'day_name', 'exercise_day_id', 'started_at', 'completed_at', 'is_completed']
         read_only_fields = ['id', 'started_at']
 
 
