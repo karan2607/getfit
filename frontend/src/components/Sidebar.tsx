@@ -9,7 +9,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
+  { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { to: '/chat', label: 'AI Trainer', icon: '💬' },
   { to: '/workouts', label: 'Workouts', icon: '🏋️' },
   { to: '/diet', label: 'Diet', icon: '🥗' },
@@ -49,12 +49,12 @@ export default function Sidebar() {
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-gray-900 text-white">
+    <div className="flex flex-col h-full bg-gray-100 text-gray-800 border-r border-gray-200">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-6 overflow-hidden">
         <span className="text-2xl flex-shrink-0">💪</span>
         {isOpen && (
-          <span className="text-lg font-bold tracking-tight whitespace-nowrap">GetFit</span>
+          <span className="text-lg font-bold tracking-tight whitespace-nowrap text-gray-900">GetFit</span>
         )}
       </div>
 
@@ -67,7 +67,7 @@ export default function Sidebar() {
             onClick={() => isMobile && setIsOpen(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors overflow-hidden
-               ${isActive ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}
+               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
                ${!isOpen ? 'justify-center px-0' : ''}
               `
             }
@@ -80,22 +80,22 @@ export default function Sidebar() {
       </nav>
 
       {/* User + logout */}
-      <div className={`p-3 border-t border-gray-800 overflow-hidden ${!isOpen ? 'flex justify-center' : ''}`}>
+      <div className={`p-3 border-t border-gray-200 overflow-hidden ${!isOpen ? 'flex justify-center' : ''}`}>
         {isOpen ? (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
               {user?.name?.charAt(0)?.toUpperCase() ?? '?'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
-            <button onClick={handleLogout} title="Sign out" className="text-gray-400 hover:text-white text-lg transition-colors flex-shrink-0">
+            <button onClick={handleLogout} title="Sign out" className="text-gray-400 hover:text-gray-700 text-lg transition-colors flex-shrink-0">
               ↪
             </button>
           </div>
         ) : (
-          <button onClick={handleLogout} title="Sign out" className="text-gray-400 hover:text-white text-lg transition-colors">
+          <button onClick={handleLogout} title="Sign out" className="text-gray-400 hover:text-gray-700 text-lg transition-colors">
             ↪
           </button>
         )}
