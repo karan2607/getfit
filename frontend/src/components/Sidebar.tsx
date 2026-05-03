@@ -49,7 +49,7 @@ export default function Sidebar() {
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-gray-100 text-gray-800 border-r border-gray-200">
+    <div className="flex flex-col h-full bg-gray-200 text-gray-800 border-r border-gray-200">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-6 overflow-hidden">
         <span className="text-2xl flex-shrink-0">💪</span>
