@@ -536,6 +536,11 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
   async function handleToggleSet(log: SetLog) {
     if (!session) return
+    // Optimistic update — flip immediately so the UI responds instantly
+    setSession((s) => s ? {
+      ...s,
+      set_logs: s.set_logs.map((l) => l.id === log.id ? { ...l, is_completed: !l.is_completed } : l),
+    } : s)
     try {
       const updated = await api.workouts.logSet(session.id, {
         exercise_id: log.exercise_id ?? '',
@@ -547,7 +552,11 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
         set_logs: s.set_logs.map((l) => l.id === updated.id ? updated : l),
       } : s)
     } catch {
-      // silently fail
+      // Revert on failure
+      setSession((s) => s ? {
+        ...s,
+        set_logs: s.set_logs.map((l) => l.id === log.id ? { ...l, is_completed: log.is_completed } : l),
+      } : s)
     }
   }
 
