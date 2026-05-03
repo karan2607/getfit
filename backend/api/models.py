@@ -175,7 +175,7 @@ class Exercise(models.Model):
     day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE, related_name='exercises')
     name = models.CharField(max_length=150)
     sets = models.PositiveIntegerField()
-    reps = models.CharField(max_length=30)   # "8-12", "AMRAP", "30 sec"
+    reps = models.CharField(max_length=100)   # "8-12", "AMRAP", "30 sec"
     rest_seconds = models.PositiveIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
