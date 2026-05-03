@@ -321,6 +321,7 @@ export interface WorkoutPlan {
   title: string
   description: string
   is_active: boolean
+  activated_at: string | null
   generated_by_ai: boolean
   duration_weeks: number | null
   created_at: string

@@ -140,6 +140,7 @@ class WorkoutPlan(models.Model):
     title = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=False)
+    activated_at = models.DateTimeField(null=True, blank=True)
     generated_by_ai = models.BooleanField(default=True)
     duration_weeks = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

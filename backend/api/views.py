@@ -706,9 +706,11 @@ def workout_plan_detail(request, plan_id):
 @permission_classes([IsAuthenticated])
 def workout_plan_activate(request, plan_id):
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
+    from django.utils import timezone as _tz
     WorkoutPlan.objects.filter(user=request.user, is_active=True).update(is_active=False)
     plan.is_active = True
-    plan.save(update_fields=['is_active'])
+    plan.activated_at = _tz.now()
+    plan.save(update_fields=['is_active', 'activated_at'])
     return Response(WorkoutPlanSerializer(plan).data)
 
 

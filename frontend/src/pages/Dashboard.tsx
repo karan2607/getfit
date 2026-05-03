@@ -73,8 +73,10 @@ export default function Dashboard() {
   const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
   const todayWorkout = activePlan?.days.find((d) => {
-    const todayIndex = new Date().getDay()
-    return d.order === todayIndex % activePlan.days.length
+    if (!activePlan.activated_at) return d.order === 0
+    const msPerDay = 86_400_000
+    const daysSince = Math.floor((Date.now() - new Date(activePlan.activated_at).getTime()) / msPerDay)
+    return d.order === daysSince % activePlan.days.length
   })
 
   if (loading) {
