@@ -280,22 +280,22 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
 function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: Exercise) => void }) {
   return (
-    <div
-      onClick={() => onClick(exercise)}
-      className="flex-shrink-0 w-40 h-[120px] bg-white rounded-xl shadow-sm border-l-4 border-brand-500 cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-md active:scale-95 flex flex-col justify-between p-3 overflow-hidden relative"
-    >
-      <div className="flex items-start justify-between gap-1">
-        <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
-        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-brand-100 text-brand-500 text-[9px] font-bold flex items-center justify-center mt-0.5">i</span>
-      </div>
-      <div>
+    <div className="flex-shrink-0 w-40 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col p-3 overflow-hidden gap-2">
+      <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
+      <div className="flex items-center gap-1.5">
         <span className="text-xs font-semibold bg-brand-100 text-brand-500 px-1.5 py-0.5 rounded-full">
           {exercise.sets} × {exercise.reps}
         </span>
         {exercise.rest_seconds != null && (
-          <p className="text-xs text-gray-400 mt-1">⏱ {exercise.rest_seconds}s</p>
+          <span className="text-xs text-gray-400">⏱ {exercise.rest_seconds}s</span>
         )}
       </div>
+      <button
+        onClick={() => onClick(exercise)}
+        className="mt-auto text-xs text-brand-500 border border-brand-200 rounded-lg py-1.5 font-medium hover:bg-brand-50 active:bg-brand-100 transition-colors w-full"
+      >
+        How to
+      </button>
     </div>
   )
 }
@@ -315,6 +315,7 @@ function PlanDetail({ planId }: { planId: string }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [plan, setPlan] = useState<WorkoutPlanDetail | null>(null)
+  const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
@@ -326,11 +327,27 @@ function PlanDetail({ planId }: { planId: string }) {
   const chatOpen = explicitChatOpen || editDayId !== null
 
   useEffect(() => {
-    api.workouts.getPlan(planId)
-      .then(setPlan)
+    Promise.all([
+      api.workouts.getPlan(planId),
+      api.workouts.listSessions(),
+    ])
+      .then(([p, s]) => { setPlan(p); setSessions(s) })
       .catch(() => showToast('Failed to load plan', 'error'))
       .finally(() => setLoading(false))
   }, [planId])
+
+  // Build a map of dayId → most recent session (in-progress or today-completed)
+  const today = new Date().toDateString()
+  const daySessionMap = sessions.reduce<Record<string, WorkoutSessionSummary>>((acc, s) => {
+    if (!s.exercise_day_id) return acc
+    const existing = acc[s.exercise_day_id]
+    // Prefer in-progress; otherwise keep the most recent completed today
+    if (!existing) { acc[s.exercise_day_id] = s; return acc }
+    if (!existing.is_completed && s.is_completed) return acc  // keep in-progress
+    if (existing.is_completed && !s.is_completed) { acc[s.exercise_day_id] = s; return acc }
+    if (new Date(s.started_at) > new Date(existing.started_at)) acc[s.exercise_day_id] = s
+    return acc
+  }, {})
 
   async function handleActivate() {
     if (!plan) return
@@ -411,13 +428,38 @@ function PlanDetail({ planId }: { planId: string }) {
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => handleStartSession(day.id)}
-                        disabled={startingDay === day.id}
-                        className="text-sm bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        {startingDay === day.id ? '...' : 'Start'}
-                      </button>
+                      {(() => {
+                        const s = daySessionMap[day.id]
+                        if (s && !s.is_completed) {
+                          return (
+                            <button
+                              onClick={() => navigate(`/workouts/session/${s.id}`)}
+                              className="text-sm bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              Continue
+                            </button>
+                          )
+                        }
+                        if (s && s.is_completed && new Date(s.started_at).toDateString() === today) {
+                          return (
+                            <button
+                              onClick={() => navigate(`/workouts/session/${s.id}`)}
+                              className="text-sm bg-emerald-100 text-emerald-700 font-semibold px-3 py-1.5 rounded-lg"
+                            >
+                              Done ✓
+                            </button>
+                          )
+                        }
+                        return (
+                          <button
+                            onClick={() => handleStartSession(day.id)}
+                            disabled={startingDay === day.id}
+                            className="text-sm bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            {startingDay === day.id ? '...' : 'Start'}
+                          </button>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -659,15 +701,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
             return (
               <div key={exerciseName} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
                 {/* Exercise header */}
-                <div
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer active:opacity-70 transition-opacity ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
-                  onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
-                >
+                <div className={`flex items-center justify-between px-4 py-3 ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
-                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[9px] font-bold flex items-center justify-center">i</span>
-                    </div>
+                    <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
                     {planEx && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         {planEx.sets} sets · {planEx.reps}
@@ -676,6 +712,12 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <button
+                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
+                      className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
+                    >
+                      How to
+                    </button>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       allDone
                         ? 'bg-emerald-100 text-emerald-700'
