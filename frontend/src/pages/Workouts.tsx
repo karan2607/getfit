@@ -282,9 +282,12 @@ function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: 
   return (
     <div
       onClick={() => onClick(exercise)}
-      className="flex-shrink-0 w-40 h-[120px] bg-white rounded-xl shadow-sm border-l-4 border-brand-500 cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-md flex flex-col justify-between p-3 overflow-hidden"
+      className="flex-shrink-0 w-40 h-[120px] bg-white rounded-xl shadow-sm border-l-4 border-brand-500 cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-md active:scale-95 flex flex-col justify-between p-3 overflow-hidden relative"
     >
-      <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
+        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-brand-100 text-brand-500 text-[9px] font-bold flex items-center justify-center mt-0.5">i</span>
+      </div>
       <div>
         <span className="text-xs font-semibold bg-brand-100 text-brand-500 px-1.5 py-0.5 rounded-full">
           {exercise.sets} × {exercise.reps}
@@ -657,11 +660,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
               <div key={exerciseName} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
                 {/* Exercise header */}
                 <div
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
+                  className={`flex items-center justify-between px-4 py-3 cursor-pointer active:opacity-70 transition-opacity ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
                   onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
                 >
                   <div className="min-w-0">
-                    <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[9px] font-bold flex items-center justify-center">i</span>
+                    </div>
                     {planEx && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         {planEx.sets} sets · {planEx.reps}

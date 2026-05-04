@@ -912,34 +912,79 @@ def workout_exercise_history(request, exercise_name):
 _exercise_guide_cache: dict = {}
 
 
-def _fetch_wger_images(name: str) -> list:
-    """Return up to 2 exercise image URLs from wger.de (free, no key required)."""
+def _make_absolute(url: str, base: str = 'https://wger.de') -> str:
+    return url if url.startswith('http') else base + url
+
+
+def _wger_search_base_id(term: str) -> int | None:
     import urllib.request as _req
     import urllib.parse as _parse
     import json as _json
+    q = _parse.urlencode({'term': term, 'language': 'english', 'format': 'json'})
+    r = _req.Request(
+        f'https://wger.de/api/v2/exercise/search/?{q}',
+        headers={'Accept': 'application/json', 'User-Agent': 'getfit/1.0'},
+    )
+    with _req.urlopen(r, timeout=6) as resp:
+        suggestions = _json.loads(resp.read()).get('suggestions', [])
+    if suggestions:
+        return suggestions[0].get('data', {}).get('base_id')
+    return None
+
+
+def _fetch_wger_images(name: str) -> list:
+    """Return up to 2 exercise image URLs from wger.de (free, no key required)."""
+    import urllib.request as _req
+    import json as _json
+    import re as _re
     try:
-        q = _parse.urlencode({'term': name, 'language': 'english', 'format': 'json'})
-        r1 = _req.Request(
-            f'https://wger.de/api/v2/exercise/search/?{q}',
-            headers={'Accept': 'application/json', 'User-Agent': 'getfit/1.0'},
-        )
-        with _req.urlopen(r1, timeout=6) as resp:
-            suggestions = _json.loads(resp.read()).get('suggestions', [])
-        if not suggestions:
-            return []
-        base_id = suggestions[0].get('data', {}).get('base_id')
+        # Try full name first, then strip equipment prefix ("Barbell", "Dumbbell", etc.)
+        stripped = _re.sub(r'^(Barbell|Dumbbell|Cable|Machine|EZ[- ]Bar|Smith Machine)\s+', '', name, flags=_re.IGNORECASE)
+        base_id = None
+        for term in ([name] if name == stripped else [name, stripped]):
+            base_id = _wger_search_base_id(term)
+            if base_id:
+                break
         if not base_id:
             return []
+
         r2 = _req.Request(
             f'https://wger.de/api/v2/exerciseimage/?exercise_base_id={base_id}&format=json',
             headers={'Accept': 'application/json', 'User-Agent': 'getfit/1.0'},
         )
         with _req.urlopen(r2, timeout=6) as resp:
             results = _json.loads(resp.read()).get('results', [])
-        return [img['image'] for img in results[:2] if img.get('image')]
+        urls = [_make_absolute(img['image']) for img in results[:2] if img.get('image')]
+        logger.info('wger images for %r (base_id=%s): %s', name, base_id, urls)
+        return urls
     except Exception as exc:
         logger.warning('wger image fetch failed for %r: %s', name, exc)
         return []
+
+
+def _fetch_wikipedia_image(name: str) -> str | None:
+    """Return a thumbnail image URL from Wikipedia for the given exercise, as a fallback."""
+    import urllib.request as _req
+    import urllib.parse as _parse
+    import json as _json
+    try:
+        q = _parse.urlencode({
+            'action': 'query', 'titles': name.replace(' ', '_'),
+            'prop': 'pageimages', 'format': 'json', 'pithumbsize': 400,
+        })
+        r = _req.Request(
+            f'https://en.wikipedia.org/w/api.php?{q}',
+            headers={'User-Agent': 'getfit/1.0'},
+        )
+        with _req.urlopen(r, timeout=6) as resp:
+            pages = _json.loads(resp.read()).get('query', {}).get('pages', {})
+        for page in pages.values():
+            thumb = page.get('thumbnail', {}).get('source')
+            if thumb:
+                return thumb
+    except Exception:
+        pass
+    return None
 
 
 @api_view(['GET'])
@@ -966,7 +1011,12 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
-        guide['images'] = _fetch_wger_images(name)
+        images = _fetch_wger_images(name)
+        if not images:
+            wiki = _fetch_wikipedia_image(name)
+            if wiki:
+                images = [wiki]
+        guide['images'] = images
         _exercise_guide_cache[key] = guide
         return Response(guide)
     except Exception as exc:
