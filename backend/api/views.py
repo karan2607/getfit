@@ -1,4 +1,7 @@
+import logging
 from django.contrib.auth import get_user_model, authenticate
+
+logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
@@ -935,8 +938,9 @@ Return only valid JSON, no extra text."""
         )
         _exercise_guide_cache[key] = guide
         return Response(guide)
-    except Exception:
-        return Response({'error': 'Could not generate guide'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as exc:
+        logger.error('exercise_guide failed for %r: %s', name, exc, exc_info=True)
+        return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 # ---------------------------------------------------------------------------
