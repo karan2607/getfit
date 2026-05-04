@@ -905,6 +905,40 @@ def workout_exercise_history(request, exercise_name):
     return Response(list(logs))
 
 
+# Simple in-memory cache for exercise guides (exercise name → guide dict)
+_exercise_guide_cache: dict = {}
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def exercise_guide(request):
+    name = request.GET.get('name', '').strip()
+    if not name:
+        return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    key = name.lower()
+    if key in _exercise_guide_cache:
+        return Response(_exercise_guide_cache[key])
+
+    prompt = f"""Return a JSON object for the exercise "{name}" with exactly these fields:
+- "steps": array of 4-6 strings, each a clear action step for performing the exercise correctly
+- "muscles": array of 2-4 strings, the primary muscles targeted (short names like "Quadriceps", "Glutes")
+- "tips": array of 2-3 strings, common mistakes to avoid or form cues
+- "category": exactly one of: squat, push, press, pull, row, hinge, curl, lunge, core, cardio, other
+
+Return only valid JSON, no extra text."""
+
+    try:
+        guide = call_gemini_json(
+            system_prompt='You are a certified personal trainer providing exercise instruction.',
+            user_prompt=prompt,
+        )
+        _exercise_guide_cache[key] = guide
+        return Response(guide)
+    except Exception:
+        return Response({'error': 'Could not generate guide'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
 # ---------------------------------------------------------------------------
 # Diet Planner
 # ---------------------------------------------------------------------------
