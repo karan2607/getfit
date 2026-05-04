@@ -38,7 +38,7 @@ from .serializers import (
     BodyScanResultSerializer,
 )
 from .email import send_password_reset_email
-from .gemini import stream_gemini_chat, GeminiError
+from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
 
 User = get_user_model()
 
