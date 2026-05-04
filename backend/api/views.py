@@ -14,6 +14,7 @@ from .models import (
     PasswordResetToken, UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
+    ExerciseGuide,
 )
 from .serializers import (
     RegisterSerializer,
@@ -908,57 +909,60 @@ def workout_exercise_history(request, exercise_name):
     return Response(list(logs))
 
 
-# Simple in-memory cache for exercise guides (exercise name → guide dict)
-_exercise_guide_cache: dict = {}
-
-
-def _wikipedia_thumbnail(title: str) -> str | None:
-    """Fetch the main thumbnail for a Wikipedia article title."""
+def _commons_search(query: str) -> list:
+    """Search Wikimedia Commons file namespace, return up to 2 JPEG/PNG thumbnail URLs."""
     import urllib.request as _req
     import urllib.parse as _parse
     import json as _json
     try:
-        slug = _parse.quote(title.replace(' ', '_'))
+        params = {
+            'action': 'query', 'generator': 'search',
+            'gsrnamespace': '6', 'gsrsearch': query, 'gsrlimit': '10',
+            'prop': 'imageinfo', 'iiprop': 'url|mime', 'iiurlwidth': '500',
+            'format': 'json', 'formatversion': '2',
+        }
         r = _req.Request(
-            f'https://en.wikipedia.org/api/rest_v1/page/summary/{slug}',
-            headers={'User-Agent': 'getfit/1.0', 'Accept': 'application/json'},
+            'https://commons.wikimedia.org/w/api.php?' + _parse.urlencode(params),
+            headers={'User-Agent': 'getfit/1.0'},
         )
-        with _req.urlopen(r, timeout=6) as resp:
-            data = _json.loads(resp.read())
-        return data.get('thumbnail', {}).get('source') or None
-    except Exception:
-        return None
+        with _req.urlopen(r, timeout=8) as resp:
+            pages = _json.loads(resp.read()).get('query', {}).get('pages', [])
+        urls = []
+        for page in pages:
+            for ii in page.get('imageinfo', []):
+                if ii.get('mime') in ('image/jpeg', 'image/png'):
+                    thumb = ii.get('thumburl') or ii.get('url')
+                    if thumb:
+                        urls.append(thumb)
+            if len(urls) >= 2:
+                break
+        return urls[:2]
+    except Exception as exc:
+        logger.warning('commons_search failed for %r: %s', query, exc)
+        return []
 
 
-# Ordered list of prefixes/modifiers to strip when looking up a base exercise name
-_STRIP_PREFIXES = [
-    r'^(Barbell|Dumbbell|Cable|Machine|EZ[- ]?Bar|Smith[- ]Machine|Kettlebell|Resistance[- ]Band)\s+',
-    r'^(Incline|Decline|Flat|Seated|Standing|Lying|Prone|Supine|Single[- ]Arm|One[- ]Arm|Close[- ]Grip|Wide[- ]Grip|Reverse[- ]Grip|Neutral[- ]Grip)\s+',
-]
-
-
-def _fetch_exercise_images(name: str) -> list:
-    """
-    Return up to 1 exercise image URL via Wikipedia.
-    Tries the full name first, then progressively strips equipment/modifier
-    prefixes to find a Wikipedia article that has a thumbnail.
-    """
+def _fetch_commons_images(name: str) -> list:
+    """Return up to 2 exercise image URLs from Wikimedia Commons, trying name variations."""
     import re as _re
     candidates = [name]
-    current = name
-    for pattern in _STRIP_PREFIXES:
-        stripped = _re.sub(pattern, '', current, flags=_re.IGNORECASE).strip()
-        if stripped and stripped != current:
-            candidates.append(stripped)
-            current = stripped
+    stripped = name
+    for pat in [
+        r'^(Barbell|Dumbbell|Cable|Machine|EZ[- ]?Bar|Smith[- ]Machine|Kettlebell|Resistance[- ]Band)\s+',
+        r'^(Incline|Decline|Flat|Seated|Standing|Lying|Single[- ]Arm|One[- ]Arm|Close[- ]Grip|Wide[- ]Grip|Reverse[- ]Grip)\s+',
+    ]:
+        s = _re.sub(pat, '', stripped, flags=_re.IGNORECASE).strip()
+        if s and s != stripped:
+            candidates.append(s)
+            stripped = s
 
-    for title in candidates:
-        url = _wikipedia_thumbnail(title)
-        if url:
-            logger.info('exercise image for %r via Wikipedia title %r: %s', name, title, url)
-            return [url]
+    for term in candidates:
+        urls = _commons_search(term + ' exercise')
+        if urls:
+            logger.info('commons images for %r via term %r: %s', name, term, urls)
+            return urls
 
-    logger.info('no exercise image found for %r (tried: %s)', name, candidates)
+    logger.info('no commons images found for %r (tried: %s)', name, candidates)
     return []
 
 
@@ -969,9 +973,13 @@ def exercise_guide(request):
     if not name:
         return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    key = name.lower()
-    if key in _exercise_guide_cache:
-        return Response(_exercise_guide_cache[key])
+    # DB cache — survives server restarts
+    try:
+        cached = ExerciseGuide.objects.get(name__iexact=name)
+        logger.info('exercise_guide: DB hit for %r', name)
+        return Response(cached.data)
+    except ExerciseGuide.DoesNotExist:
+        pass
 
     prompt = f"""Return a JSON object for the exercise "{name}" with exactly these fields:
 - "steps": array of 4-6 strings, each a clear action step for performing the exercise correctly
@@ -986,8 +994,8 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
-        guide['images'] = _fetch_exercise_images(name)
-        _exercise_guide_cache[key] = guide
+        guide['images'] = _fetch_commons_images(name)
+        ExerciseGuide.objects.create(name=name, data=guide)
         return Response(guide)
     except Exception as exc:
         logger.error('exercise_guide failed for %r: %s', name, exc, exc_info=True)
