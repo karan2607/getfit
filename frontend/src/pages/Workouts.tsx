@@ -316,6 +316,7 @@ function PlanDetail({ planId }: { planId: string }) {
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [editDayId, setEditDayId] = useState<string | null>(null)
+  const [editDayNumber, setEditDayNumber] = useState<number | null>(null)
   const [explicitChatOpen, setExplicitChatOpen] = useState(false)
   const [weeksExpanded, setWeeksExpanded] = useState(false)
 
@@ -402,7 +403,7 @@ function PlanDetail({ planId }: { planId: string }) {
                   {!day.is_rest_day && (
                     <div className="ml-auto flex items-center gap-2">
                       <button
-                        onClick={() => setEditDayId(day.id)}
+                        onClick={() => { setEditDayId(day.id); setEditDayNumber(day.day_number) }}
                         className="text-xs text-brand-500 border border-brand-300 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
                       >
                         Edit
@@ -485,9 +486,10 @@ function PlanDetail({ planId }: { planId: string }) {
       <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
       <WorkoutChatDrawer
         isOpen={chatOpen}
-        onClose={() => { setExplicitChatOpen(false); setEditDayId(null) }}
+        onClose={() => { setExplicitChatOpen(false); setEditDayId(null); setEditDayNumber(null) }}
         planId={plan?.id}
         dayId={editDayId ?? undefined}
+        filterDayNumber={editDayNumber ?? undefined}
         onPlanUpdated={() => plan && api.workouts.getPlan(plan.id).then(setPlan).catch(() => {})}
       />
     </>

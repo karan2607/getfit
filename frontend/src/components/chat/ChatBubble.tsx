@@ -9,6 +9,7 @@ interface Props {
   isStreaming?: boolean
   planId?: string
   dietPlanId?: string
+  filterDayNumber?: number
   onSaved?: () => void
   onDietSaved?: () => void
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
@@ -54,7 +55,11 @@ function ThinkingCard() {
   )
 }
 
-function PlanPreviewModal({ plan, onClose }: { plan: WorkoutPlanPreview; onClose: () => void }) {
+function PlanPreviewModal({ plan, filterDayNumber, onClose }: { plan: WorkoutPlanPreview; filterDayNumber?: number; onClose: () => void }) {
+  const days = filterDayNumber != null
+    ? plan.days.filter((d) => d.day_number === filterDayNumber)
+    : plan.days
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 animate-fade-in">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
@@ -68,7 +73,7 @@ function PlanPreviewModal({ plan, onClose }: { plan: WorkoutPlanPreview; onClose
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4 space-y-4">
-          {plan.days.map((day) => (
+          {days.map((day) => (
             <div key={day.day_number}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-600 text-xs font-bold flex items-center justify-center flex-shrink-0">
@@ -100,10 +105,11 @@ function PlanPreviewModal({ plan, onClose }: { plan: WorkoutPlanPreview; onClose
 }
 
 function InlinePlanCard({
-  plan, planId, onSaved, onPreviewUpdate,
+  plan, planId, filterDayNumber, onSaved, onPreviewUpdate,
 }: {
   plan: WorkoutPlanPreview
   planId?: string
+  filterDayNumber?: number
   onSaved?: () => void
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
 }) {
@@ -165,7 +171,7 @@ function InlinePlanCard({
           </div>
         </div>
       </div>
-      {previewOpen && <PlanPreviewModal plan={plan} onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && <PlanPreviewModal plan={plan} filterDayNumber={filterDayNumber} onClose={() => setPreviewOpen(false)} />}
     </>
   )
 }
@@ -245,7 +251,7 @@ function parseDietPlan(content: string): { text: string; plan: DietPlanPreview |
   }
 }
 
-export default function ChatBubble({ role, content, isStreaming, planId, dietPlanId, onSaved, onDietSaved, onPreviewUpdate }: Props) {
+export default function ChatBubble({ role, content, isStreaming, planId, dietPlanId, filterDayNumber, onSaved, onDietSaved, onPreviewUpdate }: Props) {
   const isUser = role === 'user'
 
   // While streaming, if a plan block is being built, show thinking card instead of raw JSON
@@ -290,7 +296,7 @@ export default function ChatBubble({ role, content, isStreaming, planId, dietPla
           </div>
         )}
         {isGeneratingPlan && <ThinkingCard />}
-        {workoutPlan && !isStreaming && <InlinePlanCard plan={workoutPlan} planId={planId} onSaved={onSaved} onPreviewUpdate={onPreviewUpdate} />}
+        {workoutPlan && !isStreaming && <InlinePlanCard plan={workoutPlan} planId={planId} filterDayNumber={filterDayNumber} onSaved={onSaved} onPreviewUpdate={onPreviewUpdate} />}
         {dietPlan && !isStreaming && <InlineDietPlanCard plan={dietPlan} dietPlanId={dietPlanId} onSaved={onDietSaved} />}
       </div>
     </div>

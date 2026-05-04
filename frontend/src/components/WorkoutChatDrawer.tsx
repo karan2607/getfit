@@ -10,6 +10,7 @@ interface WorkoutChatDrawerProps {
   onClose: () => void
   planId?: string
   dayId?: string
+  filterDayNumber?: number
   dietPlanId?: string
   onPlanUpdated?: () => void
   onDietPlanUpdated?: () => void
@@ -18,7 +19,7 @@ interface WorkoutChatDrawerProps {
 }
 
 export default function WorkoutChatDrawer({
-  isOpen, onClose, planId, dayId, dietPlanId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
+  isOpen, onClose, planId, dayId, filterDayNumber, dietPlanId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
 }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
@@ -113,6 +114,7 @@ export default function WorkoutChatDrawer({
                   content={msg.content}
                   planId={msg.role === 'assistant' ? planId : undefined}
                   dietPlanId={msg.role === 'assistant' ? dietPlanId : undefined}
+                  filterDayNumber={filterDayNumber}
                   onSaved={onPlanUpdated}
                   onDietSaved={onDietPlanUpdated}
                   onPreviewUpdate={msg.role === 'assistant' ? onPreviewUpdate : undefined}
@@ -126,6 +128,7 @@ export default function WorkoutChatDrawer({
                   isStreaming
                   planId={planId}
                   dietPlanId={dietPlanId}
+                  filterDayNumber={filterDayNumber}
                   onSaved={onPlanUpdated}
                   onDietSaved={onDietPlanUpdated}
                   onPreviewUpdate={onPreviewUpdate}
