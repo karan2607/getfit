@@ -196,18 +196,47 @@ function MealCard({ meal, onClick }: { meal: { meal_type: string; name: string; 
   )
 }
 
-function MealDrawer({ meal, onClose }: { meal: Meal | null; onClose: () => void }) {
+interface MealGuideData {
+  ingredients: string[]
+  steps: string[]
+  prep_time: string
+  tips: string[]
+}
+
+function MealDrawer({ meal, dietPlanId, onClose, onEditWithAI }: {
+  meal: Meal | null
+  dietPlanId: string
+  onClose: () => void
+  onEditWithAI: (meal: Meal) => void
+}) {
+  const [guide, setGuide] = useState<MealGuideData | null>(null)
+  const [guideLoading, setGuideLoading] = useState(false)
+
   useEffect(() => {
     document.body.style.overflow = meal ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [meal])
 
+  useEffect(() => {
+    if (!meal) { setGuide(null); return }
+    setGuide(null)
+    setGuideLoading(true)
+    api.diet.getMealGuide({ name: meal.name, calories: meal.calories, protein_g: meal.protein_g, carbs_g: meal.carbs_g, fat_g: meal.fat_g })
+      .then(setGuide)
+      .catch(() => {})
+      .finally(() => setGuideLoading(false))
+  }, [meal?.id])
+
   if (!meal) return null
+
+  const ytUrl = `https://www.youtube.com/search?q=${encodeURIComponent(meal.name + ' healthy recipe')}`
+  const recipeUrl = `https://www.google.com/search?q=${encodeURIComponent(meal.name + ' healthy recipe site:allrecipes.com OR site:bbcgoodfood.com')}`
 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 animate-fade-in" onClick={onClose} />
       <div className="fixed right-0 top-0 h-full w-80 z-50 bg-white shadow-2xl flex flex-col animate-slide-in">
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 bg-brand-500">
           <div>
             <p className="text-base font-bold text-white">{meal.name}</p>
@@ -215,7 +244,9 @@ function MealDrawer({ meal, onClose }: { meal: Meal | null; onClose: () => void 
           </div>
           <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">✕</button>
         </div>
+
         <div className="flex-1 overflow-y-auto px-5 py-5">
+          {/* Macros */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
               { label: 'Calories', value: `${meal.calories} kcal`, color: 'bg-gray-50 text-gray-700' },
@@ -229,12 +260,107 @@ function MealDrawer({ meal, onClose }: { meal: Meal | null; onClose: () => void 
               </div>
             ))}
           </div>
+
           {meal.description && (
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Description</p>
+            <div className="bg-gray-50 rounded-xl px-4 py-3 mb-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">About</p>
               <p className="text-sm text-gray-700 leading-relaxed">{meal.description}</p>
             </div>
           )}
+
+          {/* How to make it */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">How to make it</p>
+
+            {guideLoading ? (
+              <div className="space-y-2">
+                {[80, 65, 75, 55, 70].map((w, i) => (
+                  <div key={i} className="h-3 bg-gray-100 rounded-full animate-pulse" style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ) : guide ? (
+              <div className="space-y-4">
+                {guide.prep_time && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <span>⏱</span>
+                    <span>{guide.prep_time}</span>
+                  </div>
+                )}
+
+                {/* Ingredients */}
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-2">Ingredients</p>
+                  <ul className="space-y-1.5">
+                    {guide.ingredients.map((ing, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0 mt-1.5" />
+                        {ing}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Steps */}
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-2">Steps</p>
+                  <div className="space-y-2.5">
+                    {guide.steps.map((step, i) => (
+                      <div key={i} className="flex gap-3">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                          {i + 1}
+                        </span>
+                        <p className="text-sm text-gray-700 leading-relaxed">{step}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tips */}
+                {guide.tips.length > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-emerald-700 mb-2">Tips</p>
+                    <ul className="space-y-1.5">
+                      {guide.tips.map((tip, i) => (
+                        <li key={i} className="flex gap-2 text-xs text-emerald-800 leading-relaxed">
+                          <span className="flex-shrink-0 mt-0.5">•</span>
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">Could not load recipe.</p>
+            )}
+          </div>
+
+          {/* Recipe links */}
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Find recipes</p>
+          <a href={ytUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl px-4 py-3 mb-2 transition-colors">
+            <span className="text-red-600 text-lg">▶</span>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Watch on YouTube</p>
+              <p className="text-xs text-gray-500">Video recipe</p>
+            </div>
+          </a>
+          <a href={recipeUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-4 py-3 mb-5 transition-colors">
+            <span className="text-blue-600 text-lg font-bold">G</span>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Find recipes online</p>
+              <p className="text-xs text-gray-500">AllRecipes, BBC Good Food</p>
+            </div>
+          </a>
+
+          {/* Edit with AI */}
+          <button
+            onClick={() => { onClose(); onEditWithAI(meal) }}
+            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            ✦ Edit this meal with AI
+          </button>
         </div>
       </div>
     </>
@@ -419,6 +545,8 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
   const [activeDay, setActiveDay] = useState(1)
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [editMeal, setEditMeal] = useState<Meal | null>(null)
+  const [editMealChatOpen, setEditMealChatOpen] = useState(false)
 
   function loadPlan() {
     api.diet.getPlan(planId)
@@ -499,11 +627,23 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
         💬
       </button>
 
-      <MealDrawer meal={selectedMeal} onClose={() => setSelectedMeal(null)} />
+      <MealDrawer
+        meal={selectedMeal}
+        dietPlanId={plan.id}
+        onClose={() => setSelectedMeal(null)}
+        onEditWithAI={(meal) => { setSelectedMeal(null); setEditMeal(meal); setEditMealChatOpen(true) }}
+      />
       <WorkoutChatDrawer
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
         dietPlanId={plan.id}
+        onDietPlanUpdated={() => { setLoading(true); loadPlan() }}
+      />
+      <WorkoutChatDrawer
+        isOpen={editMealChatOpen}
+        onClose={() => setEditMealChatOpen(false)}
+        dietPlanId={plan.id}
+        mealId={editMeal?.id}
         onDietPlanUpdated={() => { setLoading(true); loadPlan() }}
       />
     </>

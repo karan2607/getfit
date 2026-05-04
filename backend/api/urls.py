@@ -29,6 +29,7 @@ urlpatterns = [
     path('workouts/exercises/guide/', views.exercise_guide, name='exercise-guide'),
     path('workouts/exercises/<str:exercise_name>/history/', views.workout_exercise_history, name='workout-exercise-history'),
     # Diet Planner
+    path('diet/meals/guide/', views.meal_guide, name='meal-guide'),
     path('diet/plans/generate/', views.diet_plan_generate, name='diet-plan-generate'),
     path('diet/plans/', views.diet_plans, name='diet-plans'),
     path('diet/plans/<uuid:plan_id>/', views.diet_plan_detail, name='diet-plan-detail'),

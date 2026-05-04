@@ -237,6 +237,11 @@ export const api = {
     generatePlan: (data?: { country?: string; cuisine_preference?: string; usual_foods?: string; duration_days?: number }) =>
       request<DietPlanPreview>('/api/diet/plans/generate/', { method: 'POST', body: JSON.stringify(data ?? {}) }),
 
+    getMealGuide: (meal: { name: string; calories: number; protein_g: number; carbs_g: number; fat_g: number }) =>
+      request<{ ingredients: string[]; steps: string[]; prep_time: string; tips: string[] }>(
+        `/api/diet/meals/guide/?name=${encodeURIComponent(meal.name)}&calories=${meal.calories}&protein=${meal.protein_g}&carbs=${meal.carbs_g}&fat=${meal.fat_g}`
+      ),
+
     savePlan: (data: DietPlanPreview) =>
       request<DietPlanDetail>('/api/diet/plans/', { method: 'POST', body: JSON.stringify(data) }),
 

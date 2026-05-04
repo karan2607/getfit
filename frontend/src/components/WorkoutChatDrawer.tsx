@@ -12,6 +12,7 @@ interface WorkoutChatDrawerProps {
   dayId?: string
   filterDayNumber?: number
   dietPlanId?: string
+  mealId?: string
   onPlanUpdated?: () => void
   onDietPlanUpdated?: () => void
   planPreview?: WorkoutPlanPreview
@@ -19,7 +20,7 @@ interface WorkoutChatDrawerProps {
 }
 
 export default function WorkoutChatDrawer({
-  isOpen, onClose, planId, dayId, filterDayNumber, dietPlanId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
+  isOpen, onClose, planId, dayId, filterDayNumber, dietPlanId, mealId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
 }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
@@ -34,6 +35,7 @@ export default function WorkoutChatDrawer({
     else if (planPreview) extra.plan_context = JSON.stringify(planPreview)
     if (dayId) extra.day_id = dayId
     if (dietPlanId) extra.diet_plan_id = dietPlanId
+    if (mealId) extra.meal_id = mealId
     sendMessage(content, Object.keys(extra).length ? extra : undefined)
   }
 

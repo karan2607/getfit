@@ -14,7 +14,7 @@ from .models import (
     PasswordResetToken, UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
-    ExerciseGuide,
+    ExerciseGuide, MealGuide,
 )
 from .serializers import (
     RegisterSerializer,
@@ -193,7 +193,7 @@ def profile(request):
 # Chat
 # ---------------------------------------------------------------------------
 
-def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, diet_plan_id=None) -> str:
+def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, diet_plan_id=None, meal_id=None) -> str:
     preferred_unit = 'lb'
     try:
         p = user.profile
@@ -428,6 +428,22 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
         except Exception:
             pass
 
+    meal_context_text = ''
+    if meal_id and diet_plan_id:
+        try:
+            meal_obj = Meal.objects.get(pk=meal_id)
+            meal_context_text = (
+                f'\n\nYOU ARE EDITING A SPECIFIC MEAL: "{meal_obj.name}" '
+                f'(Day {meal_obj.day_number}, {meal_obj.meal_type}). '
+                f'Current macros: {meal_obj.calories} kcal, {meal_obj.protein_g}g protein, '
+                f'{meal_obj.carbs_g}g carbs, {meal_obj.fat_g}g fat. '
+                f'Description: {meal_obj.description or "none"}. '
+                'Only change this meal. Keep all other meals in the plan identical. '
+                'Output the COMPLETE updated diet plan as a diet-plan block.'
+            )
+        except Exception:
+            pass
+
     return (
         'You are a certified AI personal trainer and fitness coach. '
         'Respond conversationally, helpfully, and concisely. '
@@ -448,6 +464,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
         f'{weight_history_text}'
         f'{plan_text}'
         f'{diet_plan_text}'
+        f'{meal_context_text}'
     )
 
 
@@ -519,6 +536,7 @@ def chat_message_stream(request, session_id):
     plan_context = body.get('plan_context')  # raw plan JSON for unsaved previews
     day_id = body.get('day_id')
     diet_plan_id = body.get('diet_plan_id')
+    meal_id = body.get('meal_id')
 
     try:
         session = ChatSession.objects.get(pk=session_id, user=user)
@@ -533,7 +551,7 @@ def chat_message_stream(request, session_id):
         for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
-    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id)
+    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id, meal_id=meal_id)
 
     def event_stream():
         full_response = ''
@@ -999,6 +1017,46 @@ Return only valid JSON, no extra text."""
         return Response(guide)
     except Exception as exc:
         logger.error('exercise_guide failed for %r: %s', name, exc, exc_info=True)
+        return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def meal_guide(request):
+    name = request.GET.get('name', '').strip()
+    if not name:
+        return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        cached = MealGuide.objects.get(name__iexact=name)
+        logger.info('meal_guide: DB hit for %r', name)
+        return Response(cached.data)
+    except MealGuide.DoesNotExist:
+        pass
+
+    calories = request.GET.get('calories', '')
+    protein = request.GET.get('protein', '')
+    carbs = request.GET.get('carbs', '')
+    fat = request.GET.get('fat', '')
+    macro_hint = f' (target: {calories} kcal, {protein}g protein, {carbs}g carbs, {fat}g fat)' if calories else ''
+
+    prompt = f"""Return a JSON object for the meal "{name}"{macro_hint} with exactly these fields:
+- "ingredients": array of 6-10 strings, each an ingredient with quantity (e.g. "200g chicken breast", "1 tbsp olive oil")
+- "steps": array of 4-7 strings, each a clear cooking/preparation step
+- "prep_time": string, total prep + cook time (e.g. "25 minutes")
+- "tips": array of 2-3 strings, tips for making it healthier, tastier, or easier
+
+Return only valid JSON, no extra text."""
+
+    try:
+        guide = call_gemini_json(
+            system_prompt='You are a professional chef and nutritionist providing healthy meal preparation guidance.',
+            user_prompt=prompt,
+        )
+        MealGuide.objects.create(name=name, data=guide)
+        return Response(guide)
+    except Exception as exc:
+        logger.error('meal_guide failed for %r: %s', name, exc, exc_info=True)
         return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
