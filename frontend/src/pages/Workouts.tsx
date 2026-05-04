@@ -507,6 +507,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<WorkoutSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
 
   useEffect(() => {
     api.workouts.getSession(sessionId)
@@ -644,6 +645,8 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           </div>
         </div>
 
+        <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
+
         <div className="space-y-4 mb-8">
           {exerciseEntries.map(([exerciseName, logs]) => {
             const planEx = planExerciseMap[exerciseName]
@@ -653,7 +656,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
             return (
               <div key={exerciseName} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
                 {/* Exercise header */}
-                <div className={`flex items-center justify-between px-4 py-3 ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}>
+                <div
+                  className={`flex items-center justify-between px-4 py-3 cursor-pointer ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
+                  onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
+                >
                   <div className="min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
                     {planEx && (

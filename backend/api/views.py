@@ -912,6 +912,36 @@ def workout_exercise_history(request, exercise_name):
 _exercise_guide_cache: dict = {}
 
 
+def _fetch_wger_images(name: str) -> list:
+    """Return up to 2 exercise image URLs from wger.de (free, no key required)."""
+    import urllib.request as _req
+    import urllib.parse as _parse
+    import json as _json
+    try:
+        q = _parse.urlencode({'term': name, 'language': 'english', 'format': 'json'})
+        r1 = _req.Request(
+            f'https://wger.de/api/v2/exercise/search/?{q}',
+            headers={'Accept': 'application/json', 'User-Agent': 'getfit/1.0'},
+        )
+        with _req.urlopen(r1, timeout=6) as resp:
+            suggestions = _json.loads(resp.read()).get('suggestions', [])
+        if not suggestions:
+            return []
+        base_id = suggestions[0].get('data', {}).get('base_id')
+        if not base_id:
+            return []
+        r2 = _req.Request(
+            f'https://wger.de/api/v2/exerciseimage/?exercise_base_id={base_id}&format=json',
+            headers={'Accept': 'application/json', 'User-Agent': 'getfit/1.0'},
+        )
+        with _req.urlopen(r2, timeout=6) as resp:
+            results = _json.loads(resp.read()).get('results', [])
+        return [img['image'] for img in results[:2] if img.get('image')]
+    except Exception as exc:
+        logger.warning('wger image fetch failed for %r: %s', name, exc)
+        return []
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exercise_guide(request):
@@ -936,6 +966,7 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
+        guide['images'] = _fetch_wger_images(name)
         _exercise_guide_cache[key] = guide
         return Response(guide)
     except Exception as exc:

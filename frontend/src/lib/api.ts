@@ -228,7 +228,7 @@ export const api = {
       request<ExerciseHistoryPoint[]>(`/api/workouts/exercises/${encodeURIComponent(exerciseName)}/history/`),
 
     getExerciseGuide: (exerciseName: string) =>
-      request<{ steps: string[]; muscles: string[]; tips: string[]; category: string }>(
+      request<{ steps: string[]; muscles: string[]; tips: string[]; category: string; images: string[] }>(
         `/api/workouts/exercises/guide/?name=${encodeURIComponent(exerciseName)}`
       ),
   },
