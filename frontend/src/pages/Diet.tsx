@@ -203,9 +203,8 @@ interface MealGuideData {
   tips: string[]
 }
 
-function MealDrawer({ meal, dietPlanId, onClose, onEditWithAI }: {
+function MealDrawer({ meal, onClose, onEditWithAI }: {
   meal: Meal | null
-  dietPlanId: string
   onClose: () => void
   onEditWithAI: (meal: Meal) => void
 }) {
@@ -629,7 +628,6 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
 
       <MealDrawer
         meal={selectedMeal}
-        dietPlanId={plan.id}
         onClose={() => setSelectedMeal(null)}
         onEditWithAI={(meal) => { setSelectedMeal(null); setEditMeal(meal); setEditMealChatOpen(true) }}
       />
