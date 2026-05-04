@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type SetLog, type ExerciseHistoryPoint, type Exercise } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistoryPoint, type Exercise } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
