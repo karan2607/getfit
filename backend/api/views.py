@@ -1673,11 +1673,21 @@ def health_calorie_balance(request):
         except Exception:
             pass
 
+    net_goal = None
+    try:
+        goal_delta = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}.get(
+            request.user.profile.fitness_goal or '', None
+        )
+        net_goal = goal_delta
+    except Exception:
+        pass
+
     return Response({
         'calories_in': calories_in,
         'calories_out': calories_out,
         'net': net,
         'target': target,
+        'net_goal': net_goal,
     })
 
 

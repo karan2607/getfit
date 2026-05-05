@@ -310,39 +310,41 @@ function RecoveryCard({ recovery }: { recovery: HealthRecovery | null }) {
 
 // ── Calorie Balance Card ──────────────────────────────────────────────────────
 
+function CalStatCol({ value, label, color }: { value: string; label: string; color?: string }) {
+  return (
+    <div className="text-center">
+      <p className={`text-lg font-bold ${color ?? 'text-gray-800'}`}>{value}</p>
+      <p className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{label}</p>
+    </div>
+  )
+}
+
 function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null }) {
   if (!balance) return <div className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse mb-4" />
+
   const net = balance.net
   const netDisplay = net != null ? (net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()) : '—'
   const netColor = net == null ? 'text-gray-400' : net >= 0 ? 'text-emerald-500' : 'text-red-500'
 
+  const ng = balance.net_goal
+  const ngDisplay = ng != null ? (ng >= 0 ? `+${ng.toLocaleString()}` : ng.toLocaleString()) : '—'
+  const ngColor = ng == null ? 'text-gray-400' : 'text-gray-500'
+
+  const divider = <div className="w-px bg-gray-100 self-stretch" />
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Today's Calories</p>
-      <div className="flex justify-around text-center">
-        <div>
-          <p className="text-xl font-bold text-gray-800">{balance.calories_in.toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Eaten</p>
-        </div>
-        <div className="text-gray-200 text-2xl font-light self-center">−</div>
-        <div>
-          <p className="text-xl font-bold text-gray-800">{balance.calories_out != null ? balance.calories_out.toLocaleString() : '—'}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Burned</p>
-        </div>
-        <div className="text-gray-200 text-2xl font-light self-center">=</div>
-        <div>
-          <p className={`text-xl font-bold ${netColor}`}>{netDisplay}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Net</p>
-        </div>
-        {balance.target != null && (
-          <>
-            <div className="w-px bg-gray-100 self-stretch mx-1" />
-            <div>
-              <p className="text-xl font-bold text-gray-500">{balance.target.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Target</p>
-            </div>
-          </>
-        )}
+      <div className="flex justify-around items-center gap-1">
+        <CalStatCol value={balance.target != null ? balance.target.toLocaleString() : '—'} label="Target" />
+        {divider}
+        <CalStatCol value={balance.calories_in.toLocaleString()} label="Eaten" />
+        {divider}
+        <CalStatCol value={balance.calories_out != null ? balance.calories_out.toLocaleString() : '—'} label="Burned" />
+        {divider}
+        <CalStatCol value={netDisplay} label="Net" color={netColor} />
+        {divider}
+        <CalStatCol value={ngDisplay} label="Net Goal" color={ngColor} />
       </div>
     </div>
   )
