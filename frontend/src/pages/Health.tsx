@@ -320,21 +320,26 @@ function CalStatCol({ value, label, color }: { value: string; label: string; col
 }
 
 function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null }) {
-  if (!balance) return <div className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse mb-4" />
+  if (!balance) return <div className="bg-white rounded-2xl border border-gray-100 h-32 animate-pulse mb-4" />
 
   const net = balance.net
   const netDisplay = net != null ? (net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()) : '—'
 
-  const rem = balance.remaining
-  const remDisplay = rem != null ? (rem >= 0 ? rem.toLocaleString() : rem.toLocaleString()) : '—'
-  const remColor = rem == null ? 'text-gray-400' : rem >= 0 ? 'text-emerald-500' : 'text-red-500'
+  const re = balance.remaining_eat
+  const rb = balance.remaining_burn
+  const reDisplay = re != null ? Math.abs(re).toLocaleString() : '—'
+  const rbDisplay = rb != null ? Math.abs(rb).toLocaleString() : '—'
+  const reColor = re == null ? 'text-gray-400' : re >= 0 ? 'text-emerald-500' : 'text-red-500'
+  const reLabel = re != null && re < 0 ? 'Over eat goal' : 'Left to eat'
+  const rbColor = rb == null ? 'text-gray-400' : rb <= 0 ? 'text-emerald-500' : 'text-amber-500'
+  const rbLabel = rb != null && rb <= 0 ? 'Burn goal met' : 'Left to burn'
 
   const divider = <div className="w-px bg-gray-100 self-stretch" />
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Today's Calories</p>
-      <div className="flex justify-around items-center gap-1">
+      <div className="flex justify-around items-center gap-1 mb-3">
         <CalStatCol value={balance.target != null ? balance.target.toLocaleString() : '—'} label="Target" />
         {divider}
         <CalStatCol value={balance.calories_in.toLocaleString()} label="Eaten" />
@@ -342,8 +347,11 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
         <CalStatCol value={balance.burned != null ? balance.burned.toLocaleString() : '—'} label="Burned" />
         {divider}
         <CalStatCol value={netDisplay} label="Net" color="text-gray-600" />
+      </div>
+      <div className="border-t border-gray-100 pt-3 flex justify-around items-center gap-1">
+        <CalStatCol value={reDisplay} label={reLabel} color={reColor} />
         {divider}
-        <CalStatCol value={remDisplay} label="Remaining" color={remColor} />
+        <CalStatCol value={rbDisplay} label={rbLabel} color={rbColor} />
       </div>
     </div>
   )

@@ -518,7 +518,9 @@ export interface HealthCalorieBalance {
   burned: number | null
   net: number | null
   target: number | null
-  remaining: number | null
+  burn_target: number | null
+  remaining_eat: number | null
+  remaining_burn: number | null
 }
 
 export interface HealthActivitySuggestion {
