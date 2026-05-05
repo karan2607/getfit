@@ -69,7 +69,7 @@ function MetricCard({ title, unit, color, data, dataKey, chartType }: {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v != null ? Number(v).toLocaleString() : '—', title]} />
             <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} maxBarSize={24} />
           </BarChart>
         ) : (
@@ -77,7 +77,7 @@ function MetricCard({ title, unit, color, data, dataKey, chartType }: {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v != null ? Number(v).toLocaleString() : '—', title]} />
             <Line dataKey={dataKey} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color }} connectNulls />
           </LineChart>
         )}
