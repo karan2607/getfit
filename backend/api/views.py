@@ -1535,7 +1535,16 @@ def health_shortcuts_sync(request):
     if request.method == 'GET':
         return Response({'status': 'ready', 'user': sync_user.email})
 
-    data = request.data
+    import json as _json, re as _re
+    try:
+        raw = request.body.decode('utf-8')
+        # Shortcuts sends empty string when a HealthKit query has no results,
+        # producing malformed JSON like  "steps": ,  — replace with null.
+        raw = _re.sub(r':\s*,', ': null,', raw)
+        raw = _re.sub(r':\s*\}', ': null}', raw)
+        data = _json.loads(raw)
+    except Exception:
+        data = {}
 
     # Upsert today's daily summary
     date_str = data.get('date') or _tz.now().date().isoformat()
