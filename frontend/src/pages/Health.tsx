@@ -324,10 +324,10 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
 
   const net = balance.net
   const netDisplay = net != null ? (net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()) : '—'
-  const netColor = net == null ? 'text-gray-400' : net >= 0 ? 'text-emerald-500' : 'text-red-500'
 
-  const et = balance.eat_today
-  const etDisplay = et != null ? et.toLocaleString() : '—'
+  const rem = balance.remaining
+  const remDisplay = rem != null ? (rem >= 0 ? rem.toLocaleString() : rem.toLocaleString()) : '—'
+  const remColor = rem == null ? 'text-gray-400' : rem >= 0 ? 'text-emerald-500' : 'text-red-500'
 
   const divider = <div className="w-px bg-gray-100 self-stretch" />
 
@@ -339,11 +339,11 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
         {divider}
         <CalStatCol value={balance.calories_in.toLocaleString()} label="Eaten" />
         {divider}
-        <CalStatCol value={balance.calories_out != null ? balance.calories_out.toLocaleString() : '—'} label="Burned" />
+        <CalStatCol value={balance.burned != null ? balance.burned.toLocaleString() : '—'} label="Burned" />
         {divider}
-        <CalStatCol value={netDisplay} label="Net" color={netColor} />
+        <CalStatCol value={netDisplay} label="Net" color="text-gray-600" />
         {divider}
-        <CalStatCol value={etDisplay} label="Eat Today" color={et == null ? 'text-gray-400' : 'text-gray-800'} />
+        <CalStatCol value={remDisplay} label="Remaining" color={remColor} />
       </div>
     </div>
   )

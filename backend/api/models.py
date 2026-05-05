@@ -384,6 +384,7 @@ class HealthDailySummary(models.Model):
     date = models.DateField()
     steps = models.IntegerField(null=True, blank=True)
     active_calories = models.FloatField(null=True, blank=True)
+    resting_calories = models.FloatField(null=True, blank=True)
     resting_heart_rate = models.FloatField(null=True, blank=True)
     sleep_hours = models.FloatField(null=True, blank=True)
 

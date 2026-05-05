@@ -491,6 +491,7 @@ export interface HealthDailySummary {
   date: string
   steps: number | null
   active_calories: number | null
+  resting_calories: number | null
   resting_heart_rate: number | null
   sleep_hours: number | null
 }
@@ -514,10 +515,10 @@ export interface HealthRecovery {
 
 export interface HealthCalorieBalance {
   calories_in: number
-  calories_out: number | null
+  burned: number | null
   net: number | null
   target: number | null
-  eat_today: number | null
+  remaining: number | null
 }
 
 export interface HealthActivitySuggestion {

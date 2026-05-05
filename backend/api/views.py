@@ -1534,6 +1534,11 @@ def health_shortcuts_sync(request):
             defaults['active_calories'] = float(_clean(data['active_calories']))
         except (TypeError, ValueError):
             pass
+    if data.get('resting_calories') is not None:
+        try:
+            defaults['resting_calories'] = float(_clean(data['resting_calories']))
+        except (TypeError, ValueError):
+            pass
     if data.get('resting_heart_rate') is not None:
         try:
             defaults['resting_heart_rate'] = float(_clean(data['resting_heart_rate']))
@@ -1627,25 +1632,26 @@ def health_calorie_balance(request):
     todays_logs = MealLog.objects.filter(user=request.user, date=today)
     calories_in = sum(m.calories for m in todays_logs)
 
-    calories_out = None
+    burned = None
     try:
-        # Use most recent summary with active_calories data (within last 2 days)
         from datetime import timedelta
         summary = (
             HealthDailySummary.objects
-            .filter(user=request.user, date__gte=today - timedelta(days=1), active_calories__isnull=False)
+            .filter(user=request.user, date__gte=today - timedelta(days=1))
             .order_by('-date')
             .first()
         )
         if summary:
-            calories_out = round(summary.active_calories)
+            active = summary.active_calories or 0
+            resting = summary.resting_calories or 0
+            if summary.active_calories is not None or summary.resting_calories is not None:
+                burned = round(active + resting)
     except Exception:
         pass
 
-    net = (calories_in - calories_out) if calories_out is not None else None
+    net = (calories_in - burned) if burned is not None else None
 
     target = None
-    net_goal = None
     try:
         active_plan = request.user.diet_plans.filter(is_active=True).first()
         if active_plan:
@@ -1653,37 +1659,34 @@ def health_calorie_balance(request):
     except Exception:
         pass
 
-    # Compute TDEE target + net_goal from profile in one pass
-    try:
-        p = request.user.profile
-        GOAL_DELTAS = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}
-        goal_delta = GOAL_DELTAS.get(p.fitness_goal or '')
-        net_goal = goal_delta  # None if fitness_goal not set
+    if target is None:
+        try:
+            p = request.user.profile
+            GOAL_DELTAS = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}
+            goal_delta = GOAL_DELTAS.get(p.fitness_goal or '', 0)
+            if p.weight_kg and p.height_cm and p.age and p.gender:
+                if p.gender == 'male':
+                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + 5
+                else:
+                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age - 161
+                activity_factor = {
+                    'sedentary': 1.2,
+                    'lightly_active': 1.375,
+                    'moderately_active': 1.55,
+                    'very_active': 1.725,
+                }.get(p.activity_level or '', 1.375)
+                target = round(bmr * activity_factor + goal_delta)
+        except Exception:
+            pass
 
-        if target is None and p.weight_kg and p.height_cm and p.age and p.gender:
-            if p.gender == 'male':
-                bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + 5
-            else:
-                bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age - 161
-            activity_factor = {
-                'sedentary': 1.2,
-                'lightly_active': 1.375,
-                'moderately_active': 1.55,
-                'very_active': 1.725,
-            }.get(p.activity_level or '', 1.375)
-            tdee = bmr * activity_factor
-            target = round(tdee + (goal_delta or 0))
-    except Exception:
-        pass
-
-    eat_today = (target + calories_out) if (target is not None and calories_out is not None) else target
+    remaining = (target - calories_in) if target is not None else None
 
     return Response({
         'calories_in': calories_in,
-        'calories_out': calories_out,
+        'burned': burned,
         'net': net,
         'target': target,
-        'eat_today': eat_today,
+        'remaining': remaining,
     })
 
 
