@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { api, type HealthDailySummary, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
@@ -114,23 +114,23 @@ function WorkoutRow({ workout }: { workout: HealthWorkout }) {
 const STEPS = [
   {
     n: 1,
-    title: 'Open Shortcuts on your iPhone',
-    desc: 'Tap + to create a new shortcut. Name it "Sync Health to GetFit".',
+    title: 'Create a new shortcut named "GetFit Health Sync"',
+    desc: 'Open Shortcuts on your iPhone. Tap + and name it exactly "GetFit Health Sync" — this name lets the Sync Now button on this page trigger it directly.',
   },
   {
     n: 2,
-    title: 'Add Health actions',
-    desc: 'Search "Health" in actions. Add: Find Health Samples → Steps (last 1 day), Active Energy (last 1 day), Resting Heart Rate (last 1 day), Sleep Analysis (last 1 day), Workouts (last 1 day).',
+    title: 'Add a GET request to validate your connection',
+    desc: 'Add "Get Contents of URL". Set Method to GET, URL to the endpoint below, header Authorization: Sync <your-token>. Then add an "If" action: if the result contains "ready" → continue, Otherwise → Stop Shortcut.',
   },
   {
     n: 3,
-    title: 'Add a "Get Contents of URL" action',
-    desc: 'Set Method to POST. URL to the endpoint below. Add header Authorization: Token <your token>. Set body to JSON with the fields: date, steps, active_calories, resting_heart_rate, sleep_hours, workouts.',
+    title: "Collect today's health data",
+    desc: 'Add "Find Health Samples" for: Steps (last 0 days), Active Energy Burned (last 0 days), Resting Energy Burned (last 0 days), Resting Heart Rate (last 0 days), Workouts (last 1 day). Use "Calculate Statistics" on each to get the sum or latest value.',
   },
   {
     n: 4,
-    title: 'Set up an Automation',
-    desc: 'In the Automation tab, create a Personal Automation → Time of Day (e.g. 8 AM daily) → Run the shortcut. This syncs your health data every morning automatically.',
+    title: 'POST the data + set up daily automation',
+    desc: 'Add another "Get Contents of URL" with Method POST, same URL and Authorization: Sync <your-token> header, body as JSON with the fields shown below. Then in Automation tab: Personal Automation → Time of Day (e.g. 8 AM daily) → run this shortcut.',
   },
 ]
 
@@ -156,35 +156,34 @@ function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
   const { showToast } = useToast()
   const [token, setToken] = useState<string | null>(null)
   const [loadingToken, setLoadingToken] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [checking, setChecking] = useState(false)
   const syncUrl = `${API_BASE}/api/health/shortcuts/sync/`
-
-  function stopPolling() {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-  }
-  useEffect(() => () => stopPolling(), [])
 
   async function handleReveal() {
     setLoadingToken(true)
     try {
       const { token: t } = await api.health.getSetupToken()
       setToken(t)
-
-      // Poll until shortcut posts its first sync
-      stopPolling()
-      let tries = 0
-      pollRef.current = setInterval(async () => {
-        tries++
-        try {
-          const s = await api.health.getStatus()
-          if (s.connected) { stopPolling(); onFirstSync() }
-        } catch { /* ignore */ }
-        if (tries >= 45) stopPolling() // 3 min max
-      }, 4000)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
     } finally {
       setLoadingToken(false)
+    }
+  }
+
+  async function handleCheckConnection() {
+    setChecking(true)
+    try {
+      const s = await api.health.getStatus()
+      if (s.connected) {
+        onFirstSync()
+      } else {
+        showToast('No data received yet. Run your shortcut on iPhone first.', 'error')
+      }
+    } catch {
+      showToast('Could not check connection status.', 'error')
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -201,7 +200,7 @@ function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
       {/* API details */}
       <div className="bg-gray-50 rounded-2xl p-4 mb-6 space-y-3">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sync endpoint (POST)</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sync endpoint (GET + POST)</p>
           <div className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2">
             <span className="text-xs font-mono text-gray-700 flex-1 truncate">{syncUrl}</span>
             <CopyButton text={syncUrl} />
@@ -233,6 +232,7 @@ function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
   "date": "2026-05-04",
   "steps": 9241,
   "active_calories": 380,
+  "resting_calories": 1800,
   "resting_heart_rate": 58,
   "sleep_hours": 7.5,
   "workouts": [
@@ -266,9 +266,13 @@ function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
       </div>
 
       {token && (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-xs text-emerald-700">
-          Waiting for your first sync… Run the shortcut on your iPhone and this page will update automatically.
-        </div>
+        <button
+          onClick={handleCheckConnection}
+          disabled={checking}
+          className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+        >
+          {checking ? 'Checking…' : "I've run the shortcut — connect now"}
+        </button>
       )}
     </div>
   )

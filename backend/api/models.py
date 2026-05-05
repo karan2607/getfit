@@ -378,8 +378,8 @@ class HealthConnection(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.sync_token:
-            import secrets
-            self.sync_token = secrets.token_urlsafe(32)
+            import hashlib
+            self.sync_token = hashlib.md5(f"{self.user_id}getFit".encode()).hexdigest()
         super().save(*args, **kwargs)
 
     def __str__(self):

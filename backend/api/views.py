@@ -1451,8 +1451,8 @@ def health_connect(request):
 
     conn, _ = HealthConnection.objects.get_or_create(user=request.user, defaults={'provider': 'APPLE'})
     if not conn.sync_token:
-        import secrets
-        conn.sync_token = secrets.token_urlsafe(32)
+        import hashlib
+        conn.sync_token = hashlib.md5(f"{conn.user_id}getFit".encode()).hexdigest()
         conn.save(update_fields=['sync_token'])
     return Response({'token': conn.sync_token})
 
@@ -1462,10 +1462,14 @@ def health_connect(request):
 def health_status(request):
     try:
         conn = request.user.health_connection
+        has_data = (
+            HealthDailySummary.objects.filter(user=request.user).exists() or
+            HealthWorkout.objects.filter(user=request.user).exists()
+        )
         return Response({
-            'connected': True,
-            'provider': conn.provider,
-            'connected_at': conn.connected_at.isoformat(),
+            'connected': has_data,
+            'provider': conn.provider if has_data else None,
+            'connected_at': conn.connected_at.isoformat() if has_data else None,
         })
     except HealthConnection.DoesNotExist:
         return Response({'connected': False, 'provider': None, 'connected_at': None})
