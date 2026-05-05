@@ -1680,22 +1680,23 @@ def health_calorie_balance(request):
         except Exception:
             pass
 
-    burn_target = None
-    remaining_eat = None
-    remaining_burn = None
+    net_goal_delta = 0
     try:
         p = request.user.profile
         GOAL_DELTAS = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}
         net_goal_delta = GOAL_DELTAS.get(p.fitness_goal or '', 0)
-        if target is not None:
-            burn_target = target - net_goal_delta
-        if target is not None and burned is not None:
-            burn_overflow = max(0, burned - burn_target)
-            eat_overflow  = max(0, calories_in - target)
-            remaining_eat  = (target - calories_in) + burn_overflow
-            remaining_burn = (burn_target - burned) + eat_overflow
     except Exception:
         pass
+
+    burn_target = (target - net_goal_delta) if target is not None else None
+
+    remaining_eat = None
+    remaining_burn = None
+    if target is not None and burned is not None and burn_target is not None:
+        burn_overflow = max(0, burned - burn_target)
+        eat_overflow  = max(0, calories_in - target)
+        remaining_eat  = round((target - calories_in) + burn_overflow)
+        remaining_burn = round((burn_target - burned) + eat_overflow)
 
     return Response({
         'calories_in': calories_in,
