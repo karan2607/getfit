@@ -45,11 +45,11 @@ const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: 'none', boxShadow
 
 function MetricCard({ title, unit, color, data, dataKey, chartType }: {
   title: string; unit: string; color: string
-  data: Array<{ date: string } & Record<string, number | null>>
-  dataKey: string; chartType: 'bar' | 'line'
+  data: HealthDailySummary[]
+  dataKey: keyof Omit<HealthDailySummary, 'date'>; chartType: 'bar' | 'line'
 }) {
   const latest = [...data].reverse().find((d) => d[dataKey] != null)
-  const displayVal = latest ? latest[dataKey] : null
+  const displayVal = latest ? (latest[dataKey] as number | null) : null
   const chartData = data.map((d) => ({ ...d, label: fmtDate(d.date) }))
 
   return (
