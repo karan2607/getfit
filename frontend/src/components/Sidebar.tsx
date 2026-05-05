@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/chat', label: 'AI Trainer', icon: '💬' },
   { to: '/workouts', label: 'Workouts', icon: '🏋️' },
   { to: '/diet', label: 'Diet', icon: '🥗' },
+  { to: '/health', label: 'Health Sync', icon: '❤️' },
   { to: '/body', label: 'Body Scanner', icon: '📷' },
   { to: '/profile', label: 'Profile', icon: '👤' },
 ]

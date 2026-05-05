@@ -17,6 +17,7 @@ import Workouts from './pages/Workouts'
 import Diet from './pages/Diet'
 import Body from './pages/Body'
 import Profile from './pages/Profile'
+import Health from './pages/Health'
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'] as const
@@ -148,6 +149,7 @@ function AppRoutes() {
       <Route path="/workouts/:planId" element={<ProtectedRoute><Workouts /></ProtectedRoute>} />
       <Route path="/diet" element={<ProtectedRoute><Diet /></ProtectedRoute>} />
       <Route path="/body" element={<ProtectedRoute><Body /></ProtectedRoute>} />
+      <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute requireProfile={false}><Profile /></ProtectedRoute>} />
 
       {/* Default redirect */}

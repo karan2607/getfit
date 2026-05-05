@@ -286,6 +286,23 @@ export const api = {
     history: () =>
       request<BodyScanResult[]>('/api/body/scan/history/'),
   },
+
+  health: {
+    getConnectUrl: () =>
+      request<{ url: string }>('/api/health/connect/'),
+
+    getStatus: () =>
+      request<{ connected: boolean; provider: string | null; connected_at: string | null }>('/api/health/status/'),
+
+    getSummary: () =>
+      request<HealthDailySummary[]>('/api/health/summary/'),
+
+    getWorkouts: () =>
+      request<HealthWorkout[]>('/api/health/workouts/'),
+
+    disconnect: () =>
+      request<void>('/api/health/connect/', { method: 'DELETE' }),
+  },
 }
 
 export interface ChatMessage {
@@ -459,6 +476,24 @@ export interface FoodScanResult {
   fiber_g: number | null
   notes: string
   created_at: string
+}
+
+export interface HealthDailySummary {
+  date: string
+  steps: number | null
+  active_calories: number | null
+  resting_heart_rate: number | null
+  sleep_hours: number | null
+}
+
+export interface HealthWorkout {
+  id: string
+  activity_type: string
+  start_time: string
+  duration_seconds: number | null
+  calories: number | null
+  avg_heart_rate: number | null
+  distance_meters: number | null
 }
 
 export interface BodyScanResult {

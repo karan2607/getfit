@@ -364,3 +364,50 @@ class MealGuide(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# ---------------------------------------------------------------------------
+# Health Sync (Terra API)
+# ---------------------------------------------------------------------------
+
+class HealthConnection(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='health_connection')
+    terra_user_id = models.CharField(max_length=255, unique=True)
+    provider = models.CharField(max_length=64, default='APPLE')
+    connected_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.provider} connection for {self.user.email}'
+
+
+class HealthDailySummary(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='health_daily')
+    date = models.DateField()
+    steps = models.IntegerField(null=True, blank=True)
+    active_calories = models.FloatField(null=True, blank=True)
+    resting_heart_rate = models.FloatField(null=True, blank=True)
+    sleep_hours = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['user', 'date']
+        ordering = ['-date']
+
+    def __str__(self):
+        return f'{self.user.email} — {self.date}'
+
+
+class HealthWorkout(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='health_workouts')
+    terra_workout_id = models.CharField(max_length=255, unique=True)
+    activity_type = models.CharField(max_length=128)
+    start_time = models.DateTimeField()
+    duration_seconds = models.IntegerField(null=True, blank=True)
+    calories = models.FloatField(null=True, blank=True)
+    avg_heart_rate = models.FloatField(null=True, blank=True)
+    distance_meters = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-start_time']
+
+    def __str__(self):
+        return f'{self.activity_type} at {self.start_time} ({self.user.email})'

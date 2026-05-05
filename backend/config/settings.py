@@ -121,3 +121,5 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 FROM_EMAIL = os.getenv('FROM_EMAIL', 'GetFit <noreply@resend.dev>')
+TERRA_API_KEY = os.getenv('TERRA_API_KEY', '')
+TERRA_DEV_ID = os.getenv('TERRA_DEV_ID', '')

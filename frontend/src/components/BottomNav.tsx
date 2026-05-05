@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { to: '/workouts', icon: '🏋️', label: 'Workouts' },
   { to: '/chat', icon: '💬', label: 'AI' },
   { to: '/diet', icon: '🥗', label: 'Diet' },
+  { to: '/health', icon: '❤️', label: 'Health' },
   { to: '/profile', icon: '👤', label: 'Profile' },
 ]
 
