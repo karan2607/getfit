@@ -450,12 +450,7 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
   }, [])
 
   async function handleSyncNow() {
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
-    if (isIOS) {
-      window.location.href = 'shortcuts://run-shortcut?name=GetFit%20Health%20Sync'
-    } else {
-      showToast('Run your Health Sync shortcut on your iPhone, then tap Sync Now again.')
-    }
+    window.location.href = 'shortcuts://run-shortcut?name=GetFit%20Health%20Sync'
     setSyncing(true)
     await fetchAll().catch(() => {})
     setSyncing(false)
