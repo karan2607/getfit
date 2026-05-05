@@ -373,7 +373,14 @@ class MealGuide(models.Model):
 class HealthConnection(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='health_connection')
     provider = models.CharField(max_length=64, default='APPLE')
+    sync_token = models.CharField(max_length=64, unique=True, blank=True)
     connected_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.sync_token:
+            import secrets
+            self.sync_token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.provider} connection for {self.user.email}'

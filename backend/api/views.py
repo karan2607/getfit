@@ -1449,8 +1449,8 @@ def health_connect(request):
         HealthWorkout.objects.filter(user=request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    token, _ = Token.objects.get_or_create(user=request.user)
-    return Response({'token': token.key})
+    conn, _ = HealthConnection.objects.get_or_create(user=request.user, defaults={'provider': 'APPLE'})
+    return Response({'token': conn.sync_token})
 
 
 @api_view(['GET'])
@@ -1505,19 +1505,25 @@ def health_workouts(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def health_shortcuts_sync(request):
-    """Receives a health data payload posted from an Apple Shortcut."""
+    """Receives a health data payload posted from an Apple Shortcut.
+    Authenticated via permanent sync token (Authorization: Sync <token>)
+    rather than session token so logout/password changes don't break automations."""
     from django.utils.dateparse import parse_datetime
     from django.utils import timezone as _tz
 
-    data = request.data
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Sync '):
+        return Response({'detail': 'Sync token required.'}, status=status.HTTP_401_UNAUTHORIZED)
+    sync_token = auth_header[5:].strip()
+    try:
+        conn = HealthConnection.objects.select_related('user').get(sync_token=sync_token)
+    except HealthConnection.DoesNotExist:
+        return Response({'detail': 'Invalid sync token.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-    # Mark as connected on first sync
-    HealthConnection.objects.update_or_create(
-        user=request.user,
-        defaults={'provider': 'APPLE'},
-    )
+    sync_user = conn.user
+    data = request.data
 
     # Upsert today's daily summary
     date_str = data.get('date') or _tz.now().date().isoformat()
@@ -1552,7 +1558,7 @@ def health_shortcuts_sync(request):
             pass
     if defaults:
         HealthDailySummary.objects.update_or_create(
-            user=request.user,
+            user=sync_user,
             date=date_str,
             defaults=defaults,
         )
@@ -1563,9 +1569,9 @@ def health_shortcuts_sync(request):
         start_time = parse_datetime(start_str) if start_str else None
         if not start_time:
             continue
-        workout_id = w.get('id') or f"{request.user.id}-{start_str}"
+        workout_id = w.get('id') or f"{sync_user.id}-{start_str}"
         w_defaults = {
-            'user': request.user,
+            'user': sync_user,
             'activity_type': str(w.get('activity_type') or 'Workout'),
             'start_time': start_time,
         }

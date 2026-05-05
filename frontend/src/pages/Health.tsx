@@ -428,25 +428,34 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
   const [suggestionDismissed, setSuggestionDismissed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    Promise.all([
+  async function fetchAll() {
+    const [s, w, r, b, a] = await Promise.all([
       api.health.getSummary(),
       api.health.getWorkouts(),
       api.health.getRecovery(),
       api.health.getCalorieBalance(),
       api.health.getActivitySuggestion(),
     ])
-      .then(([s, w, r, b, a]) => {
-        setSummaries(s)
-        setWorkouts(w)
-        setRecovery(r)
-        setBalance(b)
-        setSuggestion(a)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    setSummaries(s); setWorkouts(w); setRecovery(r); setBalance(b); setSuggestion(a)
+  }
+
+  useEffect(() => {
+    fetchAll().catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  async function handleSyncNow() {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    if (isIOS) {
+      window.location.href = 'shortcuts://run-shortcut?name=GetFit%20Health%20Sync'
+    }
+    setSyncing(true)
+    showToast('Run your Health Sync shortcut — refreshing in 15s…')
+    await new Promise(r => setTimeout(r, 15000))
+    await fetchAll().catch(() => {})
+    setSyncing(false)
+  }
 
   async function handleDisconnect() {
     if (!confirm('Disconnect and delete all synced health data?')) return
@@ -472,13 +481,22 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
           <span className="text-sm font-semibold text-gray-700">🍎 {providerLabel} syncing via Shortcuts</span>
           {connectedAt && <span className="text-xs text-gray-400">since {fmtDate(connectedAt)}</span>}
         </div>
-        <button
-          onClick={handleDisconnect}
-          disabled={disconnecting}
-          className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors disabled:opacity-50"
-        >
-          {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSyncNow}
+            disabled={syncing}
+            className="text-xs font-semibold text-white bg-[#E69A6B] hover:bg-[#d4875a] rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+          >
+            {syncing ? 'Refreshing…' : '↻ Sync Now'}
+          </button>
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors disabled:opacity-50"
+          >
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
