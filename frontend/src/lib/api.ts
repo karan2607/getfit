@@ -517,7 +517,7 @@ export interface HealthCalorieBalance {
   calories_out: number | null
   net: number | null
   target: number | null
-  net_goal: number | null
+  eat_today: number | null
 }
 
 export interface HealthActivitySuggestion {

@@ -326,9 +326,8 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
   const netDisplay = net != null ? (net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()) : '—'
   const netColor = net == null ? 'text-gray-400' : net >= 0 ? 'text-emerald-500' : 'text-red-500'
 
-  const ng = balance.net_goal
-  const ngDisplay = ng != null ? (ng >= 0 ? `+${ng.toLocaleString()}` : ng.toLocaleString()) : '—'
-  const ngColor = ng == null ? 'text-gray-400' : 'text-gray-500'
+  const et = balance.eat_today
+  const etDisplay = et != null ? et.toLocaleString() : '—'
 
   const divider = <div className="w-px bg-gray-100 self-stretch" />
 
@@ -344,7 +343,7 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
         {divider}
         <CalStatCol value={netDisplay} label="Net" color={netColor} />
         {divider}
-        <CalStatCol value={ngDisplay} label="Net Goal" color={ngColor} />
+        <CalStatCol value={etDisplay} label="Eat Today" color={et == null ? 'text-gray-400' : 'text-gray-800'} />
       </div>
     </div>
   )

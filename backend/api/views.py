@@ -1676,12 +1676,14 @@ def health_calorie_balance(request):
     except Exception:
         pass
 
+    eat_today = (target + calories_out) if (target is not None and calories_out is not None) else target
+
     return Response({
         'calories_in': calories_in,
         'calories_out': calories_out,
         'net': net,
         'target': target,
-        'net_goal': net_goal,
+        'eat_today': eat_today,
     })
 
 
