@@ -1645,6 +1645,7 @@ def health_calorie_balance(request):
     net = (calories_in - calories_out) if calories_out is not None else None
 
     target = None
+    net_goal = None
     try:
         active_plan = request.user.diet_plans.filter(is_active=True).first()
         if active_plan:
@@ -1652,33 +1653,26 @@ def health_calorie_balance(request):
     except Exception:
         pass
 
-    # Fall back to TDEE-based target from profile if no active diet plan
-    if target is None:
-        try:
-            p = request.user.profile
-            if p.weight_kg and p.height_cm and p.age and p.gender:
-                if p.gender == 'male':
-                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + 5
-                else:
-                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age - 161
-                activity_factor = {
-                    'sedentary': 1.2,
-                    'lightly_active': 1.375,
-                    'moderately_active': 1.55,
-                    'very_active': 1.725,
-                }.get(p.activity_level or '', 1.375)
-                tdee = bmr * activity_factor
-                goal_delta = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}.get(p.fitness_goal or '', 0)
-                target = round(tdee + goal_delta)
-        except Exception:
-            pass
-
-    net_goal = None
+    # Compute TDEE target + net_goal from profile in one pass
     try:
-        goal_delta = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}.get(
-            request.user.profile.fitness_goal or '', None
-        )
-        net_goal = goal_delta
+        p = request.user.profile
+        GOAL_DELTAS = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}
+        goal_delta = GOAL_DELTAS.get(p.fitness_goal or '')
+        net_goal = goal_delta  # None if fitness_goal not set
+
+        if target is None and p.weight_kg and p.height_cm and p.age and p.gender:
+            if p.gender == 'male':
+                bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + 5
+            else:
+                bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age - 161
+            activity_factor = {
+                'sedentary': 1.2,
+                'lightly_active': 1.375,
+                'moderately_active': 1.55,
+                'very_active': 1.725,
+            }.get(p.activity_level or '', 1.375)
+            tdee = bmr * activity_factor
+            target = round(tdee + (goal_delta or 0))
     except Exception:
         pass
 
