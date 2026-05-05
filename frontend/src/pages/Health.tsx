@@ -35,7 +35,7 @@ function fillLast7(summaries: HealthDailySummary[]): HealthDailySummary[] {
     const d = new Date()
     d.setDate(d.getDate() - (6 - i))
     const key = d.toISOString().split('T')[0]
-    return byDate[key] ?? { date: key, steps: null, active_calories: null, resting_heart_rate: null, sleep_hours: null }
+    return byDate[key] ?? { date: key, steps: null, active_calories: null, resting_calories: null, resting_heart_rate: null, sleep_hours: null }
   })
 }
 
@@ -495,6 +495,7 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <MetricCard title="Steps" unit="steps" color="#3b82f6" data={chartData} dataKey="steps" chartType="bar" />
             <MetricCard title="Active Calories" unit="kcal" color="#f59e0b" data={chartData} dataKey="active_calories" chartType="bar" />
+            <MetricCard title="Resting Calories" unit="kcal" color="#10b981" data={chartData} dataKey="resting_calories" chartType="bar" />
             <MetricCard title="Resting Heart Rate" unit="bpm" color="#ef4444" data={chartData} dataKey="resting_heart_rate" chartType="line" />
           </div>
 

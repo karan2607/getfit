@@ -1476,6 +1476,7 @@ def health_summary(request):
             'date': s.date.isoformat(),
             'steps': s.steps,
             'active_calories': s.active_calories,
+            'resting_calories': s.resting_calories,
             'resting_heart_rate': s.resting_heart_rate,
             'sleep_hours': s.sleep_hours,
         }
