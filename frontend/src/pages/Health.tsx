@@ -334,7 +334,7 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
           <p className={`text-xl font-bold ${net != null ? netColor : 'text-gray-400'}`}>
             {net != null ? net.toLocaleString() : '—'}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5">Net{balance.target != null ? ` · goal ${balance.target.toLocaleString()}` : ''}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Net</p>
         </div>
       </div>
     </div>

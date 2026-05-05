@@ -1629,10 +1629,17 @@ def health_calorie_balance(request):
 
     calories_out = None
     try:
-        summary = HealthDailySummary.objects.get(user=request.user, date=today)
-        if summary.active_calories is not None:
+        # Use most recent summary with active_calories data (within last 2 days)
+        from datetime import timedelta
+        summary = (
+            HealthDailySummary.objects
+            .filter(user=request.user, date__gte=today - timedelta(days=1), active_calories__isnull=False)
+            .order_by('-date')
+            .first()
+        )
+        if summary:
             calories_out = round(summary.active_calories)
-    except HealthDailySummary.DoesNotExist:
+    except Exception:
         pass
 
     net = (calories_in - calories_out) if calories_out is not None else None
