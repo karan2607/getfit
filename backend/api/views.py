@@ -1501,24 +1501,27 @@ def health_shortcuts_sync(request):
     # Upsert today's daily summary
     date_str = data.get('date') or _tz.now().date().isoformat()
     defaults = {}
+    def _clean(val):
+        return str(val).replace(',', '').strip()
+
     if data.get('steps') is not None:
         try:
-            defaults['steps'] = int(data['steps'])
+            defaults['steps'] = int(_clean(data['steps']))
         except (TypeError, ValueError):
             pass
     if data.get('active_calories') is not None:
         try:
-            defaults['active_calories'] = float(data['active_calories'])
+            defaults['active_calories'] = float(_clean(data['active_calories']))
         except (TypeError, ValueError):
             pass
     if data.get('resting_heart_rate') is not None:
         try:
-            defaults['resting_heart_rate'] = float(data['resting_heart_rate'])
+            defaults['resting_heart_rate'] = float(_clean(data['resting_heart_rate']))
         except (TypeError, ValueError):
             pass
     if data.get('sleep_hours') is not None:
         try:
-            defaults['sleep_hours'] = float(data['sleep_hours'])
+            defaults['sleep_hours'] = float(_clean(data['sleep_hours']))
         except (TypeError, ValueError):
             pass
     if defaults:
