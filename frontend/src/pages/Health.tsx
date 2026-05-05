@@ -8,11 +8,12 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function fmtDuration(secs: number | null) {
@@ -27,36 +28,28 @@ function fmtDistance(m: number | null) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`
 }
 
-// Fill last 7 days so chart always has 7 bars even with gaps
 function fillLast7(summaries: HealthDailySummary[]): HealthDailySummary[] {
   const byDate: Record<string, HealthDailySummary> = {}
   summaries.forEach((s) => { byDate[s.date] = s })
-  const result: HealthDailySummary[] = []
-  for (let i = 6; i >= 0; i--) {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date()
-    d.setDate(d.getDate() - i)
+    d.setDate(d.getDate() - (6 - i))
     const key = d.toISOString().split('T')[0]
-    result.push(byDate[key] ?? { date: key, steps: null, active_calories: null, resting_heart_rate: null, sleep_hours: null })
-  }
-  return result
+    return byDate[key] ?? { date: key, steps: null, active_calories: null, resting_heart_rate: null, sleep_hours: null }
+  })
 }
 
-const CHART_TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }
+const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }
 
 // ── Metric Card ───────────────────────────────────────────────────────────────
 
 function MetricCard({ title, unit, color, data, dataKey, chartType }: {
-  title: string
-  unit: string
-  color: string
+  title: string; unit: string; color: string
   data: Array<{ date: string } & Record<string, number | null>>
-  dataKey: string
-  chartType: 'bar' | 'line'
+  dataKey: string; chartType: 'bar' | 'line'
 }) {
   const latest = [...data].reverse().find((d) => d[dataKey] != null)
-  const latestVal = latest ? (d: typeof latest) => d[dataKey] : null
-  const displayVal = latestVal ? latestVal(latest!) : null
-
+  const displayVal = latest ? latest[dataKey] : null
   const chartData = data.map((d) => ({ ...d, label: fmtDate(d.date) }))
 
   return (
@@ -65,7 +58,7 @@ function MetricCard({ title, unit, color, data, dataKey, chartType }: {
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{title}</p>
         {displayVal != null && (
           <p className="text-sm font-bold text-gray-800">
-            {typeof displayVal === 'number' ? displayVal.toLocaleString('en-US', { maximumFractionDigits: 1 }) : displayVal}
+            {(displayVal as number).toLocaleString('en-US', { maximumFractionDigits: 1 })}
             <span className="text-xs font-normal text-gray-400 ml-1">{unit}</span>
           </p>
         )}
@@ -76,7 +69,7 @@ function MetricCard({ title, unit, color, data, dataKey, chartType }: {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
             <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} maxBarSize={24} />
           </BarChart>
         ) : (
@@ -84,7 +77,7 @@ function MetricCard({ title, unit, color, data, dataKey, chartType }: {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v?.toLocaleString() ?? '—', title]} />
             <Line dataKey={dataKey} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color }} connectNulls />
           </LineChart>
         )}
@@ -99,7 +92,7 @@ function WorkoutRow({ workout }: { workout: HealthWorkout }) {
   const dist = fmtDistance(workout.distance_meters)
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3">
-      <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center text-lg flex-shrink-0">🏃</div>
+      <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-lg flex-shrink-0">🏃</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate">{workout.activity_type}</p>
         <p className="text-xs text-gray-400">{fmtDate(workout.start_time)}</p>
@@ -107,12 +100,8 @@ function WorkoutRow({ workout }: { workout: HealthWorkout }) {
       <div className="text-right flex-shrink-0 space-y-0.5">
         <p className="text-xs font-medium text-gray-700">{fmtDuration(workout.duration_seconds)}</p>
         <div className="flex items-center gap-2 justify-end">
-          {workout.calories != null && (
-            <span className="text-xs text-amber-600">{Math.round(workout.calories)} kcal</span>
-          )}
-          {workout.avg_heart_rate != null && (
-            <span className="text-xs text-red-500">{Math.round(workout.avg_heart_rate)} bpm</span>
-          )}
+          {workout.calories != null && <span className="text-xs text-amber-600">{Math.round(workout.calories)} kcal</span>}
+          {workout.avg_heart_rate != null && <span className="text-xs text-red-500">{Math.round(workout.avg_heart_rate)} bpm</span>}
           {dist && <span className="text-xs text-blue-500">{dist}</span>}
         </div>
       </div>
@@ -120,76 +109,166 @@ function WorkoutRow({ workout }: { workout: HealthWorkout }) {
   )
 }
 
-// ── Connect Screen ────────────────────────────────────────────────────────────
+// ── Setup Screen ──────────────────────────────────────────────────────────────
 
-function ConnectScreen({ onConnected }: { onConnected: () => void }) {
+const STEPS = [
+  {
+    n: 1,
+    title: 'Open Shortcuts on your iPhone',
+    desc: 'Tap + to create a new shortcut. Name it "Sync Health to GetFit".',
+  },
+  {
+    n: 2,
+    title: 'Add Health actions',
+    desc: 'Search "Health" in actions. Add: Find Health Samples → Steps (last 1 day), Active Energy (last 1 day), Resting Heart Rate (last 1 day), Sleep Analysis (last 1 day), Workouts (last 1 day).',
+  },
+  {
+    n: 3,
+    title: 'Add a "Get Contents of URL" action',
+    desc: 'Set Method to POST. URL to the endpoint below. Add header Authorization: Token <your token>. Set body to JSON with the fields: date, steps, active_calories, resting_heart_rate, sleep_hours, workouts.',
+  },
+  {
+    n: 4,
+    title: 'Set up an Automation',
+    desc: 'In the Automation tab, create a Personal Automation → Time of Day (e.g. 8 AM daily) → Run the shortcut. This syncs your health data every morning automatically.',
+  },
+]
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button
+      onClick={copy}
+      className="ml-2 text-xs text-brand-500 hover:text-brand-600 font-semibold transition-colors flex-shrink-0"
+    >
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  )
+}
+
+function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
   const { showToast } = useToast()
-  const [loading, setLoading] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [loadingToken, setLoadingToken] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const syncUrl = `${API_BASE}/api/health/shortcuts/sync/`
 
   function stopPolling() {
-    if (pollRef.current) clearInterval(pollRef.current)
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
-
   useEffect(() => () => stopPolling(), [])
 
-  async function handleConnect() {
-    setLoading(true)
+  async function handleReveal() {
+    setLoadingToken(true)
     try {
-      const { url } = await api.health.getConnectUrl()
-      window.open(url, '_blank')
+      const { token: t } = await api.health.getSetupToken()
+      setToken(t)
 
-      // Poll for connection — stops after 90 s or on success
-      let tries = 0
+      // Poll until shortcut posts its first sync
       stopPolling()
+      let tries = 0
       pollRef.current = setInterval(async () => {
         tries++
         try {
-          const status = await api.health.getStatus()
-          if (status.connected) {
-            stopPolling()
-            onConnected()
-          }
+          const s = await api.health.getStatus()
+          if (s.connected) { stopPolling(); onFirstSync() }
         } catch { /* ignore */ }
-        if (tries >= 22) stopPolling() // ~90 s
+        if (tries >= 45) stopPolling() // 3 min max
       }, 4000)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
     } finally {
-      setLoading(false)
+      setLoadingToken(false)
     }
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-      <div className="text-6xl mb-4">❤️</div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect your Health App</h2>
-      <p className="text-sm text-gray-500 max-w-sm mb-2">
-        Sync workouts, steps, heart rate, calories, and sleep directly from Apple Health or Google Fit.
-      </p>
-      <p className="text-xs text-gray-400 max-w-xs mb-8">
-        On iPhone, the connect page will open directly. On desktop, scan the QR code with your phone.
-      </p>
-
-      <div className="flex gap-4 mb-8 text-3xl">
-        <span title="Apple Health">🍎</span>
-        <span title="Google Fit">🟢</span>
-        <span title="Garmin">⌚</span>
-        <span title="Fitbit">📊</span>
+    <div className="p-6 max-w-xl">
+      <div className="text-center mb-8">
+        <div className="text-5xl mb-3">🍎</div>
+        <h2 className="text-xl font-bold text-gray-900 mb-1">Connect Apple Health</h2>
+        <p className="text-sm text-gray-500">
+          Use the free built-in Shortcuts app on your iPhone to sync health data automatically every day — no third-party apps or subscriptions needed.
+        </p>
       </div>
 
-      <button
-        onClick={handleConnect}
-        disabled={loading}
-        className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold px-8 py-3 rounded-2xl text-sm transition-colors"
-      >
-        {loading ? 'Opening…' : 'Connect Now'}
-      </button>
+      {/* API details */}
+      <div className="bg-gray-50 rounded-2xl p-4 mb-6 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sync endpoint (POST)</p>
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2">
+            <span className="text-xs font-mono text-gray-700 flex-1 truncate">{syncUrl}</span>
+            <CopyButton text={syncUrl} />
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Your API token</p>
+          {token ? (
+            <div className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2">
+              <span className="text-xs font-mono text-gray-700 flex-1 truncate">{token}</span>
+              <CopyButton text={token} />
+            </div>
+          ) : (
+            <button
+              onClick={handleReveal}
+              disabled={loadingToken}
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+            >
+              {loadingToken ? 'Loading…' : 'Reveal my token'}
+            </button>
+          )}
+          {token && (
+            <p className="text-xs text-gray-400 mt-1.5">Keep this private. Paste it as the token value in your Shortcut.</p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Expected JSON body</p>
+          <pre className="text-xs font-mono bg-white border border-gray-200 rounded-xl px-3 py-2 text-gray-700 overflow-x-auto whitespace-pre-wrap">{`{
+  "date": "2026-05-04",
+  "steps": 9241,
+  "active_calories": 380,
+  "resting_heart_rate": 58,
+  "sleep_hours": 7.5,
+  "workouts": [
+    {
+      "activity_type": "Running",
+      "start_time": "2026-05-04T07:00:00",
+      "duration_seconds": 1800,
+      "calories": 290,
+      "avg_heart_rate": 148,
+      "distance_meters": 4200
+    }
+  ]
+}`}</pre>
+        </div>
+      </div>
 
-      {loading && (
-        <p className="text-xs text-gray-400 mt-4 animate-pulse">
-          Waiting for connection… (this page will update automatically)
-        </p>
+      {/* Steps */}
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Setup steps</p>
+      <div className="space-y-3 mb-6">
+        {STEPS.map((s) => (
+          <div key={s.n} className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+              {s.n}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">{s.title}</p>
+              <p className="text-xs text-gray-500 leading-relaxed mt-0.5">{s.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {token && (
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-xs text-emerald-700">
+          Waiting for your first sync… Run the shortcut on your iPhone and this page will update automatically.
+        </div>
       )}
     </div>
   )
@@ -198,9 +277,7 @@ function ConnectScreen({ onConnected }: { onConnected: () => void }) {
 // ── Connected Dashboard ───────────────────────────────────────────────────────
 
 function HealthDashboard({ provider, connectedAt, onDisconnected }: {
-  provider: string | null
-  connectedAt: string | null
-  onDisconnected: () => void
+  provider: string | null; connectedAt: string | null; onDisconnected: () => void
 }) {
   const { showToast } = useToast()
   const [summaries, setSummaries] = useState<HealthDailySummary[]>([])
@@ -220,7 +297,7 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
     setDisconnecting(true)
     try {
       await api.health.disconnect()
-      showToast('Health app disconnected.')
+      showToast('Health sync disconnected.')
       onDisconnected()
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
@@ -229,18 +306,15 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
   }
 
   const chartData = fillLast7(summaries)
-  const providerLabel = provider ? provider.charAt(0) + provider.slice(1).toLowerCase() : 'Health App'
+  const providerLabel = provider ? provider.charAt(0) + provider.slice(1).toLowerCase() : 'Health'
 
   return (
     <div className="p-6 max-w-2xl">
-      {/* Connection badge */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="text-sm font-semibold text-gray-700">{providerLabel} connected</span>
-          {connectedAt && (
-            <span className="text-xs text-gray-400">since {fmtDate(connectedAt)}</span>
-          )}
+          <span className="text-sm font-semibold text-gray-700">🍎 {providerLabel} syncing via Shortcuts</span>
+          {connectedAt && <span className="text-xs text-gray-400">since {fmtDate(connectedAt)}</span>}
         </div>
         <button
           onClick={handleDisconnect}
@@ -259,49 +333,19 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
         </div>
       ) : (
         <>
-          {/* Metric charts */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <MetricCard
-              title="Steps"
-              unit="steps"
-              color="#3b82f6"
-              data={chartData}
-              dataKey="steps"
-              chartType="bar"
-            />
-            <MetricCard
-              title="Active Calories"
-              unit="kcal"
-              color="#f59e0b"
-              data={chartData}
-              dataKey="active_calories"
-              chartType="bar"
-            />
-            <MetricCard
-              title="Resting Heart Rate"
-              unit="bpm"
-              color="#ef4444"
-              data={chartData}
-              dataKey="resting_heart_rate"
-              chartType="line"
-            />
-            <MetricCard
-              title="Sleep"
-              unit="hrs"
-              color="#8b5cf6"
-              data={chartData}
-              dataKey="sleep_hours"
-              chartType="bar"
-            />
+            <MetricCard title="Steps" unit="steps" color="#3b82f6" data={chartData} dataKey="steps" chartType="bar" />
+            <MetricCard title="Active Calories" unit="kcal" color="#f59e0b" data={chartData} dataKey="active_calories" chartType="bar" />
+            <MetricCard title="Resting Heart Rate" unit="bpm" color="#ef4444" data={chartData} dataKey="resting_heart_rate" chartType="line" />
+            <MetricCard title="Sleep" unit="hrs" color="#8b5cf6" data={chartData} dataKey="sleep_hours" chartType="bar" />
           </div>
 
-          {/* Recent workouts */}
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
             Recent Workouts from {providerLabel}
           </p>
           {workouts.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400">
-              No workouts synced yet. Complete a workout in your Health app and it will appear here.
+              No workouts synced yet. Complete a workout and run your Shortcut — it will appear here.
             </div>
           ) : (
             <div className="space-y-2">
@@ -317,13 +361,13 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
 // ── Health Page ───────────────────────────────────────────────────────────────
 
 export default function Health() {
-  const [status, setStatus] = useState<{ connected: boolean; provider: string | null; connected_at: string | null } | null>(null)
+  const [healthStatus, setHealthStatus] = useState<{ connected: boolean; provider: string | null; connected_at: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
 
   function loadStatus() {
     api.health.getStatus()
-      .then(setStatus)
-      .catch(() => setStatus({ connected: false, provider: null, connected_at: null }))
+      .then(setHealthStatus)
+      .catch(() => setHealthStatus({ connected: false, provider: null, connected_at: null }))
       .finally(() => setLoading(false))
   }
 
@@ -331,19 +375,19 @@ export default function Health() {
 
   return (
     <div>
-      <PageHeader title="Health Sync" subtitle="Apple Health, Google Fit & more" />
+      <PageHeader title="Health Sync" subtitle="Apple Health via Shortcuts — free, no subscriptions" />
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400">
+        <div className="flex items-center justify-center py-20">
           <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : status?.connected ? (
+      ) : healthStatus?.connected ? (
         <HealthDashboard
-          provider={status.provider}
-          connectedAt={status.connected_at}
+          provider={healthStatus.provider}
+          connectedAt={healthStatus.connected_at}
           onDisconnected={() => { setLoading(true); loadStatus() }}
         />
       ) : (
-        <ConnectScreen onConnected={() => { setLoading(true); loadStatus() }} />
+        <SetupScreen onFirstSync={() => { setLoading(true); loadStatus() }} />
       )}
     </div>
   )

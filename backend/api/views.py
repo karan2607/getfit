@@ -1412,58 +1412,25 @@ def meal_log_detail(request, log_id):
 
 
 # ---------------------------------------------------------------------------
-# Health Sync (Terra API)
+# Health Sync (Apple Shortcuts)
 # ---------------------------------------------------------------------------
-
-import json as _json_mod
-
-def _terra_api_key():
-    from django.conf import settings
-    return settings.TERRA_API_KEY
-
-def _terra_dev_id():
-    from django.conf import settings
-    return settings.TERRA_DEV_ID
-
 
 @api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def health_connect(request):
+    """GET: returns the user's auth token for use in the Shortcuts setup.
+       DELETE: disconnects and wipes all health data."""
     if request.method == 'DELETE':
         try:
-            conn = request.user.health_connection
-            conn.delete()
+            request.user.health_connection.delete()
         except HealthConnection.DoesNotExist:
             pass
         HealthDailySummary.objects.filter(user=request.user).delete()
         HealthWorkout.objects.filter(user=request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    import urllib.request as _req
-    import urllib.error as _uerr
-    try:
-        payload = _json_mod.dumps({
-            'reference_id': str(request.user.id),
-            'providers': 'APPLE,GARMIN,GOOGLE,FITBIT',
-            'auth_success_redirect_url': '',
-            'auth_failure_redirect_url': '',
-        }).encode()
-        req = _req.Request(
-            'https://api.tryterra.co/v2/auth/generateWidgetSession',
-            data=payload,
-            headers={
-                'Content-Type': 'application/json',
-                'dev-id': _terra_dev_id(),
-                'x-api-key': _terra_api_key(),
-            },
-            method='POST',
-        )
-        with _req.urlopen(req, timeout=10) as resp:
-            data = _json_mod.loads(resp.read())
-        return Response({'url': data.get('url', '')})
-    except Exception as exc:
-        logger.error('Terra widget session failed: %s', exc)
-        return Response({'detail': 'Could not reach Terra API'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    token, _ = Token.objects.get_or_create(user=request.user)
+    return Response({'token': token.key})
 
 
 @api_view(['GET'])
@@ -1516,194 +1483,72 @@ def health_workouts(request):
     return Response(data)
 
 
-def health_terra_webhook(request):
-    """CSRF-exempt, no auth — receives Terra data pushes."""
-    if request.method != 'POST':
-        from django.http import HttpResponse
-        return HttpResponse(status=405)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def health_shortcuts_sync(request):
+    """Receives a health data payload posted from an Apple Shortcut."""
+    from django.utils.dateparse import parse_datetime
+    from django.utils import timezone as _tz
 
-    try:
-        body = _json_mod.loads(request.body)
-    except Exception:
-        from django.http import HttpResponse
-        return HttpResponse(status=400)
+    data = request.data
 
-    event_type = body.get('type', '')
-    terra_user = body.get('user', {})
-    terra_user_id = terra_user.get('user_id', '')
-    reference_id = terra_user.get('reference_id', '')
+    # Mark as connected on first sync
+    HealthConnection.objects.update_or_create(
+        user=request.user,
+        defaults={'provider': 'APPLE'},
+    )
 
-    User = get_user_model()
-
-    if event_type == 'auth':
-        # New connection established
-        if not terra_user_id or not reference_id:
-            from django.http import JsonResponse
-            return JsonResponse({'status': 'ok'})
+    # Upsert today's daily summary
+    date_str = data.get('date') or _tz.now().date().isoformat()
+    defaults = {}
+    if data.get('steps') is not None:
         try:
-            user = User.objects.get(pk=reference_id)
-            provider = terra_user.get('provider', 'APPLE').upper()
-            HealthConnection.objects.update_or_create(
-                user=user,
-                defaults={'terra_user_id': terra_user_id, 'provider': provider},
-            )
-        except (User.DoesNotExist, Exception) as exc:
-            logger.error('Terra auth webhook error: %s', exc)
-        from django.http import JsonResponse
-        return JsonResponse({'status': 'ok'})
+            defaults['steps'] = int(data['steps'])
+        except (TypeError, ValueError):
+            pass
+    if data.get('active_calories') is not None:
+        try:
+            defaults['active_calories'] = float(data['active_calories'])
+        except (TypeError, ValueError):
+            pass
+    if data.get('resting_heart_rate') is not None:
+        try:
+            defaults['resting_heart_rate'] = float(data['resting_heart_rate'])
+        except (TypeError, ValueError):
+            pass
+    if data.get('sleep_hours') is not None:
+        try:
+            defaults['sleep_hours'] = float(data['sleep_hours'])
+        except (TypeError, ValueError):
+            pass
+    if defaults:
+        HealthDailySummary.objects.update_or_create(
+            user=request.user,
+            date=date_str,
+            defaults=defaults,
+        )
 
-    # For all other events, look up user by terra_user_id
-    try:
-        conn = HealthConnection.objects.select_related('user').get(terra_user_id=terra_user_id)
-        user = conn.user
-    except HealthConnection.DoesNotExist:
-        from django.http import JsonResponse
-        return JsonResponse({'status': 'ok'})
-
-    data_list = body.get('data', [])
-    if not isinstance(data_list, list):
-        data_list = [data_list]
-
-    if event_type == 'daily':
-        from django.utils.dateparse import parse_date, parse_datetime
-        for item in data_list:
-            meta = item.get('metadata', {})
-            date_str = meta.get('start_time', '') or meta.get('end_time', '')
-            if not date_str:
-                continue
-            dt = parse_datetime(date_str) or parse_date(date_str)
-            if not dt:
-                continue
-            date = dt.date() if hasattr(dt, 'date') else dt
-
-            steps = None
-            dist = item.get('distance_data') or {}
-            if dist.get('steps') is not None:
+    # Upsert workouts
+    for w in data.get('workouts', []):
+        start_str = w.get('start_time', '')
+        start_time = parse_datetime(start_str) if start_str else None
+        if not start_time:
+            continue
+        workout_id = w.get('id') or f"{request.user.id}-{start_str}"
+        w_defaults = {
+            'user': request.user,
+            'activity_type': str(w.get('activity_type') or 'Workout'),
+            'start_time': start_time,
+        }
+        for field in ('duration_seconds', 'calories', 'avg_heart_rate', 'distance_meters'):
+            if w.get(field) is not None:
                 try:
-                    steps = int(dist['steps'])
+                    w_defaults[field] = float(w[field])
                 except (TypeError, ValueError):
                     pass
+        HealthWorkout.objects.update_or_create(
+            terra_workout_id=str(workout_id),
+            defaults=w_defaults,
+        )
 
-            active_cal = None
-            cal = item.get('calories_data') or {}
-            for key in ('net_activity_calories', 'active_energy_burned', 'total_burned_calories'):
-                if cal.get(key) is not None:
-                    try:
-                        active_cal = float(cal[key])
-                        break
-                    except (TypeError, ValueError):
-                        pass
-
-            rhr = None
-            hr = (item.get('heart_rate_data') or {}).get('summary') or {}
-            if hr.get('resting_hr_bpm') is not None:
-                try:
-                    rhr = float(hr['resting_hr_bpm'])
-                except (TypeError, ValueError):
-                    pass
-
-            sleep_h = None
-            sleep = (item.get('sleep_durations_data') or {}).get('asleep') or {}
-            for key in ('duration_asleep_state_seconds', 'duration_light_sleep_state_seconds'):
-                if sleep.get('duration_asleep_state_seconds') is not None:
-                    try:
-                        sleep_h = round(sleep['duration_asleep_state_seconds'] / 3600, 2)
-                        break
-                    except (TypeError, ValueError):
-                        pass
-
-            HealthDailySummary.objects.update_or_create(
-                user=user,
-                date=date,
-                defaults={
-                    'steps': steps,
-                    'active_calories': active_cal,
-                    'resting_heart_rate': rhr,
-                    'sleep_hours': sleep_h,
-                },
-            )
-
-    elif event_type == 'activity':
-        from django.utils.dateparse import parse_datetime
-        for item in data_list:
-            meta = item.get('metadata', {})
-            workout_id = meta.get('id') or meta.get('workout_id')
-            if not workout_id:
-                continue
-            start_str = meta.get('start_time', '')
-            start_time = parse_datetime(start_str) if start_str else None
-            if not start_time:
-                continue
-
-            activity_type = meta.get('name') or meta.get('type') or 'Workout'
-            duration = None
-            if meta.get('end_time') and start_str:
-                end_dt = parse_datetime(meta['end_time'])
-                if end_dt:
-                    duration = int((end_dt - start_time).total_seconds())
-
-            cal_data = item.get('calories_data') or {}
-            calories = None
-            for key in ('net_activity_calories', 'total_burned_calories'):
-                if cal_data.get(key) is not None:
-                    try:
-                        calories = float(cal_data[key])
-                        break
-                    except (TypeError, ValueError):
-                        pass
-
-            hr_data = (item.get('heart_rate_data') or {}).get('summary') or {}
-            avg_hr = None
-            if hr_data.get('avg_hr_bpm') is not None:
-                try:
-                    avg_hr = float(hr_data['avg_hr_bpm'])
-                except (TypeError, ValueError):
-                    pass
-
-            dist_data = item.get('distance_data') or {}
-            distance = None
-            if dist_data.get('distance_metres') is not None:
-                try:
-                    distance = float(dist_data['distance_metres'])
-                except (TypeError, ValueError):
-                    pass
-
-            HealthWorkout.objects.update_or_create(
-                terra_workout_id=str(workout_id),
-                defaults={
-                    'user': user,
-                    'activity_type': str(activity_type),
-                    'start_time': start_time,
-                    'duration_seconds': duration,
-                    'calories': calories,
-                    'avg_heart_rate': avg_hr,
-                    'distance_meters': distance,
-                },
-            )
-
-    elif event_type == 'sleep':
-        # Sleep data arrives via 'sleep' event; same structure as daily sleep_durations_data
-        from django.utils.dateparse import parse_datetime
-        for item in data_list:
-            meta = item.get('metadata', {})
-            start_str = meta.get('start_time', '')
-            dt = parse_datetime(start_str) if start_str else None
-            if not dt:
-                continue
-            date = dt.date()
-
-            sleep_h = None
-            asleep = (item.get('sleep_durations_data') or {}).get('asleep') or {}
-            if asleep.get('duration_asleep_state_seconds') is not None:
-                try:
-                    sleep_h = round(asleep['duration_asleep_state_seconds'] / 3600, 2)
-                except (TypeError, ValueError):
-                    pass
-
-            if sleep_h is not None:
-                summary, _ = HealthDailySummary.objects.get_or_create(user=user, date=date)
-                summary.sleep_hours = sleep_h
-                summary.save(update_fields=['sleep_hours'])
-
-    from django.http import JsonResponse
-    return JsonResponse({'status': 'ok'})
+    return Response({'status': 'ok'})

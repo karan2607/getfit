@@ -42,10 +42,10 @@ urlpatterns = [
     # Meal Log
     path('diet/meal-logs/', views.meal_logs, name='meal-logs'),
     path('diet/meal-logs/<uuid:log_id>/', views.meal_log_detail, name='meal-log-detail'),
-    # Health Sync (Terra)
+    # Health Sync (Apple Shortcuts)
     path('health/connect/', views.health_connect, name='health-connect'),
     path('health/status/', views.health_status, name='health-status'),
     path('health/summary/', views.health_summary, name='health-summary'),
     path('health/workouts/', views.health_workouts, name='health-workouts'),
-    path('health/terra/webhook/', csrf_exempt(views.health_terra_webhook), name='health-terra-webhook'),
+    path('health/shortcuts/sync/', views.health_shortcuts_sync, name='health-shortcuts-sync'),
 ]

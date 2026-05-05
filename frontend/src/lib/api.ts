@@ -288,8 +288,8 @@ export const api = {
   },
 
   health: {
-    getConnectUrl: () =>
-      request<{ url: string }>('/api/health/connect/'),
+    getSetupToken: () =>
+      request<{ token: string }>('/api/health/connect/'),
 
     getStatus: () =>
       request<{ connected: boolean; provider: string | null; connected_at: string | null }>('/api/health/status/'),
