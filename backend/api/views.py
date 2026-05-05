@@ -1652,6 +1652,27 @@ def health_calorie_balance(request):
     except Exception:
         pass
 
+    # Fall back to TDEE-based target from profile if no active diet plan
+    if target is None:
+        try:
+            p = request.user.profile
+            if p.weight_kg and p.height_cm and p.age and p.gender:
+                if p.gender == 'male':
+                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + 5
+                else:
+                    bmr = 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age - 161
+                activity_factor = {
+                    'sedentary': 1.2,
+                    'lightly_active': 1.375,
+                    'moderately_active': 1.55,
+                    'very_active': 1.725,
+                }.get(p.activity_level or '', 1.375)
+                tdee = bmr * activity_factor
+                goal_delta = {'lose_fat': -400, 'build_muscle': 300, 'maintain': 0}.get(p.fitness_goal or '', 0)
+                target = round(tdee + goal_delta)
+        except Exception:
+            pass
+
     return Response({
         'calories_in': calories_in,
         'calories_out': calories_out,

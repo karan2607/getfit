@@ -313,8 +313,8 @@ function RecoveryCard({ recovery }: { recovery: HealthRecovery | null }) {
 function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null }) {
   if (!balance) return <div className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse mb-4" />
   const net = balance.net
-  const overTarget = balance.target != null && net != null && net > balance.target
-  const netColor = overTarget ? 'text-amber-500' : 'text-emerald-500'
+  const netDisplay = net != null ? (net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()) : '—'
+  const netColor = net == null ? 'text-gray-400' : net >= 0 ? 'text-emerald-500' : 'text-red-500'
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
@@ -324,18 +324,25 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
           <p className="text-xl font-bold text-gray-800">{balance.calories_in.toLocaleString()}</p>
           <p className="text-xs text-gray-400 mt-0.5">Eaten</p>
         </div>
-        <div className="text-gray-200 text-2xl font-light">−</div>
+        <div className="text-gray-200 text-2xl font-light self-center">−</div>
         <div>
           <p className="text-xl font-bold text-gray-800">{balance.calories_out != null ? balance.calories_out.toLocaleString() : '—'}</p>
           <p className="text-xs text-gray-400 mt-0.5">Burned</p>
         </div>
-        <div className="text-gray-200 text-2xl font-light">=</div>
+        <div className="text-gray-200 text-2xl font-light self-center">=</div>
         <div>
-          <p className={`text-xl font-bold ${net != null ? netColor : 'text-gray-400'}`}>
-            {net != null ? net.toLocaleString() : '—'}
-          </p>
+          <p className={`text-xl font-bold ${netColor}`}>{netDisplay}</p>
           <p className="text-xs text-gray-400 mt-0.5">Net</p>
         </div>
+        {balance.target != null && (
+          <>
+            <div className="w-px bg-gray-100 self-stretch mx-1" />
+            <div>
+              <p className="text-xl font-bold text-gray-500">{balance.target.toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Target</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
