@@ -1450,6 +1450,10 @@ def health_connect(request):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     conn, _ = HealthConnection.objects.get_or_create(user=request.user, defaults={'provider': 'APPLE'})
+    if not conn.sync_token:
+        import secrets
+        conn.sync_token = secrets.token_urlsafe(32)
+        conn.save(update_fields=['sync_token'])
     return Response({'token': conn.sync_token})
 
 
@@ -1504,12 +1508,12 @@ def health_workouts(request):
     return Response(data)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def health_shortcuts_sync(request):
-    """Receives a health data payload posted from an Apple Shortcut.
-    Authenticated via permanent sync token (Authorization: Sync <token>)
-    rather than session token so logout/password changes don't break automations."""
+    """GET: validates the sync token — Shortcut calls this first to confirm connection.
+    POST: receives the health data payload.
+    Both authenticated via permanent sync token (Authorization: Sync <token>)."""
     from django.utils.dateparse import parse_datetime
     from django.utils import timezone as _tz
 
@@ -1523,6 +1527,10 @@ def health_shortcuts_sync(request):
         return Response({'detail': 'Invalid sync token.'}, status=status.HTTP_401_UNAUTHORIZED)
 
     sync_user = conn.user
+
+    if request.method == 'GET':
+        return Response({'status': 'ready', 'user': sync_user.email})
+
     data = request.data
 
     # Upsert today's daily summary
