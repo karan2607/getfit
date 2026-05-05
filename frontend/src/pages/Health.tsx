@@ -455,7 +455,7 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
     if (isIOS || isMacSafari) {
       window.location.href = 'shortcuts://run-shortcut?name=GetFit%20Health%20Sync'
     } else {
-      showToast('Run your GetFit Health Sync shortcut on your iPhone, then tap Sync Now to refresh.')
+      showToast('Sync Now runs automatically on iPhone and Mac Safari. Run your GetFit Health Sync shortcut on your iPhone, then tap Sync Now to refresh.')
     }
     setSyncing(true)
     await fetchAll().catch(() => {})
