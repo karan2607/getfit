@@ -337,7 +337,6 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
             <MetricCard title="Steps" unit="steps" color="#3b82f6" data={chartData} dataKey="steps" chartType="bar" />
             <MetricCard title="Active Calories" unit="kcal" color="#f59e0b" data={chartData} dataKey="active_calories" chartType="bar" />
             <MetricCard title="Resting Heart Rate" unit="bpm" color="#ef4444" data={chartData} dataKey="resting_heart_rate" chartType="line" />
-            <MetricCard title="Sleep" unit="hrs" color="#8b5cf6" data={chartData} dataKey="sleep_hours" chartType="bar" />
           </div>
 
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
