@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, type HealthDailySummary, type HealthWorkout } from '../lib/api'
+import { api, type HealthDailySummary, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
@@ -274,6 +274,130 @@ function SetupScreen({ onFirstSync }: { onFirstSync: () => void }) {
   )
 }
 
+// ── Recovery Card ─────────────────────────────────────────────────────────────
+
+const RECOVERY_COLORS: Record<string, string> = {
+  'Optimal': '#10b981',
+  'Good': '#3b82f6',
+  'Take it easy': '#f59e0b',
+  'Rest day': '#ef4444',
+  'No data yet': '#9ca3af',
+}
+
+function RecoveryCard({ recovery }: { recovery: HealthRecovery | null }) {
+  if (!recovery) return <div className="bg-white rounded-2xl border border-gray-100 h-28 animate-pulse mb-4" />
+  const color = RECOVERY_COLORS[recovery.label] ?? '#9ca3af'
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 flex items-center gap-5">
+      <div
+        className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
+        style={{ backgroundColor: color }}
+      >
+        {recovery.score ?? '—'}
+      </div>
+      <div>
+        <p className="text-base font-semibold text-gray-800" style={{ color }}>{recovery.label}</p>
+        <p className="text-xs text-gray-500 mt-0.5">Recovery score based on resting heart rate</p>
+        {recovery.today_rhr != null && recovery.baseline_rhr != null && (
+          <p className="text-xs text-gray-400 mt-1">
+            Today {recovery.today_rhr} bpm · 7-day avg {recovery.baseline_rhr} bpm
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Calorie Balance Card ──────────────────────────────────────────────────────
+
+function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null }) {
+  if (!balance) return <div className="bg-white rounded-2xl border border-gray-100 h-24 animate-pulse mb-4" />
+  const net = balance.net
+  const overTarget = balance.target != null && net != null && net > balance.target
+  const netColor = overTarget ? 'text-amber-500' : 'text-emerald-500'
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Today's Calories</p>
+      <div className="flex justify-around text-center">
+        <div>
+          <p className="text-xl font-bold text-gray-800">{balance.calories_in.toLocaleString()}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Eaten</p>
+        </div>
+        <div className="text-gray-200 text-2xl font-light">−</div>
+        <div>
+          <p className="text-xl font-bold text-gray-800">{balance.calories_out != null ? balance.calories_out.toLocaleString() : '—'}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Burned</p>
+        </div>
+        <div className="text-gray-200 text-2xl font-light">=</div>
+        <div>
+          <p className={`text-xl font-bold ${net != null ? netColor : 'text-gray-400'}`}>
+            {net != null ? net.toLocaleString() : '—'}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">Net{balance.target != null ? ` · goal ${balance.target.toLocaleString()}` : ''}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Activity Suggestion Banner ────────────────────────────────────────────────
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  sedentary: 'Sedentary',
+  lightly_active: 'Lightly Active',
+  moderately_active: 'Moderately Active',
+  very_active: 'Very Active',
+}
+
+function ActivitySuggestionBanner({ suggestion, onUpdate, onDismiss }: {
+  suggestion: HealthActivitySuggestion
+  onUpdate: () => void
+  onDismiss: () => void
+}) {
+  const [updating, setUpdating] = useState(false)
+  const { showToast } = useToast()
+
+  async function handleUpdate() {
+    setUpdating(true)
+    try {
+      await api.profile.update({ activity_level: suggestion.suggested as Parameters<typeof api.profile.update>[0]['activity_level'] })
+      showToast('Activity level updated!')
+      onUpdate()
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+      setUpdating(false)
+    }
+  }
+
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4 flex items-start gap-3">
+      <span className="text-blue-400 text-lg mt-0.5">💡</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-blue-800">
+          Based on your activity
+          {suggestion.avg_calories != null && ` (avg ${suggestion.avg_calories} kcal/day`}
+          {suggestion.weekly_workouts != null && `, ${suggestion.weekly_workouts} workouts this week)`},
+          you look <strong>{ACTIVITY_LABELS[suggestion.suggested!] ?? suggestion.suggested}</strong>
+          {suggestion.current && ` — your profile says ${ACTIVITY_LABELS[suggestion.current] ?? suggestion.current}`}.
+        </p>
+      </div>
+      <div className="flex gap-2 flex-shrink-0">
+        <button
+          onClick={handleUpdate}
+          disabled={updating}
+          className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+        >
+          {updating ? 'Updating…' : 'Update'}
+        </button>
+        <button onClick={onDismiss} className="text-xs text-blue-400 hover:text-blue-600 font-medium px-2">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Connected Dashboard ───────────────────────────────────────────────────────
 
 function HealthDashboard({ provider, connectedAt, onDisconnected }: {
@@ -282,12 +406,28 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
   const { showToast } = useToast()
   const [summaries, setSummaries] = useState<HealthDailySummary[]>([])
   const [workouts, setWorkouts] = useState<HealthWorkout[]>([])
+  const [recovery, setRecovery] = useState<HealthRecovery | null>(null)
+  const [balance, setBalance] = useState<HealthCalorieBalance | null>(null)
+  const [suggestion, setSuggestion] = useState<HealthActivitySuggestion | null>(null)
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.health.getSummary(), api.health.getWorkouts()])
-      .then(([s, w]) => { setSummaries(s); setWorkouts(w) })
+    Promise.all([
+      api.health.getSummary(),
+      api.health.getWorkouts(),
+      api.health.getRecovery(),
+      api.health.getCalorieBalance(),
+      api.health.getActivitySuggestion(),
+    ])
+      .then(([s, w, r, b, a]) => {
+        setSummaries(s)
+        setWorkouts(w)
+        setRecovery(r)
+        setBalance(b)
+        setSuggestion(a)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -333,6 +473,17 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
         </div>
       ) : (
         <>
+          {suggestion?.suggested && !suggestionDismissed && (
+            <ActivitySuggestionBanner
+              suggestion={suggestion}
+              onUpdate={() => setSuggestion(null)}
+              onDismiss={() => setSuggestionDismissed(true)}
+            />
+          )}
+
+          <RecoveryCard recovery={recovery} />
+          <CalorieBalanceCard balance={balance} />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <MetricCard title="Steps" unit="steps" color="#3b82f6" data={chartData} dataKey="steps" chartType="bar" />
             <MetricCard title="Active Calories" unit="kcal" color="#f59e0b" data={chartData} dataKey="active_calories" chartType="bar" />

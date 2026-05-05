@@ -268,6 +268,25 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
     except Exception:
         pass
 
+    # Health data context — last 7 days
+    health_text = ''
+    try:
+        health_rows = HealthDailySummary.objects.filter(user=user).order_by('-date')[:7]
+        if health_rows:
+            health_lines = []
+            for row in health_rows:
+                parts = [f"  {row.date}:"]
+                if row.steps is not None:
+                    parts.append(f"steps={row.steps}")
+                if row.active_calories is not None:
+                    parts.append(f"active_cal={row.active_calories:.0f}kcal")
+                if row.resting_heart_rate is not None:
+                    parts.append(f"rhr={row.resting_heart_rate:.0f}bpm")
+                health_lines.append(" ".join(parts))
+            health_text = "\nRecent health data (last 7 days):\n" + "\n".join(health_lines) + "\n"
+    except Exception:
+        pass
+
     # Recent weight history — last 3 completed sessions
     weight_history_text = ''
     try:
@@ -462,6 +481,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
         f'User profile:\n{profile_text}'
         f'{notes_text}'
         f'{meal_text}'
+        f'{health_text}'
         f'{weight_history_text}'
         f'{plan_text}'
         f'{diet_plan_text}'
@@ -1555,3 +1575,130 @@ def health_shortcuts_sync(request):
         )
 
     return Response({'status': 'ok'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_recovery(request):
+    from django.utils import timezone as _tz
+    today = _tz.now().date()
+    rows = list(
+        HealthDailySummary.objects
+        .filter(user=request.user, resting_heart_rate__isnull=False)
+        .order_by('-date')[:7]
+    )
+    today_rhr = None
+    baseline_rows = []
+    for r in rows:
+        if r.date == today:
+            today_rhr = r.resting_heart_rate
+        else:
+            baseline_rows.append(r.resting_heart_rate)
+
+    if today_rhr is None or not baseline_rows:
+        return Response({'score': None, 'label': 'No data yet', 'today_rhr': today_rhr, 'baseline_rhr': None})
+
+    baseline = sum(baseline_rows) / len(baseline_rows)
+    diff = today_rhr - baseline
+
+    if diff <= 0:
+        score, label = 10, 'Optimal'
+    elif diff <= 3:
+        score, label = round(9 - diff), 'Good'
+    elif diff <= 6:
+        score, label = round(6 - (diff - 3)), 'Take it easy'
+    else:
+        score, label = max(1, round(3 - (diff - 6))), 'Rest day'
+
+    return Response({
+        'score': max(1, score),
+        'label': label,
+        'today_rhr': round(today_rhr, 1),
+        'baseline_rhr': round(baseline, 1),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_calorie_balance(request):
+    from django.utils import timezone as _tz
+    today = _tz.now().date()
+
+    todays_logs = MealLog.objects.filter(user=request.user, date=today)
+    calories_in = sum(m.calories for m in todays_logs)
+
+    calories_out = None
+    try:
+        summary = HealthDailySummary.objects.get(user=request.user, date=today)
+        if summary.active_calories is not None:
+            calories_out = round(summary.active_calories)
+    except HealthDailySummary.DoesNotExist:
+        pass
+
+    net = (calories_in - calories_out) if calories_out is not None else None
+
+    target = None
+    try:
+        active_plan = request.user.diet_plans.filter(is_active=True).first()
+        if active_plan:
+            target = active_plan.target_calories
+    except Exception:
+        pass
+
+    return Response({
+        'calories_in': calories_in,
+        'calories_out': calories_out,
+        'net': net,
+        'target': target,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_activity_suggestion(request):
+    from django.utils import timezone as _tz
+    from datetime import timedelta
+    today = _tz.now().date()
+
+    rows = list(
+        HealthDailySummary.objects
+        .filter(user=request.user, date__gte=today - timedelta(days=14), active_calories__isnull=False)
+    )
+    if len(rows) < 3:
+        return Response({'suggested': None})
+
+    avg_calories = sum(r.active_calories for r in rows) / len(rows)
+
+    if avg_calories < 200:
+        suggested = 'sedentary'
+    elif avg_calories < 350:
+        suggested = 'lightly_active'
+    elif avg_calories < 500:
+        suggested = 'moderately_active'
+    else:
+        suggested = 'very_active'
+
+    ACTIVITY_ORDER = ['sedentary', 'lightly_active', 'moderately_active', 'very_active']
+    weekly_workouts = (
+        request.user.workout_sessions
+        .filter(is_completed=True, started_at__date__gte=today - timedelta(days=7))
+        .count()
+    )
+    if weekly_workouts >= 3:
+        if ACTIVITY_ORDER.index(suggested) < ACTIVITY_ORDER.index('moderately_active'):
+            suggested = 'moderately_active'
+
+    try:
+        current = request.user.profile.activity_level or ''
+    except Exception:
+        current = ''
+
+    if suggested == current:
+        return Response({'suggested': None})
+
+    return Response({
+        'suggested': suggested,
+        'avg_calories': round(avg_calories),
+        'weekly_workouts': weekly_workouts,
+        'current': current,
+    })

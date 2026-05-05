@@ -48,4 +48,7 @@ urlpatterns = [
     path('health/summary/', views.health_summary, name='health-summary'),
     path('health/workouts/', views.health_workouts, name='health-workouts'),
     path('health/shortcuts/sync/', views.health_shortcuts_sync, name='health-shortcuts-sync'),
+    path('health/recovery/', views.health_recovery, name='health-recovery'),
+    path('health/calorie-balance/', views.health_calorie_balance, name='health-calorie-balance'),
+    path('health/activity-suggestion/', views.health_activity_suggestion, name='health-activity-suggestion'),
 ]

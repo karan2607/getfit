@@ -302,6 +302,15 @@ export const api = {
 
     disconnect: () =>
       request<void>('/api/health/connect/', { method: 'DELETE' }),
+
+    getRecovery: () =>
+      request<HealthRecovery>('/api/health/recovery/'),
+
+    getCalorieBalance: () =>
+      request<HealthCalorieBalance>('/api/health/calorie-balance/'),
+
+    getActivitySuggestion: () =>
+      request<HealthActivitySuggestion>('/api/health/activity-suggestion/'),
   },
 }
 
@@ -494,6 +503,27 @@ export interface HealthWorkout {
   calories: number | null
   avg_heart_rate: number | null
   distance_meters: number | null
+}
+
+export interface HealthRecovery {
+  score: number | null
+  label: string
+  today_rhr: number | null
+  baseline_rhr: number | null
+}
+
+export interface HealthCalorieBalance {
+  calories_in: number
+  calories_out: number | null
+  net: number | null
+  target: number | null
+}
+
+export interface HealthActivitySuggestion {
+  suggested: string | null
+  avg_calories?: number
+  weekly_workouts?: number
+  current?: string
 }
 
 export interface BodyScanResult {
