@@ -1662,11 +1662,10 @@ def health_calorie_balance(request):
 
     burned = None
     try:
-        from datetime import timedelta
         from django.db.models import Q
         summary = (
             HealthDailySummary.objects
-            .filter(user=request.user, date__gte=today - timedelta(days=1))
+            .filter(user=request.user)
             .filter(Q(active_calories__isnull=False) | Q(resting_calories__isnull=False))
             .order_by('-date')
             .first()
