@@ -280,7 +280,10 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
 function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: Exercise) => void }) {
   return (
-    <div className="flex-shrink-0 w-40 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col p-3 overflow-hidden gap-2">
+    <button
+      onClick={() => onClick(exercise)}
+      className="flex-shrink-0 w-40 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col p-3 overflow-hidden gap-2 text-left hover:border-brand-200 hover:shadow-md active:bg-gray-50 transition-all"
+    >
       <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{exercise.name}</p>
       <div className="flex items-center gap-1.5">
         <span className="text-xs font-semibold bg-brand-100 text-brand-500 px-1.5 py-0.5 rounded-full">
@@ -290,13 +293,7 @@ function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: 
           <span className="text-xs text-gray-400">⏱ {exercise.rest_seconds}s</span>
         )}
       </div>
-      <button
-        onClick={() => onClick(exercise)}
-        className="mt-auto text-xs text-brand-500 border border-brand-200 rounded-lg py-1.5 font-medium hover:bg-brand-50 active:bg-brand-100 transition-colors w-full"
-      >
-        How to
-      </button>
-    </div>
+    </button>
   )
 }
 
