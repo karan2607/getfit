@@ -948,42 +948,37 @@ def workout_exercise_history(request, exercise_name):
     return Response(list(logs))
 
 
-def _commons_search(query: str) -> list:
-    """Search Wikimedia Commons file namespace, return up to 2 JPEG/PNG thumbnail URLs."""
+def _fetch_wger_images(name: str) -> list:
+    """Return up to 2 exercise image URLs from wger.de, trying name variations."""
     import urllib.request as _req
     import urllib.parse as _parse
     import json as _json
-    try:
-        params = {
-            'action': 'query', 'generator': 'search',
-            'gsrnamespace': '6', 'gsrsearch': query, 'gsrlimit': '10',
-            'prop': 'imageinfo', 'iiprop': 'url|mime', 'iiurlwidth': '500',
-            'format': 'json', 'formatversion': '2',
-        }
-        r = _req.Request(
-            'https://commons.wikimedia.org/w/api.php?' + _parse.urlencode(params),
-            headers={'User-Agent': 'getfit/1.0'},
-        )
-        with _req.urlopen(r, timeout=8) as resp:
-            pages = _json.loads(resp.read()).get('query', {}).get('pages', [])
-        urls = []
-        for page in pages:
-            for ii in page.get('imageinfo', []):
-                if ii.get('mime') in ('image/jpeg', 'image/png'):
-                    thumb = ii.get('thumburl') or ii.get('url')
-                    if thumb:
-                        urls.append(thumb)
-            if len(urls) >= 2:
-                break
-        return urls[:2]
-    except Exception as exc:
-        logger.warning('commons_search failed for %r: %s', query, exc)
-        return []
-
-
-def _fetch_commons_images(name: str) -> list:
-    """Return up to 2 exercise image URLs from Wikimedia Commons, trying name variations."""
     import re as _re
+
+    def _search(term: str) -> list:
+        try:
+            url = 'https://wger.de/api/v2/exercise/search/?' + _parse.urlencode({
+                'term': term, 'language': 'english', 'format': 'json',
+            })
+            r = _req.Request(url, headers={'User-Agent': 'getfit/1.0'})
+            with _req.urlopen(r, timeout=8) as resp:
+                suggestions = _json.loads(resp.read()).get('suggestions', [])
+            if not suggestions:
+                return []
+            base_id = suggestions[0].get('data', {}).get('base_id')
+            if not base_id:
+                return []
+            img_url = 'https://wger.de/api/v2/exerciseimage/?' + _parse.urlencode({
+                'exercise_base': base_id, 'format': 'json', 'is_main': 'True',
+            })
+            r2 = _req.Request(img_url, headers={'User-Agent': 'getfit/1.0'})
+            with _req.urlopen(r2, timeout=8) as resp2:
+                results = _json.loads(resp2.read()).get('results', [])
+            return [r['image'] for r in results if r.get('image')][:2]
+        except Exception as exc:
+            logger.warning('wger_search failed for %r: %s', term, exc)
+            return []
+
     candidates = [name]
     stripped = name
     for pat in [
@@ -996,12 +991,12 @@ def _fetch_commons_images(name: str) -> list:
             stripped = s
 
     for term in candidates:
-        urls = _commons_search(term + ' exercise')
+        urls = _search(term)
         if urls:
-            logger.info('commons images for %r via term %r: %s', name, term, urls)
+            logger.info('wger images for %r via term %r: %s', name, term, urls)
             return urls
 
-    logger.info('no commons images found for %r (tried: %s)', name, candidates)
+    logger.info('no wger images found for %r (tried: %s)', name, candidates)
     return []
 
 
@@ -1033,7 +1028,7 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
-        guide['images'] = _fetch_commons_images(name)
+        guide['images'] = _fetch_wger_images(name)
         ExerciseGuide.objects.create(name=name, data=guide)
         return Response(guide)
     except Exception as exc:
