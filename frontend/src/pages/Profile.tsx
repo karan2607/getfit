@@ -5,6 +5,103 @@ import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 
+function PersonalNotesCard({ value, onChange, onSave }: {
+  value: string
+  onChange: (v: string) => void
+  onSave: (v: string) => Promise<void>
+}) {
+  const { showToast } = useToast()
+  const [editing, setEditing] = useState(!value)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await onSave(draft)
+      setEditing(false)
+      showToast('Notes saved')
+    } catch {
+      showToast('Failed to save notes', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true)
+    try {
+      await onSave('')
+      setDraft('')
+      onChange('')
+      setEditing(true)
+      showToast('Notes cleared')
+    } catch {
+      showToast('Failed to clear notes', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Personal Notes</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          The AI reads these notes in every conversation — use this to share injuries, preferences, schedule constraints, or anything else you want it to remember.
+        </p>
+      </div>
+      {editing ? (
+        <>
+          <textarea
+            rows={5}
+            placeholder={`e.g. "I have a lower back issue so avoid heavy deadlifts. I can only train on weekdays. I prefer compound movements. Currently cutting for summer."`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving || !draft.trim()}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {value && (
+              <button
+                onClick={() => { setDraft(value); setEditing(false) }}
+                className="px-4 text-sm text-gray-500 hover:text-gray-700 font-medium"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="bg-gray-50 rounded-xl p-4">
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{value}</p>
+          <div className="flex gap-3 mt-3">
+            <button
+              onClick={() => { setDraft(value); setEditing(true) }}
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={saving}
+              className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Profile() {
   const { user, setUser } = useAuth()
   const { showToast } = useToast()
@@ -260,21 +357,14 @@ export default function Profile() {
       </section>
 
       {/* Personal Notes (AI Memory) */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Personal Notes</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            The AI reads these notes in every conversation — use this to share injuries, preferences, schedule constraints, or anything else you want it to remember.
-          </p>
-        </div>
-        <textarea
-          rows={5}
-          placeholder={`e.g. "I have a lower back issue so avoid heavy deadlifts. I can only train on weekdays. I prefer compound movements. Currently cutting for summer."`}
-          value={form.personal_notes ?? ''}
-          onChange={(e) => update({ personal_notes: e.target.value })}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-        />
-      </section>
+      <PersonalNotesCard
+        value={form.personal_notes ?? ''}
+        onChange={(v) => update({ personal_notes: v })}
+        onSave={async (v) => {
+          await api.profile.update({ personal_notes: v })
+          update({ personal_notes: v })
+        }}
+      />
 
       <button
         onClick={handleSave}
