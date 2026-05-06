@@ -948,55 +948,63 @@ def workout_exercise_history(request, exercise_name):
     return Response(list(logs))
 
 
-def _fetch_wger_images(name: str) -> list:
-    """Return up to 2 exercise image URLs from wger.de, trying name variations."""
-    import urllib.request as _req
-    import urllib.parse as _parse
-    import json as _json
-    import re as _re
+_EXERCISE_KB = None
 
-    def _search(term: str) -> list:
+
+def _load_exercise_kb() -> dict:
+    global _EXERCISE_KB
+    if _EXERCISE_KB is None:
+        import json as _json
+        import os as _os
+        kb_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'exercise_kb.json')
         try:
-            url = 'https://wger.de/api/v2/exercise/search/?' + _parse.urlencode({
-                'term': term, 'language': 'english', 'format': 'json',
-            })
-            r = _req.Request(url, headers={'User-Agent': 'getfit/1.0'})
-            with _req.urlopen(r, timeout=8) as resp:
-                suggestions = _json.loads(resp.read()).get('suggestions', [])
-            if not suggestions:
-                return []
-            base_id = suggestions[0].get('data', {}).get('base_id')
-            if not base_id:
-                return []
-            img_url = 'https://wger.de/api/v2/exerciseimage/?' + _parse.urlencode({
-                'exercise_base': base_id, 'format': 'json', 'is_main': 'True',
-            })
-            r2 = _req.Request(img_url, headers={'User-Agent': 'getfit/1.0'})
-            with _req.urlopen(r2, timeout=8) as resp2:
-                results = _json.loads(resp2.read()).get('results', [])
-            return [r['image'] for r in results if r.get('image')][:2]
+            with open(kb_path) as f:
+                _EXERCISE_KB = _json.load(f)
+            logger.info('exercise_kb loaded: %d entries', len(_EXERCISE_KB))
         except Exception as exc:
-            logger.warning('wger_search failed for %r: %s', term, exc)
-            return []
+            logger.warning('exercise_kb load failed: %s', exc)
+            _EXERCISE_KB = {}
+    return _EXERCISE_KB
 
-    candidates = [name]
-    stripped = name
-    for pat in [
-        r'^(Barbell|Dumbbell|Cable|Machine|EZ[- ]?Bar|Smith[- ]Machine|Kettlebell|Resistance[- ]Band)\s+',
-        r'^(Incline|Decline|Flat|Seated|Standing|Lying|Single[- ]Arm|One[- ]Arm|Close[- ]Grip|Wide[- ]Grip|Reverse[- ]Grip)\s+',
-    ]:
-        s = _re.sub(pat, '', stripped, flags=_re.IGNORECASE).strip()
-        if s and s != stripped:
-            candidates.append(s)
-            stripped = s
 
-    for term in candidates:
-        urls = _search(term)
-        if urls:
-            logger.info('wger images for %r via term %r: %s', name, term, urls)
-            return urls
+def _lookup_exercise_images(name: str) -> list:
+    import re as _re
+    kb = _load_exercise_kb()
 
-    logger.info('no wger images found for %r (tried: %s)', name, candidates)
+    _stop = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or', 'for', 'from', 'at', 'by'}
+
+    def _stem(w):
+        for suffix in ('ing', 'ed', 'es', 's'):
+            if w.endswith(suffix) and len(w) > len(suffix) + 2:
+                return w[:-len(suffix)]
+        return w
+
+    def _tokenize(s):
+        words = _re.sub(r'[^\w\s]', ' ', s.lower()).split()
+        return {_stem(w) for w in words if w not in _stop}
+
+    query_words = _tokenize(name)
+    if not query_words:
+        return []
+
+    best_key, best_score = None, -1
+    for key, urls in kb.items():
+        key_words = _tokenize(key)
+        overlap = len(query_words & key_words)
+        if overlap == 0:
+            continue
+        recall = overlap / len(query_words)
+        precision = overlap / len(key_words)
+        f1 = 2 * recall * precision / (recall + precision)
+        if f1 > best_score:
+            best_score = f1
+            best_key = key
+
+    if best_key and best_score >= 0.5:
+        logger.info('exercise_kb hit for %r via key %r (f1=%.2f)', name, best_key, best_score)
+        return kb[best_key][:2]
+
+    logger.info('exercise_kb miss for %r (best f1=%.2f)', name, best_score)
     return []
 
 
@@ -1028,7 +1036,7 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
-        guide['images'] = _fetch_wger_images(name)
+        guide['images'] = _lookup_exercise_images(name)
         ExerciseGuide.objects.create(name=name, data=guide)
         return Response(guide)
     except Exception as exc:
