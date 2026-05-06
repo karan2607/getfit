@@ -23,6 +23,7 @@ def _api_key() -> str:
 
 
 def call_gemini_json(*, system_prompt: str, user_prompt: str) -> dict:
+    import time
     payload = json.dumps({
         'system_instruction': {'parts': [{'text': system_prompt}]},
         'contents': [{'role': 'user', 'parts': [{'text': user_prompt}]}],
@@ -32,22 +33,29 @@ def call_gemini_json(*, system_prompt: str, user_prompt: str) -> dict:
     url = f'{BASE_URL}:generateContent?key={_api_key()}'
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
 
-    try:
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
-        text = data['candidates'][0]['content']['parts'][0]['text']
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise GeminiError('AI returned non-JSON response') from exc
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode()
-        logger.error('Gemini HTTP error %s: %s', exc.code, body)
-        if exc.code == 429:
-            raise GeminiError('AI service busy, please try again shortly')
-        raise GeminiError(f'AI request failed ({exc.code})')
-    except Exception as exc:
-        logger.error('Gemini error: %s', exc, exc_info=True)
-        raise GeminiError('AI request failed') from exc
+    last_exc = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read())
+            text = data['candidates'][0]['content']['parts'][0]['text']
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise GeminiError('AI returned non-JSON response') from exc
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode()
+            logger.error('Gemini HTTP error %s (attempt %d): %s', exc.code, attempt + 1, body)
+            if exc.code in (429, 503) and attempt < 2:
+                time.sleep(2 ** attempt)
+                last_exc = exc
+                continue
+            if exc.code == 429:
+                raise GeminiError('AI service busy, please try again shortly')
+            raise GeminiError(f'AI request failed ({exc.code})')
+        except Exception as exc:
+            logger.error('Gemini error: %s', exc, exc_info=True)
+            raise GeminiError('AI request failed') from exc
+    raise GeminiError('AI service unavailable, please try again') from last_exc
 
 
 def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes: bytes, mime_type: str) -> str:
