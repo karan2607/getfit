@@ -1662,18 +1662,9 @@ def health_calorie_balance(request):
 
     burned = None
     try:
-        from django.db.models import Q
-        summary = (
-            HealthDailySummary.objects
-            .filter(user=request.user)
-            .filter(Q(active_calories__isnull=False) | Q(resting_calories__isnull=False))
-            .order_by('-date')
-            .first()
-        )
-        if summary:
-            active = summary.active_calories or 0
-            resting = summary.resting_calories or 0
-            burned = round(active + resting)
+        summary = HealthDailySummary.objects.filter(user=request.user, date=today).first()
+        if summary and (summary.active_calories is not None or summary.resting_calories is not None):
+            burned = round((summary.active_calories or 0) + (summary.resting_calories or 0))
     except Exception:
         pass
 
