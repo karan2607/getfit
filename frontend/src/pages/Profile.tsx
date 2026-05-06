@@ -15,6 +15,13 @@ function PersonalNotesCard({ value, onChange, onSave }: {
   const [draft, setDraft] = useState(value)
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    if (value && editing) {
+      setDraft(value)
+      setEditing(false)
+    }
+  }, [value])
+
   async function handleSave() {
     setSaving(true)
     try {
