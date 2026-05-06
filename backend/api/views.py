@@ -1008,6 +1008,42 @@ def _lookup_exercise_images(name: str) -> list:
     return []
 
 
+def _get_kb_candidates(name: str, top_n: int = 20) -> list:
+    """Return the top N KB keys by F1 score for Gemini to choose from."""
+    import re as _re
+    kb = _load_exercise_kb()
+
+    _stop = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or', 'for', 'from', 'at', 'by'}
+
+    def _stem(w):
+        for suffix in ('ing', 'ed', 'es', 's'):
+            if w.endswith(suffix) and len(w) > len(suffix) + 2:
+                return w[:-len(suffix)]
+        return w
+
+    def _tokenize(s):
+        words = _re.sub(r'[^\w\s]', ' ', s.lower()).split()
+        return {_stem(w) for w in words if w not in _stop}
+
+    query_words = _tokenize(name)
+    if not query_words:
+        return []
+
+    scored = []
+    for key in kb:
+        key_words = _tokenize(key)
+        overlap = len(query_words & key_words)
+        if overlap == 0:
+            continue
+        recall = overlap / len(query_words)
+        precision = overlap / len(key_words)
+        f1 = 2 * recall * precision / (recall + precision)
+        scored.append((f1, key))
+
+    scored.sort(reverse=True)
+    return [key for _, key in scored[:top_n]]
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exercise_guide(request):
@@ -1023,11 +1059,19 @@ def exercise_guide(request):
     except ExerciseGuide.DoesNotExist:
         pass
 
+    # Get top KB candidates via F1 matching for Gemini to choose from
+    kb_candidates = _get_kb_candidates(name, top_n=20)
+    candidates_block = (
+        f'\n\nExercise image library keys (pick the best match or null):\n{chr(10).join(kb_candidates)}'
+        if kb_candidates else ''
+    )
+
     prompt = f"""Return a JSON object for the exercise "{name}" with exactly these fields:
 - "steps": array of 4-6 strings, each a clear action step for performing the exercise correctly
 - "muscles": array of 2-4 strings, the primary muscles targeted (short names like "Quadriceps", "Glutes")
 - "tips": array of 2-3 strings, common mistakes to avoid or form cues
 - "category": exactly one of: squat, push, press, pull, row, hinge, curl, lunge, core, cardio, other
+- "kb_key": the single best-matching key from the library below, or null if none is a good match{candidates_block}
 
 Return only valid JSON, no extra text."""
 
@@ -1036,7 +1080,13 @@ Return only valid JSON, no extra text."""
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
-        guide['images'] = _lookup_exercise_images(name)
+        kb_key = guide.pop('kb_key', None)
+        kb = _load_exercise_kb()
+        if kb_key and kb_key in kb:
+            guide['images'] = kb[kb_key][:2]
+            logger.info('exercise_kb gemini pick for %r: %r', name, kb_key)
+        else:
+            guide['images'] = _lookup_exercise_images(name)
         ExerciseGuide.objects.create(name=name, data=guide)
         return Response(guide)
     except Exception as exc:
