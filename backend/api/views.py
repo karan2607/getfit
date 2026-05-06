@@ -1665,8 +1665,8 @@ def health_calorie_balance(request):
         summary = HealthDailySummary.objects.filter(user=request.user, date=today).first()
         if summary and (summary.active_calories is not None or summary.resting_calories is not None):
             burned = round((summary.active_calories or 0) + (summary.resting_calories or 0))
-    except Exception:
-        pass
+    except Exception as e:
+        import logging; logging.getLogger(__name__).error('calorie_balance burned error: %s', e)
 
     net = (calories_in - burned) if burned is not None else None
 
