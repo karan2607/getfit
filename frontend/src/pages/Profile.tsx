@@ -5,27 +5,28 @@ import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 
+// ── Personal Notes Card ───────────────────────────────────────────────────────
+
 function PersonalNotesCard({ value, onChange, onSave }: {
   value: string
   onChange: (v: string) => void
   onSave: (v: string) => Promise<void>
 }) {
   const { showToast } = useToast()
-  const [editing, setEditing] = useState(!value)
+  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [saved, setSaved] = useState(value)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (value && editing) {
-      setDraft(value)
-      setEditing(false)
-    }
+    if (value) { setSaved(value); setDraft(value) }
   }, [value])
 
   async function handleSave() {
     setSaving(true)
     try {
       await onSave(draft)
+      setSaved(draft)
       setEditing(false)
       showToast('Notes saved')
     } catch {
@@ -39,9 +40,9 @@ function PersonalNotesCard({ value, onChange, onSave }: {
     setSaving(true)
     try {
       await onSave('')
+      setSaved('')
       setDraft('')
       onChange('')
-      setEditing(true)
       showToast('Notes cleared')
     } catch {
       showToast('Failed to clear notes', 'error')
@@ -51,33 +52,32 @@ function PersonalNotesCard({ value, onChange, onSave }: {
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-900">Personal Notes</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-xs text-gray-500">
           The AI reads these notes in every conversation — use this to share injuries, preferences, schedule constraints, or anything else you want it to remember.
         </p>
       </div>
-      {editing ? (
+      {editing || !saved ? (
         <>
           <textarea
-            rows={5}
+            rows={6}
             placeholder={`e.g. "I have a lower back issue so avoid heavy deadlifts. I can only train on weekdays. I prefer compound movements. Currently cutting for summer."`}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
           />
           <div className="flex gap-2">
             <button
               onClick={handleSave}
               disabled={saving || !draft.trim()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
+              className="flex-1 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Save Note'}
             </button>
-            {value && (
+            {saved && (
               <button
-                onClick={() => { setDraft(value); setEditing(false) }}
+                onClick={() => { setDraft(saved); setEditing(false) }}
                 className="px-4 text-sm text-gray-500 hover:text-gray-700 font-medium"
               >
                 Cancel
@@ -87,11 +87,11 @@ function PersonalNotesCard({ value, onChange, onSave }: {
         </>
       ) : (
         <div className="bg-gray-50 rounded-xl p-4">
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{value}</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{saved}</p>
           <div className="flex gap-3 mt-3">
             <button
-              onClick={() => { setDraft(value); setEditing(true) }}
-              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+              onClick={() => { setDraft(saved); setEditing(true) }}
+              className="text-xs font-semibold text-brand-500 hover:text-brand-600 transition-colors"
             >
               Edit
             </button>
@@ -105,13 +105,18 @@ function PersonalNotesCard({ value, onChange, onSave }: {
           </div>
         </div>
       )}
-    </section>
+    </div>
   )
 }
+
+// ── Profile Page ──────────────────────────────────────────────────────────────
+
+type Tab = 'info' | 'notes' | 'password'
 
 export default function Profile() {
   const { user, setUser } = useAuth()
   const { showToast } = useToast()
+  const [tab, setTab] = useState<Tab>('info')
   const [saving, setSaving] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [form, setForm] = useState<Partial<UserProfile>>({})
@@ -162,7 +167,7 @@ export default function Profile() {
     }
   }
 
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white'
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white'
   const labelCls = 'block text-sm font-medium text-gray-700 mb-1'
 
   const goals = [
@@ -187,243 +192,169 @@ export default function Profile() {
     { value: 'very_active', label: 'Very Active' },
   ]
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'info', label: 'Info' },
+    { id: 'notes', label: 'Notes' },
+    { id: 'password', label: 'Password' },
+  ]
+
   return (
     <div>
       <PageHeader title="Profile" subtitle="Personal info and fitness preferences" />
-      <div className="p-6 max-w-2xl mx-auto space-y-8">
+      <div className="p-6 max-w-2xl mx-auto">
 
-      {/* Account */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">Account</h2>
-        <div>
-          <label className={labelCls}>Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Email</label>
-          <input
-            type="email"
-            value={user?.email ?? ''}
-            disabled
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
-          />
-        </div>
-      </section>
-
-      {/* Body Stats */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">Body Stats</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Age</label>
-            <input
-              type="number" min={10} max={100}
-              value={form.age ?? ''}
-              onChange={(e) => update({ age: e.target.value ? Number(e.target.value) : null })}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Gender</label>
-            <select
-              value={form.gender ?? ''}
-              onChange={(e) => update({ gender: e.target.value as UserProfile['gender'] || null })}
-              className={inputCls}
-            >
-              <option value="">Select</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Height (cm)</label>
-            <input
-              type="number" min={100} max={250}
-              value={form.height_cm ?? ''}
-              onChange={(e) => update({ height_cm: e.target.value ? Number(e.target.value) : null })}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Weight (kg)</label>
-            <input
-              type="number" min={30} max={300}
-              value={form.weight_kg ?? ''}
-              onChange={(e) => update({ weight_kg: e.target.value ? Number(e.target.value) : null })}
-              className={inputCls}
-            />
-          </div>
-        </div>
-        <div>
-          <label className={labelCls}>Weight unit</label>
-          <div className="flex gap-2">
-            {(['lb', 'kg'] as const).map((u) => (
-              <button
-                key={u}
-                type="button"
-                onClick={() => update({ preferred_unit: u })}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  (form.preferred_unit ?? 'lb') === u
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {u}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className={labelCls}>Activity Level</label>
-          <div className="grid grid-cols-2 gap-2">
-            {activity.map((a) => (
-              <button
-                key={a.value}
-                type="button"
-                onClick={() => update({ activity_level: a.value as UserProfile['activity_level'] })}
-                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors text-left ${
-                  form.activity_level === a.value
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Fitness Goal */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">Fitness Goal</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {goals.map((g) => (
+        {/* Tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
+          {tabs.map((t) => (
             <button
-              key={g.value}
-              type="button"
-              onClick={() => update({ fitness_goal: g.value as UserProfile['fitness_goal'] })}
-              className={`p-3 rounded-xl border-2 text-center transition-colors ${
-                form.fitness_goal === g.value
-                  ? 'border-emerald-500 bg-emerald-50'
-                  : 'border-gray-200 hover:border-gray-300'
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                tab === t.id
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <div className="text-xl mb-1">{g.icon}</div>
-              <p className="text-xs font-semibold text-gray-900">{g.label}</p>
+              {t.label}
             </button>
           ))}
         </div>
-        <div>
-          <label className={labelCls}>Experience Level</label>
-          <div className="grid grid-cols-3 gap-2">
-            {levels.map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                onClick={() => update({ experience_level: l.value as UserProfile['experience_level'] })}
-                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                  form.experience_level === l.value
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Diet Preference */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">Dietary Preference</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {prefs.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => update({ dietary_preference: p.value as UserProfile['dietary_preference'] })}
-              className={`p-3 rounded-xl border-2 text-center transition-colors ${
-                form.dietary_preference === p.value
-                  ? 'border-emerald-500 bg-emerald-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="text-xl mb-1">{p.icon}</div>
-              <p className="text-xs font-semibold text-gray-900">{p.label}</p>
+        {/* Info Tab */}
+        {tab === 'info' && (
+          <div className="space-y-6">
+            <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+              <h2 className="text-base font-semibold text-gray-900">Account</h2>
+              <div>
+                <label className={labelCls}>Name</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input type="email" value={user?.email ?? ''} disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed" />
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+              <h2 className="text-base font-semibold text-gray-900">Body Stats</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Age</label>
+                  <input type="number" min={10} max={100} value={form.age ?? ''} onChange={(e) => update({ age: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Gender</label>
+                  <select value={form.gender ?? ''} onChange={(e) => update({ gender: e.target.value as UserProfile['gender'] || null })} className={inputCls}>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Height (cm)</label>
+                  <input type="number" min={100} max={250} value={form.height_cm ?? ''} onChange={(e) => update({ height_cm: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Weight (kg)</label>
+                  <input type="number" min={30} max={300} value={form.weight_kg ?? ''} onChange={(e) => update({ weight_kg: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Weight unit</label>
+                <div className="flex gap-2">
+                  {(['lb', 'kg'] as const).map((u) => (
+                    <button key={u} type="button" onClick={() => update({ preferred_unit: u })} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${(form.preferred_unit ?? 'lb') === u ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{u}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Activity Level</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {activity.map((a) => (
+                    <button key={a.value} type="button" onClick={() => update({ activity_level: a.value as UserProfile['activity_level'] })} className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors text-left ${form.activity_level === a.value ? 'border-brand-500 bg-orange-50 text-brand-600' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}>{a.label}</button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+              <h2 className="text-base font-semibold text-gray-900">Fitness Goal</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {goals.map((g) => (
+                  <button key={g.value} type="button" onClick={() => update({ fitness_goal: g.value as UserProfile['fitness_goal'] })} className={`p-3 rounded-xl border-2 text-center transition-colors ${form.fitness_goal === g.value ? 'border-brand-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="text-xl mb-1">{g.icon}</div>
+                    <p className="text-xs font-semibold text-gray-900">{g.label}</p>
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className={labelCls}>Experience Level</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {levels.map((l) => (
+                    <button key={l.value} type="button" onClick={() => update({ experience_level: l.value as UserProfile['experience_level'] })} className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${form.experience_level === l.value ? 'border-brand-500 bg-orange-50 text-brand-600' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}>{l.label}</button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
+              <h2 className="text-base font-semibold text-gray-900">Dietary Preference</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {prefs.map((p) => (
+                  <button key={p.value} type="button" onClick={() => update({ dietary_preference: p.value as UserProfile['dietary_preference'] })} className={`p-3 rounded-xl border-2 text-center transition-colors ${form.dietary_preference === p.value ? 'border-brand-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="text-xl mb-1">{p.icon}</div>
+                    <p className="text-xs font-semibold text-gray-900">{p.label}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <button onClick={handleSave} disabled={saving} className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors">
+              {saving ? 'Saving...' : 'Save Profile'}
             </button>
-          ))}
-        </div>
-      </section>
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
-      >
-        {saving ? 'Saving...' : 'Save Profile'}
-      </button>
-
-      {/* Personal Notes (AI Memory) */}
-      <PersonalNotesCard
-        value={form.personal_notes ?? ''}
-        onChange={(v) => update({ personal_notes: v })}
-        onSave={async (v) => {
-          await api.profile.update({ personal_notes: v })
-          update({ personal_notes: v })
-        }}
-      />
-
-      {/* Change Password */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">Change Password</h2>
-        <form onSubmit={handleChangePassword} className="space-y-3">
-          <div>
-            <label className={labelCls}>Current Password</label>
-            <input
-              type="password"
-              value={pwForm.current}
-              onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))}
-              className={inputCls}
-              required
-            />
           </div>
-          <div>
-            <label className={labelCls}>New Password</label>
-            <input
-              type="password"
-              value={pwForm.next}
-              onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))}
-              className={inputCls}
-              required
+        )}
+
+        {/* Notes Tab */}
+        {tab === 'notes' && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">Personal Notes</h2>
+            <PersonalNotesCard
+              value={form.personal_notes ?? ''}
+              onChange={(v) => update({ personal_notes: v })}
+              onSave={async (v) => {
+                await api.profile.update({ personal_notes: v })
+                update({ personal_notes: v })
+              }}
             />
-          </div>
-          <div>
-            <label className={labelCls}>Confirm New Password</label>
-            <input
-              type="password"
-              value={pwForm.confirm}
-              onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))}
-              className={inputCls}
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={changingPassword}
-            className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 font-medium rounded-xl py-2.5 text-sm transition-colors"
-          >
-            {changingPassword ? 'Updating...' : 'Update Password'}
-          </button>
-        </form>
-      </section>
+          </section>
+        )}
+
+        {/* Password Tab */}
+        {tab === 'password' && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Change Password</h2>
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div>
+                <label className={labelCls}>Current Password</label>
+                <input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className={inputCls} required />
+              </div>
+              <div>
+                <label className={labelCls}>New Password</label>
+                <input type="password" value={pwForm.next} onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))} className={inputCls} required />
+              </div>
+              <div>
+                <label className={labelCls}>Confirm New Password</label>
+                <input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} className={inputCls} required />
+              </div>
+              <button type="submit" disabled={changingPassword} className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 font-medium rounded-xl py-2.5 text-sm transition-colors">
+                {changingPassword ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          </section>
+        )}
+
       </div>
     </div>
   )
