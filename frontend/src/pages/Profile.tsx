@@ -356,6 +356,14 @@ export default function Profile() {
         </div>
       </section>
 
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+      >
+        {saving ? 'Saving...' : 'Save Profile'}
+      </button>
+
       {/* Personal Notes (AI Memory) */}
       <PersonalNotesCard
         value={form.personal_notes ?? ''}
@@ -365,14 +373,6 @@ export default function Profile() {
           update({ personal_notes: v })
         }}
       />
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
-      >
-        {saving ? 'Saving...' : 'Save Profile'}
-      </button>
 
       {/* Change Password */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6">
