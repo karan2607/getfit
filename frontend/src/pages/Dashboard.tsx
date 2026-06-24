@@ -76,34 +76,36 @@ export default function Dashboard() {
   const completedSessions = recentSessions.filter((s) => s.is_completed).length
   const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
-  const todayWorkout = activePlan?.days.find((d) => {
+  // An in-progress session takes priority over the calendar-based day calculation.
+  // This handles cases where the user started a session but the day counter has moved on.
+  const anyInProgressSession = recentSessions.find((s) => !s.is_completed)
+  const inProgressDay = anyInProgressSession && activePlan
+    ? activePlan.days.find((d) =>
+        anyInProgressSession.exercise_day_id
+          ? d.id === anyInProgressSession.exercise_day_id
+          : d.name === anyInProgressSession.day_name
+      )
+    : undefined
+
+  const scheduledDay = activePlan?.days.find((d) => {
     if (!activePlan.activated_at) return d.order === 0
     const msPerDay = 86_400_000
     const daysSince = Math.floor((Date.now() - new Date(activePlan.activated_at).getTime()) / msPerDay)
     return d.order === daysSince % activePlan.days.length
   })
 
+  const todayWorkout = inProgressDay ?? scheduledDay
+  const todayInProgressSession = inProgressDay ? anyInProgressSession : undefined
+
   function matchesTodayWorkout(s: typeof recentSessions[0]) {
     if (!todayWorkout) return false
-    const dayMatches = s.exercise_day_id
+    return s.exercise_day_id
       ? s.exercise_day_id === todayWorkout.id
       : s.day_name === todayWorkout.name
-    if (!dayMatches) return false
-    const sessionDate = new Date(s.started_at)
-    const today = new Date()
-    return (
-      sessionDate.getFullYear() === today.getFullYear() &&
-      sessionDate.getMonth() === today.getMonth() &&
-      sessionDate.getDate() === today.getDate()
-    )
   }
 
-  const todayCompletedSession = todayWorkout
+  const todayCompletedSession = !todayInProgressSession
     ? recentSessions.find((s) => s.is_completed && matchesTodayWorkout(s))
-    : undefined
-
-  const todayInProgressSession = todayWorkout && !todayCompletedSession
-    ? recentSessions.find((s) => !s.is_completed && matchesTodayWorkout(s))
     : undefined
 
   async function handleStartWorkout() {
@@ -114,7 +116,7 @@ export default function Dashboard() {
     }
     setStartingWorkout(true)
     try {
-      // Check for in-progress sessions not in the recent list
+      // Check for in-progress sessions not in the recent list (edge case)
       const sessions = await api.workouts.listSessions()
       const existing = sessions.find(
         (s) => !s.is_completed && (s.exercise_day_id === todayWorkout.id || s.day_name === todayWorkout.name)
