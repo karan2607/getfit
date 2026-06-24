@@ -79,14 +79,15 @@ function SessionList({
 function ChatPane({ sessionId }: { sessionId: string }) {
   const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } = useChatSession(sessionId)
   const navigate = useNavigate()
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadSession(sessionId)
   }, [sessionId, loadSession])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [session?.messages.length, streamingContent])
 
   if (isLoading) {
@@ -106,7 +107,7 @@ function ChatPane({ sessionId }: { sessionId: string }) {
         </button>
       </div>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
         {session?.messages.length === 0 && !streamingContent && (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="text-4xl mb-3">💬</div>
@@ -118,12 +119,10 @@ function ChatPane({ sessionId }: { sessionId: string }) {
           <ChatBubble key={msg.id} role={msg.role} content={msg.content} />
         ))}
 
-        {/* Streaming chunk */}
         {streamingContent && (
           <ChatBubble role="assistant" content={streamingContent} isStreaming />
         )}
 
-        {/* Thinking indicator (sent but no chunks yet) */}
         {isSending && !streamingContent && <StreamingIndicator />}
 
         {error && (
@@ -131,8 +130,6 @@ function ChatPane({ sessionId }: { sessionId: string }) {
             {error}
           </div>
         )}
-
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -198,7 +195,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <PageHeader
         title="AI Trainer"
         subtitle="Your personal fitness coach"
