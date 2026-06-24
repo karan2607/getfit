@@ -493,10 +493,11 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
 @permission_classes([IsAuthenticated])
 def chat_sessions(request):
     if request.method == 'GET':
-        sessions = ChatSession.objects.filter(user=request.user)
+        sessions = ChatSession.objects.filter(user=request.user, source=ChatSession.SOURCE_MAIN)
         return Response(ChatSessionSerializer(sessions, many=True).data)
 
-    session = ChatSession.objects.create(user=request.user)
+    source = request.data.get('source', ChatSession.SOURCE_MAIN)
+    session = ChatSession.objects.create(user=request.user, source=source)
     return Response(ChatSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 

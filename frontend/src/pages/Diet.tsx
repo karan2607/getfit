@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
+import { compressImage } from '../lib/imageUtils'
 
 // ── Macro Donut ─────────────────────────────────────────────────────────────
 
@@ -692,7 +693,8 @@ function FoodScannerView() {
     setScanning(true)
     setResult(null)
     try {
-      const scan = await api.diet.scanFood(file)
+      const compressed = await compressImage(file)
+      const scan = await api.diet.scanFood(compressed)
       setResult(scan)
       setHistory((h) => [scan, ...h])
     } catch (err) {

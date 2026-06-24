@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader'
 import ExerciseDrawer from '../components/ExerciseDrawer'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
 import ConfirmModal from '../components/ConfirmModal'
+import { compressImage } from '../lib/imageUtils'
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               <div className="mt-2">
                 <label className="block text-xs text-gray-500 mb-1.5">Or upload a new photo</label>
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-brand-500 hover:text-brand-600 font-medium">
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setBodyPhoto(e.target.files?.[0] ?? null)} />
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setBodyPhoto(await compressImage(f)) }} />
                   {bodyPhoto ? `📷 ${bodyPhoto.name}` : '+ Upload photo'}
                 </label>
                 {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-red-400 mt-1">Remove</button>}
@@ -844,6 +845,11 @@ function LineChart({ points }: { points: { date: string; weight: number }[] }) {
 }
 
 function ProgressTab() {
+  const { user } = useAuth()
+  const unit = user?.profile?.preferred_unit ?? 'lb'
+  const KG_PER_LB = 0.453592
+  const toDisplay = (kg: number) => unit === 'lb' ? Math.round(kg / KG_PER_LB * 10) / 10 : kg
+
   const [exerciseName, setExerciseName] = useState('')
   const [search, setSearch] = useState('')
   const [history, setHistory] = useState<ExerciseHistoryPoint[]>([])
@@ -881,8 +887,9 @@ function ProgressTab() {
     const byDate = new Map<string, number>()
     for (const p of history) {
       const date = p.workout_session__started_at.split('T')[0]
+      const displayWeight = toDisplay(p.weight_kg)
       const existing = byDate.get(date) ?? 0
-      if (p.weight_kg > existing) byDate.set(date, p.weight_kg)
+      if (displayWeight > existing) byDate.set(date, displayWeight)
     }
     return Array.from(byDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
@@ -937,7 +944,7 @@ function ProgressTab() {
           ) : (
             <>
               <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Max weight per session (kg)</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Max weight per session ({unit})</p>
                 <LineChart points={chartPoints} />
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -957,7 +964,7 @@ function ProgressTab() {
                           {new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </td>
                         <td className="px-4 py-2.5 text-right text-gray-500">{p.set_number}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{p.weight_kg}kg</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{p.weight_kg != null ? `${toDisplay(p.weight_kg)}${unit}` : '—'}</td>
                         <td className="px-4 py-2.5 text-right text-gray-500">{p.reps_completed ?? '—'}</td>
                       </tr>
                     ))}

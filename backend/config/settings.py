@@ -100,6 +100,8 @@ STORAGES = {
 
 # All uploaded files (body/food scans) are handled in memory — never written to disk
 FILE_UPLOAD_HANDLERS = ['django.core.files.uploadhandler.MemoryFileUploadHandler']
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20MB (default 2.5MB is too small for iPhone photos)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

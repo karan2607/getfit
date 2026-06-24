@@ -3,6 +3,7 @@ import { api, type BodyScanResult } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
+import { compressImage } from '../lib/imageUtils'
 
 function BodyScanCard({ scan }: { scan: BodyScanResult }) {
   return (
@@ -67,7 +68,8 @@ export default function Body() {
     if (!file) return
     setScanning(true)
     try {
-      const result = await api.body.scan(file)
+      const compressed = await compressImage(file)
+      const result = await api.body.scan(compressed)
       setHistory((h) => [result, ...h])
     } catch (err) {
       showToast(getErrorMessage(err), 'error')

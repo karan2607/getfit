@@ -101,9 +101,14 @@ class PasswordResetToken(models.Model):
 # ---------------------------------------------------------------------------
 
 class ChatSession(models.Model):
+    SOURCE_MAIN = 'main'
+    SOURCE_EMBEDDED = 'embedded'
+    SOURCE_CHOICES = [(SOURCE_MAIN, 'Main'), (SOURCE_EMBEDDED, 'Embedded')]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_sessions')
     title = models.CharField(max_length=100, default='New Chat')
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MAIN)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

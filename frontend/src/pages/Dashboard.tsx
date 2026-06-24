@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api, type WorkoutPlanDetail, type DietPlanDetail, type BodyScanResult, type WorkoutSessionSummary } from '../lib/api'
 import PageHeader from '../components/PageHeader'
+import { useToast } from '../components/Toast'
 
 function StatCard({ label, value, sub, color = 'emerald' }: {
   label: string; value: string | number; sub?: string; color?: string
@@ -33,7 +34,10 @@ function SectionHeader({ title, to, linkLabel }: { title: string; to?: string; l
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const { showToast } = useToast()
   const [activePlan, setActivePlan] = useState<WorkoutPlanDetail | null>(null)
+  const [startingWorkout, setStartingWorkout] = useState(false)
   const [activeDiet, setActiveDiet] = useState<DietPlanDetail | null>(null)
   const [recentSessions, setRecentSessions] = useState<WorkoutSessionSummary[]>([])
   const [latestBodyScan, setLatestBodyScan] = useState<BodyScanResult | null>(null)
@@ -96,6 +100,28 @@ export default function Dashboard() {
         )
       })
     : undefined
+
+  async function handleStartWorkout() {
+    if (!todayWorkout) return
+    setStartingWorkout(true)
+    try {
+      // Check if there's already an in-progress session for today
+      const sessions = await api.workouts.listSessions()
+      const existing = sessions.find(
+        (s) => !s.is_completed && (s.exercise_day_id === todayWorkout.id || s.day_name === todayWorkout.name)
+      )
+      if (existing) {
+        navigate(`/workouts/session/${existing.id}`)
+      } else {
+        const session = await api.workouts.startSession(todayWorkout.id)
+        navigate(`/workouts/session/${session.id}`)
+      }
+    } catch {
+      showToast('Could not start workout', 'error')
+    } finally {
+      setStartingWorkout(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -171,12 +197,13 @@ export default function Dashboard() {
                   Done ✓
                 </Link>
               ) : (
-                <Link
-                  to={`/workouts/${activePlan.id}`}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                <button
+                  onClick={handleStartWorkout}
+                  disabled={startingWorkout}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                 >
-                  Start
-                </Link>
+                  {startingWorkout ? 'Starting…' : 'Start'}
+                </button>
               )}
             </div>
             {!todayWorkout.is_rest_day && todayWorkout.exercises.length > 0 && (
@@ -248,7 +275,7 @@ export default function Dashboard() {
       {/* Recent sessions */}
       {recentSessions.length > 0 && (
         <div className="mb-6">
-          <SectionHeader title="Recent Sessions" to="/workouts" />
+          <SectionHeader title="Recent Sessions" to="/sessions" />
           <div className="space-y-2">
             {recentSessions.map((s) => (
               <div key={s.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between">

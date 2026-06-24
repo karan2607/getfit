@@ -42,7 +42,7 @@ export default function WorkoutChatDrawer({
   useEffect(() => {
     if (!isOpen || sessionId) return
     setInitializing(true)
-    api.chat.createSession()
+    api.chat.createSession({ source: 'embedded' })
       .then((s) => {
         setSessionId(s.id)
         loadSession(s.id)

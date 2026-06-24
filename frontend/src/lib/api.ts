@@ -125,8 +125,8 @@ export const api = {
     listSessions: () =>
       request<ChatSession[]>('/api/chat/sessions/'),
 
-    createSession: () =>
-      request<ChatSession>('/api/chat/sessions/', { method: 'POST' }),
+    createSession: (opts?: { source?: string }) =>
+      request<ChatSession>('/api/chat/sessions/', { method: 'POST', body: JSON.stringify(opts ?? {}) }),
 
     getSession: (id: string) =>
       request<ChatSessionDetail>(`/api/chat/sessions/${id}/`),
