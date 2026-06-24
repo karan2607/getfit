@@ -44,6 +44,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   const [experienceLevel, setExperienceLevel] = useState<string>(user?.profile?.experience_level ?? 'intermediate')
   const [equipment, setEquipment] = useState('full gym')
   const [notes, setNotes] = useState('')
+  const [specificGoal, setSpecificGoal] = useState('')
   const [latestScan, setLatestScan] = useState<{ physique_category: string; body_fat_pct: number | null; muscle_mass_note: string; recommendations: string } | null>(null)
   const [bodyPhoto, setBodyPhoto] = useState<File | null>(null)
 
@@ -87,7 +88,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
     if (!preview) return
     setSaving(true)
     try {
-      const saved = await api.workouts.savePlan(preview)
+      const saved = await api.workouts.savePlan({ ...preview, specific_goal: specificGoal })
       showToast('Plan saved!')
       onSaved(saved)
       navigate(`/workouts/${saved.id}`)
@@ -165,7 +166,17 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes <span className="text-gray-400 font-normal">(injuries, preferences, specific goals)</span>
+                Specific goal <span className="text-gray-400 font-normal">(optional — your target for this program)</span>
+              </label>
+              <input
+                type="text"
+                value={specificGoal}
+                onChange={(e) => setSpecificGoal(e.target.value)}
+                placeholder="e.g. Lose 5kg, bench press 100kg, run 5km..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4"
+              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes <span className="text-gray-400 font-normal">(injuries, preferences)</span>
               </label>
               <textarea
                 value={notes}
@@ -358,6 +369,22 @@ function PlanDetail({ planId }: { planId: string }) {
     }
   }
 
+  async function handleEndWeek() {
+    if (!plan) return
+    try {
+      const result = await api.workouts.advanceWeek(plan.id)
+      if (result.program_complete) {
+        showToast('Program complete! 🎉 Great work.')
+        setPlan((p) => p ? { ...p, goal_check_in_shown: true } : p)
+      } else {
+        setPlan((p) => p ? { ...p, current_week: result.current_week } : p)
+        showToast(`Week ${result.current_week} starts now!`)
+      }
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    }
+  }
+
   async function handleStartSession(dayId: string) {
     setStartingDay(dayId)
     try {
@@ -373,14 +400,16 @@ function PlanDetail({ planId }: { planId: string }) {
   if (!plan) return null
 
   const durationWeeks = plan.duration_weeks ?? 1
-  const hasRepeatWeeks = durationWeeks > 1
-  const trainingDays = plan.days.filter((d) => !d.is_rest_day).length
+  const currentWeek = plan.current_week ?? 1
+  const maxWeek = Math.max(...plan.days.map((d) => d.week_number), 1)
+  const currentWeekDays = plan.days.filter((d) => d.week_number === currentWeek)
+  const trainingDays = currentWeekDays.filter((d) => !d.is_rest_day).length
 
   return (
     <>
       <PageHeader
         title={plan.title}
-        subtitle={`${durationWeeks} ${durationWeeks === 1 ? 'week' : 'weeks'} · ${trainingDays} training day${trainingDays !== 1 ? 's' : ''}`}
+        subtitle={`Week ${currentWeek} of ${durationWeeks} · ${trainingDays} training day${trainingDays !== 1 ? 's' : ''}`}
         action={
           !plan.is_active ? (
             <button onClick={handleActivate} className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors">
@@ -401,13 +430,23 @@ function PlanDetail({ planId }: { planId: string }) {
           <p className="text-sm text-gray-500 mb-6">{plan.description}</p>
         )}
 
-        {/* Week 1 */}
+        {/* Current week days */}
         <div className="mb-6">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
-            Week 1{hasRepeatWeeks ? ' (weekly schedule)' : ''}
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              Week {currentWeek}{maxWeek > 1 ? ` of ${maxWeek}` : ''}
+            </p>
+            {plan.is_active && (
+              <button
+                onClick={handleEndWeek}
+                className="text-xs text-brand-500 border border-brand-200 rounded-lg px-3 py-1.5 hover:bg-brand-50 transition-colors font-medium"
+              >
+                {currentWeek >= maxWeek ? 'Finish program' : 'End week →'}
+              </button>
+            )}
+          </div>
           <div className="space-y-6">
-            {plan.days.map((day) => (
+            {currentWeekDays.map((day) => (
               <div key={day.id}>
                 {/* Day header */}
                 {(() => {

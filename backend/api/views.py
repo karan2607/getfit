@@ -755,26 +755,58 @@ def workout_plans(request):
         description=data.get('description', ''),
         duration_weeks=data.get('duration_weeks'),
         generated_by_ai=data.get('generated_by_ai', True),
+        specific_goal=data.get('specific_goal', ''),
+        program_target=data.get('program_target'),
     )
-    for i, day_data in enumerate(data['days']):
-        day = WorkoutDay.objects.create(
-            plan=plan,
-            day_number=day_data['day_number'],
-            name=day_data['name'],
-            focus=day_data.get('focus', ''),
-            is_rest_day=day_data.get('is_rest_day', False),
-            order=i,
-        )
-        for j, ex_data in enumerate(day_data.get('exercises', [])):
-            Exercise.objects.create(
-                day=day,
-                name=ex_data['name'],
-                sets=ex_data.get('sets', 3),
-                reps=str(ex_data.get('reps', '10')),
-                rest_seconds=ex_data.get('rest_seconds'),
-                notes=ex_data.get('notes', ''),
-                order=j,
+
+    # Support both single-week ('days') and multi-week ('weeks') plan formats
+    order_counter = 0
+    if 'weeks' in data:
+        weeks = data['weeks']
+        for week_idx, week_days in enumerate(weeks, start=1):
+            for day_data in week_days:
+                day = WorkoutDay.objects.create(
+                    plan=plan,
+                    day_number=day_data['day_number'],
+                    week_number=week_idx,
+                    name=day_data['name'],
+                    focus=day_data.get('focus', ''),
+                    is_rest_day=day_data.get('is_rest_day', False),
+                    order=order_counter,
+                )
+                order_counter += 1
+                for j, ex_data in enumerate(day_data.get('exercises', [])):
+                    Exercise.objects.create(
+                        day=day,
+                        name=ex_data['name'],
+                        sets=ex_data.get('sets', 3),
+                        reps=str(ex_data.get('reps', '10')),
+                        rest_seconds=ex_data.get('rest_seconds'),
+                        notes=ex_data.get('notes', ''),
+                        order=j,
+                    )
+    else:
+        for day_data in data['days']:
+            day = WorkoutDay.objects.create(
+                plan=plan,
+                day_number=day_data['day_number'],
+                week_number=day_data.get('week_number', 1),
+                name=day_data['name'],
+                focus=day_data.get('focus', ''),
+                is_rest_day=day_data.get('is_rest_day', False),
+                order=order_counter,
             )
+            order_counter += 1
+            for j, ex_data in enumerate(day_data.get('exercises', [])):
+                Exercise.objects.create(
+                    day=day,
+                    name=ex_data['name'],
+                    sets=ex_data.get('sets', 3),
+                    reps=str(ex_data.get('reps', '10')),
+                    rest_seconds=ex_data.get('rest_seconds'),
+                    notes=ex_data.get('notes', ''),
+                    order=j,
+                )
 
     return Response(WorkoutPlanDetailSerializer(plan).data, status=status.HTTP_201_CREATED)
 
@@ -843,6 +875,22 @@ def workout_plan_activate(request, plan_id):
     plan.is_active = True
     plan.activated_at = _tz.now()
     plan.save(update_fields=['is_active', 'activated_at'])
+    return Response(WorkoutPlanSerializer(plan).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_advance_week(request, plan_id):
+    plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
+    max_week = plan.days.aggregate(m=__import__('django.db.models', fromlist=['Max']).Max('week_number'))['m'] or 1
+    if plan.current_week >= max_week:
+        # Last week done — flag check-in if not shown
+        if not plan.goal_check_in_shown:
+            plan.goal_check_in_shown = True
+            plan.save(update_fields=['goal_check_in_shown'])
+        return Response({'detail': 'Program complete', 'current_week': plan.current_week, 'program_complete': True})
+    plan.current_week += 1
+    plan.save(update_fields=['current_week'])
     return Response(WorkoutPlanSerializer(plan).data)
 
 

@@ -193,6 +193,9 @@ export const api = {
     activatePlan: (id: string) =>
       request<WorkoutPlan>(`/api/workouts/plans/${id}/activate/`, { method: 'POST' }),
 
+    advanceWeek: (id: string) =>
+      request<WorkoutPlan & { program_complete?: boolean; detail?: string }>(`/api/workouts/plans/${id}/advance-week/`, { method: 'POST' }),
+
     listSessions: () =>
       request<WorkoutSessionSummary[]>('/api/workouts/sessions/'),
 
@@ -348,6 +351,7 @@ export interface Exercise {
 export interface WorkoutDay {
   id: string
   day_number: number
+  week_number: number
   name: string
   focus: string
   is_rest_day: boolean
@@ -364,6 +368,10 @@ export interface WorkoutPlan {
   activated_at: string | null
   generated_by_ai: boolean
   duration_weeks: number | null
+  current_week: number
+  specific_goal: string
+  program_target: { metric: string; label: string; recommended_value: number; current_value?: number } | null
+  goal_check_in_shown: boolean
   created_at: string
   updated_at: string
 }

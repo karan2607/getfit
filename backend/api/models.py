@@ -148,6 +148,10 @@ class WorkoutPlan(models.Model):
     activated_at = models.DateTimeField(null=True, blank=True)
     generated_by_ai = models.BooleanField(default=True)
     duration_weeks = models.PositiveIntegerField(null=True, blank=True)
+    current_week = models.PositiveIntegerField(default=1)
+    specific_goal = models.TextField(blank=True)
+    program_target = models.JSONField(null=True, blank=True)
+    goal_check_in_shown = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -162,6 +166,7 @@ class WorkoutDay(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     plan = models.ForeignKey(WorkoutPlan, on_delete=models.CASCADE, related_name='days')
     day_number = models.PositiveIntegerField()
+    week_number = models.PositiveIntegerField(default=1)
     name = models.CharField(max_length=100)
     focus = models.CharField(max_length=100, blank=True)
     is_rest_day = models.BooleanField(default=False)
@@ -169,8 +174,8 @@ class WorkoutDay(models.Model):
     last_completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['order']
-        unique_together = ('plan', 'day_number')
+        ordering = ['week_number', 'order']
+        unique_together = ('plan', 'week_number', 'day_number')
 
     def __str__(self):
         return f'{self.name} (Plan: {self.plan.title})'
@@ -226,6 +231,21 @@ class SetLog(models.Model):
 
     def __str__(self):
         return f'{self.exercise_name} set {self.set_number}'
+
+
+class ProgramCheckin(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='program_checkins')
+    plan = models.ForeignKey(WorkoutPlan, on_delete=models.CASCADE, related_name='checkins')
+    metric = models.CharField(max_length=100)
+    start_value = models.FloatField(null=True, blank=True)
+    end_value = models.FloatField(null=True, blank=True)
+    ai_summary = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
 
 # ---------------------------------------------------------------------------
