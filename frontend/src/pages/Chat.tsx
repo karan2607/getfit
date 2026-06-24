@@ -194,45 +194,46 @@ export default function Chat() {
         title="AI Trainer"
         subtitle="Your personal fitness coach"
         action={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSidebarOpen((o) => !o)}
-              className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl hover:bg-white/30 transition-colors"
-              title="Toggle chat history"
-            >
-              ☰
-            </button>
-            <button
-              onClick={handleNew}
-              className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
-            >
-              + New chat
-            </button>
-          </div>
+          <button
+            onClick={handleNew}
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
+          >
+            + New chat
+          </button>
         }
       />
 
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Overlay sidebar — slides in from left when open */}
-        {sidebarOpen && (
-          <>
-            <div
-              className="absolute inset-0 z-20 bg-black/30"
-              onClick={() => setSidebarOpen(false)}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar: collapses to a thin strip with an expand arrow */}
+        <div
+          className="flex-shrink-0 flex relative transition-all duration-300 ease-in-out border-r border-gray-200"
+          style={{ width: sidebarOpen ? '17rem' : '2rem' }}
+        >
+          {/* Session list — only visible when open */}
+          <div
+            className="flex-1 overflow-hidden transition-opacity duration-200"
+            style={{ opacity: sidebarOpen ? 1 : 0, pointerEvents: sidebarOpen ? 'auto' : 'none' }}
+          >
+            <SessionList
+              sessions={sessions}
+              activeId={sessionId}
+              onDelete={handleDelete}
+              loading={listLoading}
+              onSelect={() => setSidebarOpen(false)}
             />
-            <div className="absolute left-0 top-0 h-full w-72 z-30 shadow-2xl flex flex-col">
-              <SessionList
-                sessions={sessions}
-                activeId={sessionId}
-                onDelete={handleDelete}
-                loading={listLoading}
-                onSelect={() => setSidebarOpen(false)}
-              />
-            </div>
-          </>
-        )}
+          </div>
 
-        {/* Main chat area — always full width */}
+          {/* Toggle tab — always visible on the right edge of the sidebar */}
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-r-lg shadow-sm hover:bg-gray-50 transition-colors z-10 text-gray-400 hover:text-gray-700"
+            title={sidebarOpen ? 'Close history' : 'Open history'}
+          >
+            <span className="text-xs font-bold transition-transform duration-300" style={{ display: 'inline-block', transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>›</span>
+          </button>
+        </div>
+
+        {/* Main chat area */}
         <div className="flex-1 flex flex-col min-w-0">
           {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
         </div>
