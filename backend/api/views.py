@@ -882,7 +882,9 @@ def workout_plan_activate(request, plan_id):
 @permission_classes([IsAuthenticated])
 def workout_plan_advance_week(request, plan_id):
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
-    max_week = plan.days.aggregate(m=__import__('django.db.models', fromlist=['Max']).Max('week_number'))['m'] or 1
+    from django.db.models import Max as _Max
+    day_max = plan.days.aggregate(m=_Max('week_number'))['m'] or 1
+    max_week = max(day_max, plan.duration_weeks or 1)
     if plan.current_week >= max_week:
         # Last week done — flag check-in if not shown
         if not plan.goal_check_in_shown:
@@ -994,13 +996,20 @@ def workout_plan_prepare_week(request, plan_id):
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
     current_week = plan.current_week
 
-    # Collect unique exercise names for this week
+    # Collect unique exercise names for this week; fall back to week 1 for legacy single-week plans
     exercise_names = list(
         Exercise.objects
         .filter(day__plan=plan, day__week_number=current_week)
         .values_list('name', flat=True)
         .distinct()
     )
+    if not exercise_names:
+        exercise_names = list(
+            Exercise.objects
+            .filter(day__plan=plan)
+            .values_list('name', flat=True)
+            .distinct()
+        )
     if not exercise_names:
         return Response({'detail': 'No exercises found for this week', 'generated': 0})
 
