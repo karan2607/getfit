@@ -83,29 +83,38 @@ export default function Dashboard() {
     return d.order === daysSince % activePlan.days.length
   })
 
+  function matchesTodayWorkout(s: typeof recentSessions[0]) {
+    if (!todayWorkout) return false
+    const dayMatches = s.exercise_day_id
+      ? s.exercise_day_id === todayWorkout.id
+      : s.day_name === todayWorkout.name
+    if (!dayMatches) return false
+    const sessionDate = new Date(s.started_at)
+    const today = new Date()
+    return (
+      sessionDate.getFullYear() === today.getFullYear() &&
+      sessionDate.getMonth() === today.getMonth() &&
+      sessionDate.getDate() === today.getDate()
+    )
+  }
+
   const todayCompletedSession = todayWorkout
-    ? recentSessions.find((s) => {
-        if (!s.is_completed) return false
-        // Match by exercise_day_id if available, fall back to day_name
-        const dayMatches = s.exercise_day_id
-          ? s.exercise_day_id === todayWorkout.id
-          : s.day_name === todayWorkout.name
-        if (!dayMatches) return false
-        const sessionDate = new Date(s.started_at)
-        const today = new Date()
-        return (
-          sessionDate.getFullYear() === today.getFullYear() &&
-          sessionDate.getMonth() === today.getMonth() &&
-          sessionDate.getDate() === today.getDate()
-        )
-      })
+    ? recentSessions.find((s) => s.is_completed && matchesTodayWorkout(s))
+    : undefined
+
+  const todayInProgressSession = todayWorkout && !todayCompletedSession
+    ? recentSessions.find((s) => !s.is_completed && matchesTodayWorkout(s))
     : undefined
 
   async function handleStartWorkout() {
     if (!todayWorkout) return
+    if (todayInProgressSession) {
+      navigate(`/workouts/session/${todayInProgressSession.id}`)
+      return
+    }
     setStartingWorkout(true)
     try {
-      // Check if there's already an in-progress session for today
+      // Check for in-progress sessions not in the recent list
       const sessions = await api.workouts.listSessions()
       const existing = sessions.find(
         (s) => !s.is_completed && (s.exercise_day_id === todayWorkout.id || s.day_name === todayWorkout.name)
@@ -200,9 +209,13 @@ export default function Dashboard() {
                 <button
                   onClick={handleStartWorkout}
                   disabled={startingWorkout}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                    todayInProgressSession
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
                 >
-                  {startingWorkout ? 'Starting…' : 'Start'}
+                  {startingWorkout ? 'Opening…' : todayInProgressSession ? 'Continue →' : 'Start'}
                 </button>
               )}
             </div>
