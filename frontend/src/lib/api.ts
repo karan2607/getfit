@@ -387,6 +387,9 @@ export interface WorkoutPlanPreview {
   title: string
   description?: string
   duration_weeks?: number
+  specific_goal?: string
+  program_target?: WorkoutPlan['program_target']
+  generated_by_ai?: boolean
   days: Array<{
     day_number: number
     name: string
