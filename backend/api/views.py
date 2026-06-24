@@ -937,6 +937,25 @@ def workout_session_log_set(request, session_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def workout_exercises_list(request):
+    """All exercises the user has ever logged, with summary stats."""
+    from django.db.models import Max, Count
+    rows = (
+        SetLog.objects
+        .filter(workout_session__user=request.user, is_completed=True)
+        .values('exercise_name')
+        .annotate(
+            last_session=Max('workout_session__started_at'),
+            total_sessions=Count('workout_session', distinct=True),
+            last_weight_kg=Max('weight_kg'),
+        )
+        .order_by('-last_session')
+    )
+    return Response(list(rows))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def workout_exercise_history(request, exercise_name):
     logs = (
         SetLog.objects

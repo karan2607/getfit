@@ -26,6 +26,7 @@ urlpatterns = [
     path('workouts/sessions/', views.workout_sessions, name='workout-sessions'),
     path('workouts/sessions/<uuid:session_id>/', views.workout_session_detail, name='workout-session-detail'),
     path('workouts/sessions/<uuid:session_id>/sets/', views.workout_session_log_set, name='workout-session-log-set'),
+    path('workouts/exercises/', views.workout_exercises_list, name='workout-exercises-list'),
     path('workouts/exercises/guide/', views.exercise_guide, name='exercise-guide'),
     path('workouts/exercises/<str:exercise_name>/history/', views.workout_exercise_history, name='workout-exercise-history'),
     # Diet Planner

@@ -14,6 +14,7 @@ import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import Workouts from './pages/Workouts'
+import Sessions from './pages/Sessions'
 import Diet from './pages/Diet'
 import Body from './pages/Body'
 import Profile from './pages/Profile'
@@ -147,6 +148,7 @@ function AppRoutes() {
       <Route path="/workouts" element={<ProtectedRoute><Workouts /></ProtectedRoute>} />
       <Route path="/workouts/session/:sessionId" element={<ProtectedRoute><Workouts /></ProtectedRoute>} />
       <Route path="/workouts/:planId" element={<ProtectedRoute><Workouts /></ProtectedRoute>} />
+      <Route path="/sessions" element={<ProtectedRoute><Sessions /></ProtectedRoute>} />
       <Route path="/diet" element={<ProtectedRoute><Diet /></ProtectedRoute>} />
       <Route path="/body" element={<ProtectedRoute><Body /></ProtectedRoute>} />
       <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />

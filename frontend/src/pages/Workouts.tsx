@@ -882,128 +882,75 @@ function LineChart({ points }: { points: { date: string; weight: number }[] }) {
   )
 }
 
-function ProgressTab() {
+function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { user } = useAuth()
   const unit = user?.profile?.preferred_unit ?? 'lb'
   const KG_PER_LB = 0.453592
   const toDisplay = (kg: number) => unit === 'lb' ? Math.round(kg / KG_PER_LB * 10) / 10 : kg
 
-  const [exerciseName, setExerciseName] = useState('')
-  const [search, setSearch] = useState('')
   const [history, setHistory] = useState<ExerciseHistoryPoint[]>([])
-  const [loading, setLoading] = useState(false)
-  const [recentExercises, setRecentExercises] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.workouts.listSessions()
-      .then(async (sessions) => {
-        const completed = sessions.filter((s) => s.is_completed).slice(0, 5)
-        const names = new Set<string>()
-        for (const s of completed) {
-          const detail = await api.workouts.getSession(s.id).catch(() => null)
-          detail?.set_logs.forEach((l) => l.exercise_name && names.add(l.exercise_name))
-        }
-        setRecentExercises(Array.from(names).slice(0, 10))
-      })
-      .catch(() => {})
-  }, [])
-
-  async function loadExercise(name: string) {
-    setExerciseName(name)
-    setLoading(true)
-    try {
-      const data = await api.workouts.getExerciseHistory(name)
-      setHistory(data)
-    } catch {
-      setHistory([])
-    } finally {
-      setLoading(false)
-    }
-  }
+    api.workouts.getExerciseHistory(name)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setLoading(false))
+  }, [name])
 
   const chartPoints = (() => {
     const byDate = new Map<string, number>()
     for (const p of history) {
       const date = p.workout_session__started_at.split('T')[0]
-      const displayWeight = toDisplay(p.weight_kg)
-      const existing = byDate.get(date) ?? 0
-      if (displayWeight > existing) byDate.set(date, displayWeight)
+      const dw = toDisplay(p.weight_kg)
+      if (dw > (byDate.get(date) ?? 0)) byDate.set(date, dw)
     }
-    return Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, weight]) => ({ date, weight }))
+    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, weight]) => ({ date, weight }))
   })()
 
-  const filtered = recentExercises.filter((n) => n.toLowerCase().includes(search.toLowerCase()))
+  const pb = history.reduce<number | null>((max, p) => p.weight_kg != null ? Math.max(max ?? 0, p.weight_kg) : max, null)
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex gap-3 mb-4">
-        <input
-          placeholder="Search exercise..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search.trim() && loadExercise(search.trim())}
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <button
-          onClick={() => search.trim() && loadExercise(search.trim())}
-          className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 rounded-xl transition-colors"
-        >
-          View
-        </button>
-      </div>
-
-      {filtered.length > 0 && !exerciseName && (
-        <div className="flex flex-wrap gap-2 mb-5">
-          {filtered.map((name) => (
-            <button
-              key={name}
-              onClick={() => loadExercise(name)}
-              className="text-xs bg-gray-100 hover:bg-brand-100 hover:text-brand-500 text-gray-600 px-3 py-1.5 rounded-full transition-colors"
-            >
-              {name}
-            </button>
-          ))}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
+          <h2 className="font-bold text-gray-900 text-base">{name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
-      )}
-
-      {exerciseName && (
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-base font-semibold text-gray-900">{exerciseName}</h2>
-            <button onClick={() => { setExerciseName(''); setHistory([]) }} className="text-xs text-gray-400 hover:text-gray-600">✕ clear</button>
-          </div>
-
+        <div className="p-5">
           {loading ? (
-            <div className="text-sm text-gray-400">Loading...</div>
+            <SkeletonText lines={6} />
           ) : history.length === 0 ? (
-            <p className="text-sm text-gray-400">No weight data logged for this exercise yet.</p>
+            <p className="text-sm text-gray-400 text-center py-8">No data logged yet.</p>
           ) : (
             <>
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Max weight per session ({unit})</p>
+              {pb != null && (
+                <div className="mb-4 bg-emerald-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-emerald-700">Personal best</span>
+                  <span className="font-bold text-emerald-700">{toDisplay(pb)}{unit}</span>
+                </div>
+              )}
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Max weight per session ({unit})</p>
                 <LineChart points={chartPoints} />
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-gray-50 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400">Date</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Set</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Weight</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Reps</th>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400">Date</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Set</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Weight</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Reps</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {history.slice(0, 20).map((p, i) => (
-                      <tr key={i} className="border-b border-gray-50 last:border-0">
-                        <td className="px-4 py-2.5 text-gray-600">
-                          {new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-gray-500">{p.set_number}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{p.weight_kg != null ? `${toDisplay(p.weight_kg)}${unit}` : '—'}</td>
-                        <td className="px-4 py-2.5 text-right text-gray-500">{p.reps_completed ?? '—'}</td>
+                    {history.slice(0, 30).map((p, i) => (
+                      <tr key={i} className="border-b border-gray-100 last:border-0">
+                        <td className="px-4 py-2 text-gray-600 text-xs">{new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                        <td className="px-4 py-2 text-right text-gray-500 text-xs">{p.set_number}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-gray-900">{p.weight_kg != null ? `${toDisplay(p.weight_kg)}${unit}` : '—'}</td>
+                        <td className="px-4 py-2 text-right text-gray-500">{p.reps_completed ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1011,6 +958,89 @@ function ProgressTab() {
               </div>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProgressTab() {
+  const { user } = useAuth()
+  const unit = user?.profile?.preferred_unit ?? 'lb'
+  const KG_PER_LB = 0.453592
+  const toDisplay = (kg: number) => unit === 'lb' ? Math.round(kg / KG_PER_LB * 10) / 10 : kg
+
+  const [allExercises, setAllExercises] = useState<import('../lib/api').ExerciseSummary[]>([])
+  const [search, setSearch] = useState('')
+  const [detailsFor, setDetailsFor] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.workouts.listExercises()
+      .then(setAllExercises)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = allExercises.filter((ex) =>
+    ex.exercise_name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="p-4 md:p-6 max-w-2xl">
+      {detailsFor && <ExerciseDetailsModal name={detailsFor} onClose={() => setDetailsFor(null)} />}
+
+      <div className="mb-4">
+        <input
+          placeholder="Search exercises..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+
+      {loading ? (
+        <SkeletonText lines={8} />
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-10">
+          {allExercises.length === 0 ? 'No exercises logged yet. Complete a workout to see data here.' : 'No matches.'}
+        </p>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400">Exercise</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Best ({unit})</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Sessions</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((ex) => (
+                <tr key={ex.exercise_name} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-gray-900 text-sm">{ex.exercise_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(ex.last_session).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                    {ex.last_weight_kg != null ? toDisplay(ex.last_weight_kg) : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500">{ex.total_sessions}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => setDetailsFor(ex.exercise_name)}
+                      className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 hover:bg-brand-50 transition-colors"
+                    >
+                      Details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

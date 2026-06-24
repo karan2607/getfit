@@ -224,6 +224,9 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    listExercises: () =>
+      request<ExerciseSummary[]>('/api/workouts/exercises/'),
+
     getExerciseHistory: (exerciseName: string) =>
       request<ExerciseHistoryPoint[]>(`/api/workouts/exercises/${encodeURIComponent(exerciseName)}/history/`),
 
@@ -416,6 +419,13 @@ export interface WorkoutSessionSummary {
   started_at: string
   completed_at: string | null
   is_completed: boolean
+}
+
+export interface ExerciseSummary {
+  exercise_name: string
+  last_session: string
+  total_sessions: number
+  last_weight_kg: number | null
 }
 
 export interface ExerciseHistoryPoint {
