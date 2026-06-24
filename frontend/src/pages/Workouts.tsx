@@ -374,11 +374,13 @@ function PlanDetail({ planId }: { planId: string }) {
     try {
       const result = await api.workouts.advanceWeek(plan.id)
       if (result.program_complete) {
-        showToast('Program complete! 🎉 Great work.')
+        showToast('Program complete! Great work.')
         setPlan((p) => p ? { ...p, goal_check_in_shown: true } : p)
       } else {
         setPlan((p) => p ? { ...p, current_week: result.current_week } : p)
-        showToast(`Week ${result.current_week} starts now!`)
+        showToast(`Week ${result.current_week} starts now! Preparing exercise guides…`)
+        // Kick off bulk guide generation in the background — don't await
+        api.workouts.prepareWeek(plan.id).catch(() => {})
       }
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
@@ -608,6 +610,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [completing, setCompleting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
+  const [progressFor, setProgressFor] = useState<string | null>(null)
   const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
   const storageKey = `workout_draft_${sessionId}`
 
@@ -766,6 +769,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
         </div>
 
         <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
+        {progressFor && <ExerciseDetailsModal name={progressFor} onClose={() => setProgressFor(null)} />}
 
         <div className="space-y-4 mb-8">
           {exerciseEntries.map(([exerciseName, logs]) => {
@@ -787,6 +791,12 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <button
+                      onClick={() => setProgressFor(exerciseName)}
+                      className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Progress
+                    </button>
                     <button
                       onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
                       className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"

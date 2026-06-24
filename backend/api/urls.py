@@ -24,6 +24,7 @@ urlpatterns = [
     path('workouts/plans/<uuid:plan_id>/', views.workout_plan_detail, name='workout-plan-detail'),
     path('workouts/plans/<uuid:plan_id>/activate/', views.workout_plan_activate, name='workout-plan-activate'),
     path('workouts/plans/<uuid:plan_id>/advance-week/', views.workout_plan_advance_week, name='workout-plan-advance-week'),
+    path('workouts/plans/<uuid:plan_id>/prepare-week/', views.workout_plan_prepare_week, name='workout-plan-prepare-week'),
     path('workouts/sessions/', views.workout_sessions, name='workout-sessions'),
     path('workouts/sessions/<uuid:session_id>/', views.workout_session_detail, name='workout-session-detail'),
     path('workouts/sessions/<uuid:session_id>/sets/', views.workout_session_log_set, name='workout-session-log-set'),

@@ -983,6 +983,102 @@ def workout_session_log_set(request, session_id):
     return Response(SetLogSerializer(log).data)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_prepare_week(request, plan_id):
+    """
+    Bulk-generate ExerciseGuide entries for all exercises in the plan's current week.
+    Also includes weight recommendations based on user's recent history.
+    """
+    from .gemini import call_gemini_json, GeminiError as _GeminiError
+    plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
+    current_week = plan.current_week
+
+    # Collect unique exercise names for this week
+    exercise_names = list(
+        Exercise.objects
+        .filter(day__plan=plan, day__week_number=current_week)
+        .values_list('name', flat=True)
+        .distinct()
+    )
+    if not exercise_names:
+        return Response({'detail': 'No exercises found for this week', 'generated': 0})
+
+    # Build history context for weight recommendations
+    history_ctx = {}
+    for ex_name in exercise_names:
+        logs = (
+            SetLog.objects
+            .filter(
+                workout_session__user=request.user,
+                exercise_name__iexact=ex_name,
+                is_completed=True,
+                weight_kg__isnull=False,
+            )
+            .order_by('-workout_session__started_at')
+            .values('workout_session__started_at', 'set_number', 'weight_kg', 'reps_completed')[:9]
+        )
+        if logs:
+            history_ctx[ex_name] = list(logs)
+
+    kb = _load_exercise_kb()
+
+    prompt_lines = ['Return a JSON array. Each element corresponds to one exercise in the list below.']
+    prompt_lines.append('For each exercise, return an object with:')
+    prompt_lines.append('  steps: array of 4-6 clear action strings')
+    prompt_lines.append('  muscles: array of 2-4 primary muscle names')
+    prompt_lines.append('  tips: array of 2-3 form cues or common mistakes to avoid')
+    prompt_lines.append('  category: one of squat/push/press/pull/row/hinge/curl/lunge/core/cardio/other')
+    prompt_lines.append('  kb_key: best matching key from the image library, or null')
+    prompt_lines.append('  recommended_weight: a short string like "Start with 40kg (3x8)" or null if no history')
+    prompt_lines.append('')
+    prompt_lines.append('Exercises:')
+    for i, name in enumerate(exercise_names, 1):
+        hist = history_ctx.get(name)
+        hist_str = ''
+        if hist:
+            sets_summary = '; '.join(
+                f"{s['workout_session__started_at'][:10]}: {s['weight_kg']}kg x {s['reps_completed'] or '?'}"
+                for s in hist[:3]
+            )
+            hist_str = f' [Recent: {sets_summary}]'
+        candidates = _get_kb_candidates(name, top_n=10)
+        cands_str = ', '.join(candidates[:5]) if candidates else 'none'
+        prompt_lines.append(f'{i}. {name}{hist_str} | Image library candidates: {cands_str}')
+
+    prompt = '\n'.join(prompt_lines)
+
+    try:
+        guides_list = call_gemini_json(
+            system_prompt='You are a certified personal trainer providing exercise instructions and weight recommendations.',
+            user_prompt=prompt,
+        )
+    except _GeminiError as e:
+        return Response({'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    if not isinstance(guides_list, list):
+        return Response({'detail': 'AI returned unexpected format'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    generated = 0
+    for name, guide in zip(exercise_names, guides_list):
+        if not isinstance(guide, dict):
+            continue
+        kb_key = guide.pop('kb_key', None)
+        if kb_key and kb_key in kb:
+            guide['images'] = kb[kb_key][:2]
+        else:
+            guide['images'] = _lookup_exercise_images(name)
+        try:
+            eg = ExerciseGuide.objects.get(name__iexact=name)
+            eg.data = guide
+            eg.save(update_fields=['data'])
+        except ExerciseGuide.DoesNotExist:
+            ExerciseGuide.objects.create(name=name, data=guide)
+        generated += 1
+
+    return Response({'generated': generated, 'exercises': exercise_names})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def workout_exercises_list(request):

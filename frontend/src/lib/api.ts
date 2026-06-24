@@ -196,6 +196,9 @@ export const api = {
     advanceWeek: (id: string) =>
       request<WorkoutPlan & { program_complete?: boolean; detail?: string }>(`/api/workouts/plans/${id}/advance-week/`, { method: 'POST' }),
 
+    prepareWeek: (id: string) =>
+      request<{ generated: number; exercises: string[] }>(`/api/workouts/plans/${id}/prepare-week/`, { method: 'POST' }),
+
     listSessions: () =>
       request<WorkoutSessionSummary[]>('/api/workouts/sessions/'),
 

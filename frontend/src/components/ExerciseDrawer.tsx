@@ -13,6 +13,7 @@ interface GuideData {
   tips: string[]
   category: string
   images: string[]
+  recommended_weight?: string | null
 }
 
 export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProps) {
@@ -81,6 +82,17 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
               <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl px-4 py-3">
                 {exercise.notes}
               </p>
+            </div>
+          )}
+
+          {/* AI weight recommendation from bulk pre-gen */}
+          {guide?.recommended_weight && (
+            <div className="mb-4 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-start gap-2">
+              <span className="text-brand-500 mt-0.5">💡</span>
+              <div>
+                <p className="text-xs font-semibold text-brand-600 mb-0.5">Recommended weight</p>
+                <p className="text-sm text-brand-700">{guide.recommended_weight}</p>
+              </div>
             </div>
           )}
 
