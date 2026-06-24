@@ -541,6 +541,17 @@ function PlanDetail({ planId }: { planId: string }) {
 
 // ── Active Session ─────────────────────────────────────────────────────────
 
+function getWeightLabel(exerciseName: string, unit: string): string {
+  const n = exerciseName.toLowerCase()
+  if (/dumbbell|db /.test(n)) return `Each (${unit})`
+  if (/barbell|bb |squat|deadlift|bench press|overhead press|ohp/.test(n)) return `Bar weight (${unit})`
+  if (/plank|wall sit|hold|isometric/.test(n)) return 'Duration (sec)'
+  if (/cable|machine/.test(n)) return `Stack (${unit})`
+  return `Weight (${unit})`
+}
+
+type PendingLog = { weight_kg?: number | null; reps_completed?: number | null; is_completed?: boolean }
+
 function ActiveSession({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
@@ -550,59 +561,66 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<WorkoutSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
+  const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
+  const storageKey = `workout_draft_${sessionId}`
 
   useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) { try { setPendingLogs(JSON.parse(saved)) } catch {} }
     api.workouts.getSession(sessionId)
       .then(setSession)
       .catch(() => showToast('Failed to load session', 'error'))
       .finally(() => setLoading(false))
-  }, [sessionId])
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleLogSet(log: SetLog, field: 'weight_kg' | 'reps_completed', value: string) {
-    if (!session) return
-    let numVal: number | undefined = value === '' ? undefined : Number(value)
-    if (field === 'weight_kg' && numVal !== undefined) {
-      numVal = unit === 'lb' ? numVal * KG_PER_LB : numVal
+  // Auto-save to localStorage whenever pendingLogs changes
+  useEffect(() => {
+    if (Object.keys(pendingLogs).length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(pendingLogs))
     }
-    try {
-      const updated = await api.workouts.logSet(session.id, {
-        exercise_id: log.exercise_id ?? '',
-        set_number: log.set_number,
-        [field]: numVal,
-      })
-      setSession((s) => s ? {
-        ...s,
-        set_logs: s.set_logs.map((l) => l.id === updated.id ? updated : l),
-      } : s)
-    } catch {
-      // silently fail — user can retry
-    }
+  }, [pendingLogs, storageKey])
+
+  function handleSetField(logId: string, field: 'weight_kg' | 'reps_completed', rawValue: string) {
+    const num = rawValue === '' ? null : Number(rawValue)
+    const stored = field === 'weight_kg' && num !== null ? (unit === 'lb' ? num * KG_PER_LB : num) : num
+    setPendingLogs((prev) => ({ ...prev, [logId]: { ...prev[logId], [field]: stored } }))
   }
 
-  async function handleToggleSet(log: SetLog) {
-    if (!session) return
-    // Optimistic update — flip immediately so the UI responds instantly
-    setSession((s) => s ? {
-      ...s,
-      set_logs: s.set_logs.map((l) => l.id === log.id ? { ...l, is_completed: !l.is_completed } : l),
-    } : s)
-    try {
-      const updated = await api.workouts.logSet(session.id, {
-        exercise_id: log.exercise_id ?? '',
-        set_number: log.set_number,
-        is_completed: !log.is_completed,
+  function handleToggle(log: SetLog) {
+    const current = pendingLogs[log.id]?.is_completed ?? log.is_completed
+    setPendingLogs((prev) => ({ ...prev, [log.id]: { ...prev[log.id], is_completed: !current } }))
+  }
+
+  async function flushPendingLogs(sess: WorkoutSessionDetail) {
+    const entries = Object.entries(pendingLogs)
+    if (entries.length === 0) return
+    await Promise.allSettled(
+      entries.map(([logId, changes]) => {
+        const log = sess.set_logs.find((l) => l.id === logId)
+        if (!log) return Promise.resolve()
+        return api.workouts.logSet(sess.id, {
+          exercise_id: log.exercise_id ?? '',
+          set_number: log.set_number,
+          ...changes,
+        })
       })
-      setSession((s) => s ? {
-        ...s,
-        set_logs: s.set_logs.map((l) => l.id === updated.id ? updated : l),
-      } : s)
-    } catch {
-      // Revert on failure
-      setSession((s) => s ? {
-        ...s,
-        set_logs: s.set_logs.map((l) => l.id === log.id ? { ...l, is_completed: log.is_completed } : l),
-      } : s)
+    )
+  }
+
+  async function handleSaveProgress() {
+    if (!session) return
+    setSaving(true)
+    try {
+      await flushPendingLogs(session)
+      localStorage.removeItem(storageKey)
+      showToast('Progress saved — come back anytime')
+      navigate('/dashboard')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -610,7 +628,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     if (!session) return
     setCompleting(true)
     try {
+      await flushPendingLogs(session)
       await api.workouts.completeSession(session.id)
+      localStorage.removeItem(storageKey)
       showToast('Workout complete! Great work 💪')
       navigate('/dashboard')
     } catch (err) {
@@ -622,9 +642,12 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="p-6"><SkeletonText lines={10} /></div>
   if (!session) return null
 
+  // Merge server logs with local pending changes for display
+  const mergedLogs = session.set_logs.map((log) => ({ ...log, ...pendingLogs[log.id] }))
+
   // Build ordered exercise list preserving plan order
   const exerciseOrder = session.exercise_day?.exercises.map((e) => e.name) ?? []
-  const byExercise = session.set_logs.reduce<Record<string, SetLog[]>>((acc, log) => {
+  const byExercise = mergedLogs.reduce<Record<string, typeof mergedLogs>>((acc, log) => {
     if (!acc[log.exercise_name]) acc[log.exercise_name] = []
     acc[log.exercise_name].push(log)
     return acc
@@ -643,8 +666,8 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     (session.exercise_day?.exercises ?? []).map((e) => [e.name, e])
   )
 
-  const completedSets = session.set_logs.filter((l) => l.is_completed).length
-  const totalSets = session.set_logs.length
+  const completedSets = mergedLogs.filter((l) => l.is_completed).length
+  const totalSets = mergedLogs.length
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
   const isCompleted = session.is_completed
 
@@ -656,13 +679,22 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           ? `Completed ${new Date(session.completed_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
           : (session.exercise_day?.focus ?? '')}
         action={!isCompleted ? (
-          <button
-            onClick={handleComplete}
-            disabled={completing}
-            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors disabled:opacity-50"
-          >
-            {completing ? 'Finishing...' : 'Finish workout'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveProgress}
+              disabled={saving || completing}
+              className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl hover:bg-white/30 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={handleComplete}
+              disabled={completing || saving}
+              className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors disabled:opacity-50"
+            >
+              {completing ? 'Finishing…' : 'Finish workout'}
+            </button>
+          </div>
         ) : (
           <span className="bg-white/20 text-white text-sm font-semibold px-4 py-2 rounded-xl">
             Done ✓
@@ -732,7 +764,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                 {/* Column labels */}
                 <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
                   <span>#</span>
-                  <span>Weight ({unit})</span>
+                  <span>{getWeightLabel(exerciseName, unit)}</span>
                   <span>Reps done</span>
                   <span />
                 </div>
@@ -762,7 +794,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                           defaultValue={log.weight_kg != null
                             ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
                             : ''}
-                          onBlur={(e) => handleLogSet(log, 'weight_kg', e.target.value)}
+                          onBlur={(e) => handleSetField(log.id, 'weight_kg', e.target.value)}
                           className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
                         />
                       )}
@@ -774,12 +806,12 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         <input
                           type="number" min={0} placeholder="0"
                           defaultValue={log.reps_completed ?? ''}
-                          onBlur={(e) => handleLogSet(log, 'reps_completed', e.target.value)}
+                          onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
                           className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
                         />
                       )}
                       <button
-                        onClick={!isCompleted ? () => handleToggleSet(log) : undefined}
+                        onClick={!isCompleted ? () => handleToggle(log) : undefined}
                         disabled={isCompleted}
                         className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
                           log.is_completed

@@ -17,16 +17,18 @@ function SessionList({
   activeId,
   onDelete,
   loading,
+  onSelect,
 }: {
   sessions: ChatSession[]
   activeId?: string
   onDelete: (id: string) => void
   loading: boolean
+  onSelect?: () => void
 }) {
   const navigate = useNavigate()
 
   return (
-    <div className="w-full md:w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
+    <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5 pt-3">
         {loading ? (
           <div className="p-3 space-y-2">
@@ -43,7 +45,7 @@ function SessionList({
               className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
                 s.id === activeId ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-100 text-gray-700'
               }`}
-              onClick={() => navigate(`/chat/${s.id}`)}
+              onClick={() => { navigate(`/chat/${s.id}`); onSelect?.() }}
             >
               <span className="text-sm flex-1 truncate">{s.title}</span>
               <button
@@ -156,6 +158,7 @@ export default function Chat() {
   const { showToast } = useToast()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [listLoading, setListLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     api.chat.listSessions()
@@ -169,6 +172,7 @@ export default function Chat() {
       const session = await api.chat.createSession()
       setSessions((prev) => [session, ...prev])
       navigate(`/chat/${session.id}`)
+      setSidebarOpen(false)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
     }
@@ -190,25 +194,46 @@ export default function Chat() {
         title="AI Trainer"
         subtitle="Your personal fitness coach"
         action={
-          <button
-            onClick={handleNew}
-            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
-          >
-            + New chat
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl hover:bg-white/30 transition-colors"
+              title="Toggle chat history"
+            >
+              ☰
+            </button>
+            <button
+              onClick={handleNew}
+              className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
+            >
+              + New chat
+            </button>
+          </div>
         }
       />
-      <div className="flex flex-1 overflow-hidden">
-        {/* On mobile: show session list when no session selected, chat pane when selected */}
-        <div className={`${sessionId ? 'hidden md:flex' : 'flex'} md:flex flex-col`} style={{ width: undefined }}>
-          <SessionList
-            sessions={sessions}
-            activeId={sessionId}
-            onDelete={handleDelete}
-            loading={listLoading}
-          />
-        </div>
-        <div className={`${sessionId ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Overlay sidebar — slides in from left when open */}
+        {sidebarOpen && (
+          <>
+            <div
+              className="absolute inset-0 z-20 bg-black/30"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <div className="absolute left-0 top-0 h-full w-72 z-30 shadow-2xl flex flex-col">
+              <SessionList
+                sessions={sessions}
+                activeId={sessionId}
+                onDelete={handleDelete}
+                loading={listLoading}
+                onSelect={() => setSidebarOpen(false)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Main chat area — always full width */}
+        <div className="flex-1 flex flex-col min-w-0">
           {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
         </div>
       </div>
