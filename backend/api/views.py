@@ -893,6 +893,9 @@ def workout_session_detail(request, session_id):
         from django.utils import timezone as tz
         session.is_completed = True
         session.completed_at = tz.now()
+        if session.exercise_day_id:
+            session.exercise_day.last_completed_at = tz.now()
+            session.exercise_day.save(update_fields=['last_completed_at'])
     if 'notes' in request.data:
         session.notes = request.data['notes']
     session.save()

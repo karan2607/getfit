@@ -350,6 +350,7 @@ export interface WorkoutDay {
   is_rest_day: boolean
   order: number
   exercises: Exercise[]
+  last_completed_at: string | null
 }
 
 export interface WorkoutPlan {

@@ -410,9 +410,13 @@ function PlanDetail({ planId }: { planId: string }) {
             {plan.days.map((day) => (
               <div key={day.id}>
                 {/* Day header */}
+                {(() => {
+                  const completedRecently = day.last_completed_at
+                    && (Date.now() - new Date(day.last_completed_at).getTime()) < 7 * 86_400_000
+                  return (
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                    {day.day_number}
+                  <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
+                    {completedRecently ? '✓' : day.day_number}
                   </span>
                   <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
                   {day.focus && (
@@ -461,6 +465,8 @@ function PlanDetail({ planId }: { planId: string }) {
                     </div>
                   )}
                 </div>
+                  )
+                })()}
                 {/* Exercises */}
                 {day.is_rest_day ? (
                   <RestDayCard />

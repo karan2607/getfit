@@ -166,6 +166,7 @@ class WorkoutDay(models.Model):
     focus = models.CharField(max_length=100, blank=True)
     is_rest_day = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
+    last_completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['order']

@@ -120,7 +120,7 @@ class WorkoutDaySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkoutDay
-        fields = ['id', 'day_number', 'name', 'focus', 'is_rest_day', 'order', 'exercises']
+        fields = ['id', 'day_number', 'name', 'focus', 'is_rest_day', 'order', 'exercises', 'last_completed_at']
         read_only_fields = ['id']
 
 
