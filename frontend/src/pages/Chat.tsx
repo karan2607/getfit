@@ -195,7 +195,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col flex-1 overflow-hidden min-h-0">
       <PageHeader
         title="AI Trainer"
         subtitle="Your personal fitness coach"
