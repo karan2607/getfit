@@ -169,7 +169,6 @@ export default function Chat() {
   const { showToast } = useToast()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [listLoading, setListLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     api.chat.listSessions()
@@ -183,7 +182,6 @@ export default function Chat() {
       const session = await api.chat.createSession()
       setSessions((prev) => [session, ...prev])
       navigate(`/chat/${session.id}`)
-      setSidebarOpen(false)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
     }
@@ -215,42 +213,37 @@ export default function Chat() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar: collapses to a thin strip with an expand arrow at the top */}
-        <div
-          className="flex-shrink-0 relative transition-all duration-300 ease-in-out bg-gray-50 border-r border-gray-200"
-          style={{ width: sidebarOpen ? '16rem' : '1.75rem' }}
-        >
-          {/* Toggle button — top of strip, blends with bg */}
-          <button
-            onClick={() => setSidebarOpen((o) => !o)}
-            className="absolute top-3 right-0 translate-x-1/2 z-10 w-5 h-5 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shadow-sm"
-            title={sidebarOpen ? 'Close' : 'Open chat history'}
-          >
-            <span
-              className="text-[10px] font-bold leading-none transition-transform duration-300"
-              style={{ display: 'inline-block', transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-            >›</span>
-          </button>
 
-          {/* Session list — fades in when open */}
-          <div
-            className="h-full overflow-hidden transition-opacity duration-200"
-            style={{ opacity: sidebarOpen ? 1 : 0, pointerEvents: sidebarOpen ? 'auto' : 'none' }}
-          >
-            <SessionList
-              sessions={sessions}
-              activeId={sessionId}
-              onDelete={handleDelete}
-              loading={listLoading}
-              onSelect={() => setSidebarOpen(false)}
-            />
-          </div>
+        {/* Desktop: always-visible sidebar */}
+        <div className="hidden md:flex w-64 flex-shrink-0 border-r border-gray-200">
+          <SessionList
+            sessions={sessions}
+            activeId={sessionId}
+            onDelete={handleDelete}
+            loading={listLoading}
+          />
         </div>
 
-        {/* Main chat area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+          {/* Mobile: dropdown selector at the top */}
+          <div className="md:hidden flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-white">
+            <select
+              value={sessionId ?? ''}
+              onChange={(e) => e.target.value ? navigate(`/chat/${e.target.value}`) : navigate('/chat')}
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 truncate"
+            >
+              <option value="">Select a chat…</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </select>
+          </div>
+
           {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
         </div>
+
       </div>
     </div>
   )
