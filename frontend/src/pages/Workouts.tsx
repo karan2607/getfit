@@ -326,6 +326,8 @@ function PlanDetail({ planId }: { planId: string }) {
   const [plan, setPlan] = useState<WorkoutPlanDetail | null>(null)
   const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [endingWeek, setEndingWeek] = useState(false)
+  const [preparingGuides, setPreparingGuides] = useState(false)
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [editDayId, setEditDayId] = useState<string | null>(null)
@@ -371,6 +373,7 @@ function PlanDetail({ planId }: { planId: string }) {
 
   async function handleEndWeek() {
     if (!plan) return
+    setEndingWeek(true)
     try {
       const result = await api.workouts.advanceWeek(plan.id)
       if (result.program_complete) {
@@ -378,12 +381,20 @@ function PlanDetail({ planId }: { planId: string }) {
         setPlan((p) => p ? { ...p, goal_check_in_shown: true } : p)
       } else {
         setPlan((p) => p ? { ...p, current_week: result.current_week } : p)
-        showToast(`Week ${result.current_week} starts now! Preparing exercise guides…`)
-        // Kick off bulk guide generation in the background — don't await
-        api.workouts.prepareWeek(plan.id).catch(() => {})
+        setPreparingGuides(true)
+        try {
+          await api.workouts.prepareWeek(plan.id)
+          showToast(`Week ${result.current_week} ready — guides pre-loaded!`)
+        } catch {
+          showToast(`Week ${result.current_week} starts now!`)
+        } finally {
+          setPreparingGuides(false)
+        }
       }
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
+      setEndingWeek(false)
     }
   }
 
@@ -444,12 +455,20 @@ function PlanDetail({ planId }: { planId: string }) {
             {plan.is_active && (
               <button
                 onClick={handleEndWeek}
-                className="text-xs text-brand-500 border border-brand-200 rounded-lg px-3 py-1.5 hover:bg-brand-50 transition-colors font-medium"
+                disabled={endingWeek || preparingGuides}
+                className="text-xs text-brand-500 border border-brand-200 rounded-lg px-3 py-1.5 hover:bg-brand-50 transition-colors font-medium disabled:opacity-50"
               >
-                {currentWeek >= maxWeek ? 'Finish program →' : 'Finish week →'}
+                {endingWeek ? 'Finishing…' : currentWeek >= maxWeek ? 'Finish program →' : 'Finish week →'}
               </button>
             )}
           </div>
+          {preparingGuides && (
+            <div className="mb-4 flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3">
+              <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <p className="text-sm text-brand-700 font-medium">Preparing exercise guides for Week {plan.current_week}…</p>
+            </div>
+          )}
+
           <div className="space-y-6">
             {currentWeekDays.map((day) => (
               <div key={day.id}>
