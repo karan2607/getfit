@@ -652,7 +652,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
         return api.workouts.logSet(sess.id, {
           exercise_id: log.exercise_id ?? '',
           set_number: log.set_number,
-          ...changes,
+          ...(changes.weight_kg != null ? { weight_kg: changes.weight_kg } : {}),
+          ...(changes.reps_completed != null ? { reps_completed: changes.reps_completed } : {}),
+          ...(changes.is_completed !== undefined ? { is_completed: changes.is_completed } : {}),
         })
       })
     )
