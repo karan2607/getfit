@@ -444,7 +444,7 @@ function PlanDetail({ planId }: { planId: string }) {
                 onClick={handleEndWeek}
                 className="text-xs text-brand-500 border border-brand-200 rounded-lg px-3 py-1.5 hover:bg-brand-50 transition-colors font-medium"
               >
-                {currentWeek >= maxWeek ? 'Finish program' : 'End week →'}
+                {currentWeek >= maxWeek ? 'Finish program →' : 'Finish week →'}
               </button>
             )}
           </div>
