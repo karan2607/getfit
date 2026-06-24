@@ -202,10 +202,10 @@ export const api = {
     listSessions: () =>
       request<WorkoutSessionSummary[]>('/api/workouts/sessions/'),
 
-    startSession: (exercise_day_id: string) =>
+    startSession: (exercise_day_id: string, force = false) =>
       request<WorkoutSessionDetail>('/api/workouts/sessions/', {
         method: 'POST',
-        body: JSON.stringify({ exercise_day_id }),
+        body: JSON.stringify({ exercise_day_id, ...(force ? { force: true } : {}) }),
       }),
 
     getSession: (id: string) =>
@@ -424,6 +424,8 @@ export interface WorkoutSessionDetail {
   notes: string
   is_completed: boolean
   set_logs: SetLog[]
+  already_active?: boolean
+  conflict_day_name?: string
 }
 
 export interface WorkoutSessionSummary {

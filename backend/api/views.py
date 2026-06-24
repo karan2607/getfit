@@ -908,13 +908,26 @@ def workout_sessions(request):
         return Response({'detail': 'exercise_day_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     day = get_object_or_404(WorkoutDay, pk=day_id, plan__user=request.user)
+    force = request.data.get('force', False)
 
-    # Resume if there's an incomplete session for this day
-    existing = WorkoutSession.objects.filter(
+    # Resume if there's an incomplete session for this exact day
+    same_day = WorkoutSession.objects.filter(
         user=request.user, exercise_day=day, is_completed=False
     ).first()
-    if existing:
-        return Response(WorkoutSessionSerializer(existing).data)
+    if same_day:
+        return Response(WorkoutSessionSerializer(same_day).data)
+
+    # Warn if there's an incomplete session for a different day (unless force=true)
+    if not force:
+        other = WorkoutSession.objects.filter(
+            user=request.user, is_completed=False
+        ).exclude(exercise_day=day).select_related('exercise_day').first()
+        if other:
+            day_name = other.exercise_day.name if other.exercise_day else 'another day'
+            data = WorkoutSessionSerializer(other).data
+            data['already_active'] = True
+            data['conflict_day_name'] = day_name
+            return Response(data, status=status.HTTP_200_OK)
 
     session = WorkoutSession.objects.create(user=request.user, exercise_day=day)
 

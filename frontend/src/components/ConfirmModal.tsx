@@ -4,11 +4,12 @@ interface Props {
   title: string
   message: string
   confirmLabel?: string
+  cancelLabel?: string
   onConfirm: () => Promise<void> | void
   onClose: () => void
 }
 
-export default function ConfirmModal({ title, message, confirmLabel = 'Delete', onConfirm, onClose }: Props) {
+export default function ConfirmModal({ title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, onClose }: Props) {
   const [isLoading, setIsLoading] = useState(false)
 
   async function handleConfirm() {
@@ -31,14 +32,14 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Delete', 
             disabled={isLoading}
             className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             onClick={handleConfirm}
             disabled={isLoading}
             className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium rounded-lg py-2 text-sm transition-colors"
           >
-            {isLoading ? 'Deleting…' : confirmLabel}
+            {isLoading ? '…' : confirmLabel}
           </button>
         </div>
       </div>

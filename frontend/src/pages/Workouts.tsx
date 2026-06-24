@@ -329,6 +329,7 @@ function PlanDetail({ planId }: { planId: string }) {
   const [endingWeek, setEndingWeek] = useState(false)
   const [preparingGuides, setPreparingGuides] = useState(false)
   const [startingDay, setStartingDay] = useState<string | null>(null)
+  const [conflictSession, setConflictSession] = useState<{ id: string; dayName: string; targetDayId: string } | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [editDayId, setEditDayId] = useState<string | null>(null)
   const [editDayNumber, setEditDayNumber] = useState<number | null>(null)
@@ -398,10 +399,15 @@ function PlanDetail({ planId }: { planId: string }) {
     }
   }
 
-  async function handleStartSession(dayId: string) {
+  async function handleStartSession(dayId: string, force = false) {
     setStartingDay(dayId)
     try {
-      const session = await api.workouts.startSession(dayId)
+      const session = await api.workouts.startSession(dayId, force)
+      if (session.already_active && session.conflict_day_name) {
+        setConflictSession({ id: session.id, dayName: session.conflict_day_name, targetDayId: dayId })
+        setStartingDay(null)
+        return
+      }
       navigate(`/workouts/session/${session.id}`)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
@@ -423,6 +429,22 @@ function PlanDetail({ planId }: { planId: string }) {
 
   return (
     <>
+      {conflictSession && (
+        <ConfirmModal
+          title="You have an unfinished workout"
+          message={`You're still in the middle of "${conflictSession.dayName}". Go back to finish it, or start this day anyway?`}
+          confirmLabel="Start anyway"
+          cancelLabel={`Continue "${conflictSession.dayName}"`}
+          onConfirm={async () => {
+            setConflictSession(null)
+            await handleStartSession(conflictSession.targetDayId, true)
+          }}
+          onClose={() => {
+            navigate(`/workouts/session/${conflictSession.id}`)
+            setConflictSession(null)
+          }}
+        />
+      )}
       <PageHeader
         title={plan.title}
         subtitle={`Week ${currentWeek} of ${durationWeeks} · ${trainingDays} training day${trainingDays !== 1 ? 's' : ''}`}
