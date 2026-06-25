@@ -584,8 +584,10 @@ function PlanDetail({ planId }: { planId: string }) {
 
   const durationWeeks = plan.duration_weeks ?? 1
   const currentWeek = plan.current_week ?? 1
-  const maxWeek = Math.max(...plan.days.map((d) => d.week_number), plan.duration_weeks ?? 1)
-  const hasRepeatWeeks = maxWeek > 1
+  const maxWeekInDb = Math.max(...plan.days.map((d) => d.week_number))
+  const maxWeek = Math.max(maxWeekInDb, plan.duration_weeks ?? 1)
+  // Only show repeat-weeks UI when the DB actually contains multiple distinct weeks
+  const hasRepeatWeeks = maxWeekInDb > 1
   const currentWeekDays = plan.days.filter((d) => d.week_number === currentWeek).length > 0
     ? plan.days.filter((d) => d.week_number === currentWeek)
     : plan.days.filter((d) => d.week_number === 1)

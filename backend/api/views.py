@@ -988,6 +988,24 @@ def workout_plan_generate(request):
     except ValueError as e:
         return Response({'detail': f'AI returned invalid plan: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
 
+    # If Gemini returned fewer weeks than requested, retry once with a stronger prompt
+    returned_weeks = len(plan_data.get('weeks', []))
+    if returned_weeks < duration_weeks:
+        retry_user = (
+            f'The plan you just returned only has {returned_weeks} week(s) but must have exactly {duration_weeks}. '
+            f'Expand it now. Repeat the same exercises across weeks but change sets/reps/rest to show progression '
+            f'(e.g. add 1 rep per week, reduce rest, or increase sets). '
+            f'Return the COMPLETE plan with ALL {duration_weeks} weeks in the weeks array. '
+            f'Do not omit any weeks.\n\n' + user_prompt
+        )
+        try:
+            plan_data2 = call_gemini_json(system_prompt=system, user_prompt=retry_user)
+            _validate_plan_json(plan_data2)
+            if len(plan_data2.get('weeks', [])) >= returned_weeks:
+                plan_data = plan_data2
+        except Exception:
+            pass  # keep original if retry fails
+
     # Always use user's requested duration — override whatever the AI returned
     plan_data['duration_weeks'] = duration_weeks
 
