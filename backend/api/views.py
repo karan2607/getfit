@@ -1939,10 +1939,13 @@ def health_status(request):
             HealthDailySummary.objects.filter(user=request.user).exists() or
             HealthWorkout.objects.filter(user=request.user).exists()
         )
+        latest = HealthDailySummary.objects.filter(user=request.user).order_by('-date').first()
         return Response({
             'connected': has_data,
             'provider': conn.provider if has_data else None,
             'connected_at': conn.connected_at.isoformat() if has_data else None,
+            'last_sync_at': conn.last_sync_at.isoformat() if conn.last_sync_at else None,
+            'latest_summary_date': latest.date.isoformat() if latest else None,
         })
     except HealthConnection.DoesNotExist:
         return Response({'connected': False, 'provider': None, 'connected_at': None})
@@ -2027,7 +2030,7 @@ def health_shortcuts_sync(request):
 
     if data.get('steps') is not None:
         try:
-            defaults['steps'] = int(_clean(data['steps']))
+            defaults['steps'] = int(float(_clean(data['steps'])))
         except (TypeError, ValueError):
             pass
     if data.get('active_calories') is not None:
@@ -2080,7 +2083,11 @@ def health_shortcuts_sync(request):
             defaults=w_defaults,
         )
 
-    return Response({'status': 'ok'})
+    conn.last_sync_at = _tz.now()
+    conn.save(update_fields=['last_sync_at'])
+
+    summary_count = HealthDailySummary.objects.filter(user=sync_user).count()
+    return Response({'status': 'ok', 'summaries_stored': summary_count})
 
 
 @api_view(['GET'])

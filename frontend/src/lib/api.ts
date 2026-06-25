@@ -320,7 +320,7 @@ export const api = {
       request<{ token: string }>('/api/health/connect/'),
 
     getStatus: () =>
-      request<{ connected: boolean; provider: string | null; connected_at: string | null }>('/api/health/status/'),
+      request<{ connected: boolean; provider: string | null; connected_at: string | null; last_sync_at: string | null; latest_summary_date: string | null }>('/api/health/status/'),
 
     getSummary: () =>
       request<HealthDailySummary[]>('/api/health/summary/'),

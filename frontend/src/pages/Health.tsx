@@ -420,8 +420,8 @@ function ActivitySuggestionBanner({ suggestion, onUpdate, onDismiss }: {
 
 // ── Connected Dashboard ───────────────────────────────────────────────────────
 
-function HealthDashboard({ provider, connectedAt, onDisconnected }: {
-  provider: string | null; connectedAt: string | null; onDisconnected: () => void
+function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate, onDisconnected }: {
+  provider: string | null; connectedAt: string | null; lastSyncAt: string | null; latestSummaryDate: string | null; onDisconnected: () => void
 }) {
   const { showToast } = useToast()
   const [summaries, setSummaries] = useState<HealthDailySummary[]>([])
@@ -481,10 +481,13 @@ function HealthDashboard({ provider, connectedAt, onDisconnected }: {
   return (
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
           <span className="text-sm font-semibold text-gray-700">🍎 {providerLabel} syncing via Shortcuts</span>
-          {connectedAt && <span className="text-xs text-gray-400">since {fmtDate(connectedAt)}</span>}
+          {lastSyncAt
+            ? <span className="text-xs text-gray-400">last sync {fmtDate(lastSyncAt)}{latestSummaryDate ? ` · data up to ${fmtDate(latestSummaryDate)}` : ' · no summary data stored'}</span>
+            : connectedAt && <span className="text-xs text-gray-400">connected {fmtDate(connectedAt)} · shortcut not run yet</span>
+          }
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -574,6 +577,8 @@ export default function Health() {
         <HealthDashboard
           provider={healthStatus.provider}
           connectedAt={healthStatus.connected_at}
+          lastSyncAt={healthStatus.last_sync_at ?? null}
+          latestSummaryDate={healthStatus.latest_summary_date ?? null}
           onDisconnected={() => { setLoading(true); loadStatus() }}
         />
       ) : (

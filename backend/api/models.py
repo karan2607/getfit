@@ -401,6 +401,7 @@ class HealthConnection(models.Model):
     provider = models.CharField(max_length=64, default='APPLE')
     sync_token = models.CharField(max_length=64, unique=True, blank=True)
     connected_at = models.DateTimeField(auto_now_add=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.sync_token:
