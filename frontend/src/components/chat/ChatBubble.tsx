@@ -56,9 +56,10 @@ function ThinkingCard() {
 }
 
 function PlanPreviewModal({ plan, filterDayNumber, onClose }: { plan: WorkoutPlanPreview; filterDayNumber?: number; onClose: () => void }) {
+  const allDays = plan.weeks ? plan.weeks[0] : (plan.days ?? [])
   const days = filterDayNumber != null
-    ? plan.days.filter((d) => d.day_number === filterDayNumber)
-    : plan.days
+    ? allDays.filter((d) => d.day_number === filterDayNumber)
+    : allDays
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 animate-fade-in">
@@ -142,7 +143,7 @@ function InlinePlanCard({
     }
   }
 
-  const workoutDays = plan.days.filter((d) => !d.is_rest_day)
+  const workoutDays = (plan.weeks ? plan.weeks[0] : (plan.days ?? [])).filter((d) => !d.is_rest_day)
 
   return (
     <>
