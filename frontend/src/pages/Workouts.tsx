@@ -305,12 +305,12 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Injuries or limitations <span className="text-gray-400 font-normal">(optional)</span>
+                Injuries, limitations or preferences <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <textarea
                 value={notes} onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                placeholder="e.g. bad lower back, no squats, recovering from shoulder injury..."
+                placeholder="e.g. bad lower back, no squats, prefer not to run, love deadlifts..."
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
