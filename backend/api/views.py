@@ -226,16 +226,19 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
         '  "title": "string",\n'
         '  "description": "string",\n'
         '  "duration_weeks": number,\n'
-        '  "days": [\n'
-        '    {\n'
-        '      "day_number": number,\n'
-        '      "name": "string",\n'
-        '      "focus": "string",\n'
-        '      "is_rest_day": boolean,\n'
-        '      "exercises": [\n'
-        '        {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
-        '      ]\n'
-        '    }\n'
+        '  "weeks": [\n'
+        '    [\n'
+        '      {\n'
+        '        "day_number": number,\n'
+        '        "name": "string",\n'
+        '        "focus": "string",\n'
+        '        "is_rest_day": boolean,\n'
+        '        "exercises": [\n'
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
+        '        ]\n'
+        '      }\n'
+        '    ]\n'
+        '    // one sub-array per week — must equal duration_weeks total\n'
         '  ]\n'
         '}'
     )
@@ -325,25 +328,28 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
             import json as _json2
             from .models import WorkoutPlan
             plan_obj = WorkoutPlan.objects.prefetch_related('days__exercises').get(pk=plan_id, user=user)
-            days_data = []
-            for day in plan_obj.days.order_by('day_number').prefetch_related('exercises'):
-                exercises_data = [
-                    {'name': ex.name, 'sets': ex.sets, 'reps': ex.reps,
-                     'rest_seconds': ex.rest_seconds, 'notes': ex.notes or ''}
-                    for ex in day.exercises.all()
-                ]
-                days_data.append({
+            weeks_map: dict = {}
+            for day in plan_obj.days.order_by('week_number', 'order').prefetch_related('exercises'):
+                wk = day.week_number or 1
+                if wk not in weeks_map:
+                    weeks_map[wk] = []
+                weeks_map[wk].append({
                     'day_number': day.day_number,
                     'name': day.name,
                     'focus': day.focus or '',
                     'is_rest_day': day.is_rest_day,
-                    'exercises': exercises_data,
+                    'exercises': [
+                        {'name': ex.name, 'sets': ex.sets, 'reps': ex.reps,
+                         'rest_seconds': ex.rest_seconds, 'notes': ex.notes or ''}
+                        for ex in day.exercises.all()
+                    ],
                 })
+            weeks_list = [weeks_map[wk] for wk in sorted(weeks_map.keys())]
             plan_json = _json2.dumps({
                 'title': plan_obj.title,
                 'description': plan_obj.description or '',
                 'duration_weeks': plan_obj.duration_weeks,
-                'days': days_data,
+                'weeks': weeks_list,
             }, indent=2)
             day_focus_text = ''
             if day_id:
@@ -370,8 +376,10 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                 f'\n\nCURRENT WORKOUT PLAN (the user is viewing this plan and may ask you to modify it):\n'
                 f'```json\n{plan_json}\n```\n'
                 'When the user asks to modify, adjust, swap exercises, or update this plan, '
-                'output the COMPLETE updated plan as a "workout-plan" code block (not just the changes). '
-                'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
+                'output the COMPLETE updated plan as a "workout-plan" code block using the weeks[][] format. '
+                'Include ALL weeks in the output — never omit weeks or collapse to a single week. '
+                'If the user asks to change duration_weeks, adjust the number of sub-arrays in weeks accordingly. '
+                'Preserve existing week structure unless the user explicitly asks to change it.'
                 f'{day_focus_text}'
             )
         except Exception:
@@ -381,8 +389,9 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
             f'\n\nCURRENT WORKOUT PLAN PREVIEW (not yet saved — the user is reviewing this generated plan):\n'
             f'```json\n{plan_context}\n```\n'
             'The user wants to refine this plan before saving it. '
-            'When they describe changes, output the COMPLETE updated plan as a "workout-plan" code block. '
-            'Preserve the same structure, duration_weeks, and number of days unless the user asks to change them.'
+            'When they describe changes, output the COMPLETE updated plan as a "workout-plan" code block using the weeks[][] format. '
+            'Include ALL weeks in the output — never collapse to a single week. '
+            'If the user asks to change duration_weeks, update the number of sub-arrays accordingly.'
         )
 
     # Diet plan context (when chatting from a diet plan detail page)
@@ -706,6 +715,19 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '2. Secondary compound: lunge, dip, cable row, incline/decline variation\n'
         '3. Isolation accessory: curl, extension, lateral raise — supplementary only\n\n'
 
+        'EXERCISE VARIATION ACROSS PHASES (critical — not just sets/reps):\n'
+        'Exercises MUST change meaningfully between phases, not just intensity parameters:\n'
+        '  Accumulation (W1-4): Higher-rep compound variants, more accessory volume\n'
+        '    Push → Incline DB press, cable flyes, lateral raises, triceps pushdown\n'
+        '    Pull → Lat pulldown, cable row, face pulls, DB curls\n'
+        '    Legs → Leg press, leg curl, leg extension, Romanian deadlift\n'
+        '  Intensification (W5-7): Heavier barbell compounds replace machines, drop accessories\n'
+        '    Push → Barbell bench press, weighted dips, overhead press\n'
+        '    Pull → Weighted pull-ups/chin-ups, barbell row, deadlift\n'
+        '    Legs → Back squat, front squat, barbell RDL, Bulgarian split squat\n'
+        '  Deload (W8): Light versions of the Intensification compounds — same movements, 50% volume\n'
+        'This is NON-NEGOTIABLE. If weeks 1 and 5 have identical exercise lists, the plan is wrong.\n\n'
+
         'PAST EXERCISE CONTEXT:\n'
         'Client\'s previous program exercises are provided for reference. '
         'Repeat them if they are the optimal choice. Vary them if the phase calls for a different stimulus. '
@@ -1008,6 +1030,8 @@ def workout_plan_generate(request):
 
     # Always use user's requested duration — override whatever the AI returned
     plan_data['duration_weeks'] = duration_weeks
+    if 'weeks' in plan_data and isinstance(plan_data['weeks'], list):
+        plan_data['weeks'] = plan_data['weeks'][:duration_weeks]
 
     # Attach the confirmed target so the frontend can save it with the plan
     if confirmed_target:
