@@ -680,6 +680,27 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '- INTERMEDIATE: Push/pull/legs or upper/lower, block periodization, more variety\n'
         '- ADVANCED: RPE-based loading, undulating periodization, mandatory deload every 4th week\n\n'
 
+        'INJURY PROTOCOL (highest priority — overrides all other decisions):\n'
+        '- Any stated injury or limitation is a HARD constraint — never programme the restricted movement\n'
+        '- Knee pain/injury → replace squat/lunge with leg press, hamstring curl, step-ups\n'
+        '- Lower back issue → replace conventional deadlift with Romanian deadlift or trap bar; no heavy spinal loading\n'
+        '- Shoulder injury → replace overhead press with cable/machine alternatives; avoid internal rotation under load\n'
+        '- Wrist/elbow → replace barbell with dumbbell or cable equivalents\n'
+        '- Always note the substitution reason in the exercise notes field\n\n'
+
+        'WARMUP & MOBILITY (mandatory — first entry in EVERY workout day):\n'
+        '- Add "Warmup & Mobility" as the very first exercise on every non-rest day\n'
+        '- Use sets: 1, reps: "5-10 min", rest_seconds: 0\n'
+        '- In the notes field, list 3-5 specific activation/mobility drills for that day\'s muscle groups:\n'
+        '  Push day: "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x"\n'
+        '  Pull day: "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s"\n'
+        '  Leg day: "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s"\n'
+        '  Full body: "World\'s greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x"\n'
+        '- If the user has injuries, ALSO include targeted mobility for the injured area every session:\n'
+        '  Lower back: cat-cow 10x, child\'s pose 30s, hip flexor stretch 30s each\n'
+        '  Knee: quad stretch 30s each, clamshells 15x, terminal knee extensions 15x\n'
+        '  Shoulder: doorframe stretch 30s, wall slides 10x, thoracic rotation 10x each\n\n'
+
         'EXERCISE SELECTION (priority order):\n'
         '1. Primary compound: squat/hinge/horizontal push/vertical pull/loaded carry\n'
         '2. Secondary compound: lunge, dip, cable row, incline/decline variation\n'
@@ -692,7 +713,8 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
 
         'NOTES FIELD (mandatory for every exercise):\n'
         f'Format: "Start [weight]{preferred_unit}. Add [increment] when all sets completed with good form."\n'
-        f'Example: "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."'
+        f'Example: "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."\n'
+        'For Warmup & Mobility notes: list the specific stretches/drills, not weight progression.'
     )
 
     # Build the structured user prompt
@@ -732,38 +754,45 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
 
     phases = '1 phase, linear progression' if duration_weeks <= 4 else ('2-3 phases' if duration_weeks <= 8 else '3-4 phases, deload every 4th week')
 
+    injuries_line = f'INJURIES & LIMITATIONS (HARD CONSTRAINTS — apply every session, no exceptions):\n{notes}' if notes else 'INJURIES & LIMITATIONS: None stated'
+
     user = '\n'.join(filter(None, [
         profile_line,
-        f'Personal notes/limitations: {personal_notes}' if personal_notes else '',
+        f'Personal notes: {personal_notes}' if personal_notes else '',
         f'Primary goal: {goal} | Experience: {level} | Equipment: {equip}',
         specific_goals_line,
         target_line,
         f'Days/week: {days_per_week} | Duration: {duration_weeks} weeks',
-        f'Extra notes: {notes}' if notes else '',
+        injuries_line,
         f'Body context: {body_context}' if body_context else '',
         past_line,
         '',
         f'Design the optimal {duration_weeks}-week plan for this specific person using your full trainer expertise.',
         f'Structure into {phases}. Consider ALL stated goals — blend programming for hybrid goals.',
         'Within each phase increase overload week-to-week (sets or reduced rest before adding load).',
-        f'Return ALL {duration_weeks} weeks in the weeks array.',
-        'Schema:',
+        f'CRITICAL: the weeks array MUST contain exactly {duration_weeks} sub-arrays. Fewer weeks = incomplete response.',
+        'Schema (show all weeks — example has 2, you must return all {duration_weeks}):'.replace('{duration_weeks}', str(duration_weeks)),
         '{',
         '  "title": "string",',
-        '  "description": "string",',
-        '  "duration_weeks": number,',
+        '  "description": "string (mention the periodization approach)",',
+        f'  "duration_weeks": {duration_weeks},',
         '  "weeks": [',
-        '    [',
+        '    [  // Week 1: first phase (e.g. Accumulation — 4x10-12, 60s rest)',
         '      {',
-        '        "day_number": number,',
+        '        "day_number": 1,',
         '        "name": "string",',
         '        "focus": "string",',
-        '        "is_rest_day": boolean,',
+        '        "is_rest_day": false,',
         '        "exercises": [',
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}',
+        '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "notes": "specific drills for today"},',
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "Start Xkg. Add Ykg when all sets clean."}',
         '        ]',
         '      }',
+        '    ],',
+        '    [  // Week 2: same structure — same exercises, notes show progressive overload (e.g. +1 rep or +weight)',
+        '      { "day_number": 1, "name": "string", "focus": "string", "is_rest_day": false, "exercises": [ ... ] }',
         '    ]',
+        f'    // ... weeks 3 through {duration_weeks} follow the same pattern, evolving with each phase',
         '  ]',
         '}',
     ]))
@@ -959,6 +988,9 @@ def workout_plan_generate(request):
     except ValueError as e:
         return Response({'detail': f'AI returned invalid plan: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
 
+    # Always use user's requested duration — override whatever the AI returned
+    plan_data['duration_weeks'] = duration_weeks
+
     # Attach the confirmed target so the frontend can save it with the plan
     if confirmed_target:
         plan_data['program_target'] = confirmed_target
@@ -1038,6 +1070,9 @@ def workout_plans(request):
                     notes=ex_data.get('notes', ''),
                     order=j,
                 )
+
+    import threading
+    threading.Thread(target=_bg_cache_plan_guides, args=(plan.id,), daemon=True).start()
 
     return Response(WorkoutPlanDetailSerializer(plan).data, status=status.HTTP_201_CREATED)
 
@@ -1229,6 +1264,54 @@ def workout_session_log_set(request, session_id):
     return Response(SetLogSerializer(log).data)
 
 
+def _bg_cache_plan_guides(plan_id):
+    """Background thread: pre-cache ExerciseGuide for all unique exercises in a plan."""
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    try:
+        from .gemini import call_gemini_json, GeminiError as _GeminiError
+        plan = WorkoutPlan.objects.get(pk=plan_id)
+        names = list(
+            Exercise.objects.filter(day__plan=plan)
+            .values_list('name', flat=True).distinct()
+        )
+        # Skip exercises already cached
+        names = [n for n in names if not ExerciseGuide.objects.filter(name__iexact=n).exists()]
+        if not names:
+            return
+        kb = _load_exercise_kb()
+        prompt_lines = [
+            'Return a JSON array. Each element corresponds to one exercise.',
+            'For each exercise return: steps (4-6 strings), muscles (2-4 strings), '
+            'tips (2-3 strings), category (squat/push/pull/hinge/core/cardio/other), '
+            'kb_key (best matching image library key or null).',
+            'Prefer the most specific kb_key that contains all words from the exercise name.',
+            '', 'Exercises:',
+        ]
+        for i, name in enumerate(names, 1):
+            candidates = _get_kb_candidates(name, top_n=8)
+            cands_str = ', '.join(candidates[:6]) if candidates else 'none'
+            prompt_lines.append(f'{i}. {name} | Image library candidates: {cands_str}')
+        guides_list = call_gemini_json(
+            system_prompt='You are a certified personal trainer. Provide exercise instructions.',
+            user_prompt='\n'.join(prompt_lines),
+        )
+        if not isinstance(guides_list, list):
+            return
+        for name, guide in zip(names, guides_list):
+            if not isinstance(guide, dict):
+                continue
+            kb_key = guide.pop('kb_key', None)
+            guide['images'] = kb[kb_key][:2] if kb_key and kb_key in kb else _lookup_exercise_images(name)
+            guide.pop('recommended_weight', None)
+            try:
+                ExerciseGuide.objects.get_or_create(name=name, defaults={'data': guide})
+            except Exception:
+                pass
+    except Exception as exc:
+        _log.warning('_bg_cache_plan_guides failed for plan %s: %s', plan_id, exc)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def workout_plan_prepare_week(request, plan_id):
@@ -1387,6 +1470,23 @@ def _load_exercise_kb() -> dict:
     return _EXERCISE_KB
 
 
+_MOVEMENT_WORDS = {'curl', 'press', 'row', 'pull', 'push', 'squat', 'deadlift', 'lunge', 'raise',
+                   'extension', 'fly', 'flye', 'dip', 'shrug', 'thrust', 'swing', 'clean', 'snatch'}
+
+
+def _kb_score(query_words: set, key_words: set) -> float:
+    """F1 score with a bonus when query and key share the same movement word."""
+    overlap = len(query_words & key_words)
+    if overlap == 0:
+        return 0.0
+    recall = overlap / len(query_words)
+    precision = overlap / len(key_words)
+    f1 = 2 * recall * precision / (recall + precision)
+    # Bonus: if both query and key contain the same movement type word, prefer specificity
+    shared_movement = bool((query_words & _MOVEMENT_WORDS) & key_words)
+    return f1 + (0.15 if shared_movement else 0.0)
+
+
 def _lookup_exercise_images(name: str) -> list:
     import re as _re
     kb = _load_exercise_kb()
@@ -1409,27 +1509,21 @@ def _lookup_exercise_images(name: str) -> list:
 
     best_key, best_score = None, -1
     for key, urls in kb.items():
-        key_words = _tokenize(key)
-        overlap = len(query_words & key_words)
-        if overlap == 0:
-            continue
-        recall = overlap / len(query_words)
-        precision = overlap / len(key_words)
-        f1 = 2 * recall * precision / (recall + precision)
-        if f1 > best_score:
-            best_score = f1
+        score = _kb_score(query_words, _tokenize(key))
+        if score > best_score:
+            best_score = score
             best_key = key
 
     if best_key and best_score >= 0.5:
-        logger.info('exercise_kb hit for %r via key %r (f1=%.2f)', name, best_key, best_score)
+        logger.info('exercise_kb hit for %r via key %r (score=%.2f)', name, best_key, best_score)
         return kb[best_key][:2]
 
-    logger.info('exercise_kb miss for %r (best f1=%.2f)', name, best_score)
+    logger.info('exercise_kb miss for %r (best score=%.2f)', name, best_score)
     return []
 
 
 def _get_kb_candidates(name: str, top_n: int = 20) -> list:
-    """Return the top N KB keys by F1 score for Gemini to choose from."""
+    """Return the top N KB keys by score for Gemini to choose from."""
     import re as _re
     kb = _load_exercise_kb()
 
@@ -1451,14 +1545,9 @@ def _get_kb_candidates(name: str, top_n: int = 20) -> list:
 
     scored = []
     for key in kb:
-        key_words = _tokenize(key)
-        overlap = len(query_words & key_words)
-        if overlap == 0:
-            continue
-        recall = overlap / len(query_words)
-        precision = overlap / len(key_words)
-        f1 = 2 * recall * precision / (recall + precision)
-        scored.append((f1, key))
+        score = _kb_score(query_words, _tokenize(key))
+        if score > 0:
+            scored.append((score, key))
 
     scored.sort(reverse=True)
     return [key for _, key in scored[:top_n]]
@@ -2087,29 +2176,26 @@ def health_shortcuts_sync(request):
     conn.save(update_fields=['last_sync_at'])
 
     summary_count = HealthDailySummary.objects.filter(user=sync_user).count()
-    return Response({'status': 'ok', 'summaries_stored': summary_count})
+    return Response({'status': 'ok', 'summaries_stored': summary_count, 'fields_stored': list(defaults.keys())})
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_recovery(request):
-    from django.utils import timezone as _tz
-    today = _tz.now().date()
     rows = list(
         HealthDailySummary.objects
         .filter(user=request.user, resting_heart_rate__isnull=False)
         .order_by('-date')[:7]
     )
-    today_rhr = None
-    baseline_rows = []
-    for r in rows:
-        if r.date == today:
-            today_rhr = r.resting_heart_rate
-        else:
-            baseline_rows.append(r.resting_heart_rate)
+    if not rows:
+        return Response({'score': None, 'label': 'No data yet', 'today_rhr': None, 'baseline_rhr': None})
 
-    if today_rhr is None or not baseline_rows:
-        return Response({'score': None, 'label': 'No data yet', 'today_rhr': today_rhr, 'baseline_rhr': None})
+    # Use most recent record as "today" — avoids UTC vs local date mismatch
+    today_rhr = rows[0].resting_heart_rate
+    baseline_rows = [r.resting_heart_rate for r in rows[1:]]
+
+    if not baseline_rows:
+        return Response({'score': None, 'label': 'No data yet', 'today_rhr': round(today_rhr, 1), 'baseline_rhr': None})
 
     baseline = sum(baseline_rows) / len(baseline_rows)
     diff = today_rhr - baseline

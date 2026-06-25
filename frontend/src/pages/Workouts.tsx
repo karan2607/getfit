@@ -800,9 +800,13 @@ function getWeightLabel(exerciseName: string, unit: string): string {
   const n = exerciseName.toLowerCase()
   if (/dumbbell|db /.test(n)) return `Each (${unit})`
   if (/barbell|bb |squat|deadlift|bench press|overhead press|ohp/.test(n)) return `Bar weight (${unit})`
-  if (/plank|wall sit|hold|isometric/.test(n)) return 'Duration (sec)'
+  if (/plank|wall sit|hold|isometric|dead hang|farmer.?s? carry/i.test(n)) return 'Duration (sec)'
   if (/cable|machine/.test(n)) return `Stack (${unit})`
   return `Weight (${unit})`
+}
+
+function isTimeBased(exerciseName: string): boolean {
+  return /plank|wall sit|hold|isometric|dead hang|farmer.?s? carry/i.test(exerciseName)
 }
 
 type PendingLog = { weight_kg?: number | null; reps_completed?: number | null; is_completed?: boolean }
@@ -1027,10 +1031,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                 </div>
 
                 {/* Column labels */}
-                <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                <div className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
                   <span>#</span>
                   <span>{getWeightLabel(exerciseName, unit)}</span>
-                  <span>Reps done</span>
+                  {!isTimeBased(exerciseName) && <span>Reps done</span>}
                   <span />
                 </div>
 
@@ -1039,7 +1043,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   {logs.map((log) => (
                     <div
                       key={log.id}
-                      className={`grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 items-center px-4 py-2.5 transition-colors ${
+                      className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 items-center px-4 py-2.5 transition-colors ${
                         log.is_completed ? 'bg-emerald-50/70' : ''
                       }`}
                     >
@@ -1054,7 +1058,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         </span>
                       ) : (
                         <input
-                          type="number" min={0} step={0.5}
+                          type="number" min={0} step={isTimeBased(exerciseName) ? 1 : 0.5}
                           placeholder="0"
                           defaultValue={log.weight_kg != null
                             ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
@@ -1063,7 +1067,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                           className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
                         />
                       )}
-                      {isCompleted ? (
+                      {!isTimeBased(exerciseName) && (isCompleted ? (
                         <span className="text-sm text-gray-700 font-medium">
                           {log.reps_completed ?? '—'}
                         </span>
@@ -1074,7 +1078,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                           onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
                           className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
                         />
-                      )}
+                      ))}
                       <button
                         onClick={!isCompleted ? () => handleToggle(log) : undefined}
                         disabled={isCompleted}
@@ -1170,13 +1174,13 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
   const pb = history.reduce<number | null>((max, p) => p.weight_kg != null ? Math.max(max ?? 0, p.weight_kg) : max, null)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 sm:pb-4 bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh] sm:max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-bold text-gray-900 text-base">{name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
-        <div className="p-5">
+        <div className="overflow-y-auto flex-1 p-5">
           {loading ? (
             <SkeletonText lines={6} />
           ) : history.length === 0 ? (

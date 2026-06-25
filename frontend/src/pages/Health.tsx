@@ -31,10 +31,11 @@ function fmtDistance(m: number | null) {
 function fillLast7(summaries: HealthDailySummary[]): HealthDailySummary[] {
   const byDate: Record<string, HealthDailySummary> = {}
   summaries.forEach((s) => { byDate[s.date] = s })
+  const pad = (n: number) => String(n).padStart(2, '0')
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date()
     d.setDate(d.getDate() - (6 - i))
-    const key = d.toISOString().split('T')[0]
+    const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
     return byDate[key] ?? { date: key, steps: null, active_calories: null, resting_calories: null, resting_heart_rate: null, sleep_hours: null }
   })
 }
