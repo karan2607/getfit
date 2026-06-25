@@ -554,7 +554,7 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
 // ── Health Page ───────────────────────────────────────────────────────────────
 
 export default function Health() {
-  const [healthStatus, setHealthStatus] = useState<{ connected: boolean; provider: string | null; connected_at: string | null } | null>(null)
+  const [healthStatus, setHealthStatus] = useState<{ connected: boolean; provider: string | null; connected_at: string | null; last_sync_at?: string | null; latest_summary_date?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
 
   function loadStatus() {
