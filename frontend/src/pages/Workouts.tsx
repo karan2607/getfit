@@ -28,43 +28,97 @@ const EQUIPMENT_OPTIONS = [
   { value: 'home gym', label: 'Home gym' },
   { value: 'full gym', label: 'Full gym' },
 ]
+const SPECIFIC_GOALS = [
+  { id: 'lose_weight',      label: 'Lose weight',         icon: '⚖️', targetType: 'weight' as const },
+  { id: 'reduce_belly_fat', label: 'Reduce belly fat',    icon: '🎯' },
+  { id: 'build_muscle',     label: 'Build muscle',        icon: '💪' },
+  { id: 'run_distance',     label: 'Run a distance',      icon: '🏃', targetType: 'distance' as const },
+  { id: 'get_stronger',     label: 'Get stronger',        icon: '🏋️' },
+  { id: 'improve_stamina',  label: 'Improve stamina',     icon: '⚡' },
+  { id: 'better_posture',   label: 'Better posture',      icon: '🧘' },
+]
+const DISTANCE_OPTIONS = ['5K', '10K', 'Half marathon', 'Full marathon']
 
 function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p: WorkoutPlan) => void }) {
   const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
-  const [step, setStep] = useState<'form' | 'preview'>('form')
-  const [generating, setGenerating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [preview, setPreview] = useState<WorkoutPlanPreview | null>(null)
-  const [chatOpen, setChatOpen] = useState(false)
+
+  // Step state
+  const [step, setStep] = useState<'form' | 'goals' | 'recommendation' | 'preview'>('form')
+
+  // Step 1 — basics
   const [daysPerWeek, setDaysPerWeek] = useState(4)
   const [durationWeeks, setDurationWeeks] = useState(8)
   const [fitnessGoal, setFitnessGoal] = useState<string>(user?.profile?.fitness_goal ?? 'build_muscle')
   const [experienceLevel, setExperienceLevel] = useState<string>(user?.profile?.experience_level ?? 'intermediate')
   const [equipment, setEquipment] = useState('full gym')
-  const [notes, setNotes] = useState('')
-  const [specificGoal, setSpecificGoal] = useState('')
   const [latestScan, setLatestScan] = useState<{ physique_category: string; body_fat_pct: number | null; muscle_mass_note: string; recommendations: string } | null>(null)
   const [bodyPhoto, setBodyPhoto] = useState<File | null>(null)
-
   const [useBodyContext, setUseBodyContext] = useState(false)
+
+  // Step 2 — specific goals
+  const [specificGoals, setSpecificGoals] = useState<string[]>([])
+  const [goalParams, setGoalParams] = useState<Record<string, { amount?: number; unit?: string; distance?: string }>>({})
+  const [notes, setNotes] = useState('')
+
+  // Step 3 — AI recommendation
+  const [loadingRec, setLoadingRec] = useState(false)
+  const [targetRec, setTargetRec] = useState<{ message: string; program_target: WorkoutPlan['program_target'] } | null>(null)
+  const [editedTarget, setEditedTarget] = useState<number | null>(null)
+
+  // Step 4 — preview
+  const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState<WorkoutPlanPreview | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     api.body.history().then((results) => {
-      if (results.length > 0) {
-        setLatestScan(results[0])
-        setUseBodyContext(true)
-      }
+      if (results.length > 0) { setLatestScan(results[0]); setUseBodyContext(true) }
     }).catch(() => {})
   }, [])
 
+  function getBodyContext() {
+    return useBodyContext && latestScan
+      ? `Physique: ${latestScan.physique_category}. Body fat: ${latestScan.body_fat_pct}%. ${latestScan.muscle_mass_note} ${latestScan.recommendations}`.trim()
+      : undefined
+  }
+
+  function toggleGoal(id: string) {
+    setSpecificGoals(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id])
+  }
+
+  async function handleGetRecommendation() {
+    setLoadingRec(true)
+    try {
+      const result = await api.workouts.suggestTarget({
+        fitness_goal: fitnessGoal,
+        experience_level: experienceLevel,
+        days_per_week: daysPerWeek,
+        duration_weeks: durationWeeks,
+        equipment,
+        specific_goals: specificGoals,
+        goal_params: goalParams,
+        notes,
+        body_context: getBodyContext(),
+      })
+      setTargetRec(result)
+      setEditedTarget(result.program_target?.recommended_value ?? null)
+      setStep('recommendation')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setLoadingRec(false)
+    }
+  }
+
   async function handleGenerate() {
     setGenerating(true)
+    const confirmedTarget = targetRec?.program_target
+      ? { ...targetRec.program_target, recommended_value: editedTarget ?? targetRec.program_target.recommended_value }
+      : undefined
     try {
-      const body_context = useBodyContext && latestScan
-        ? `Physique: ${latestScan.physique_category}. Body fat: ${latestScan.body_fat_pct}%. ${latestScan.muscle_mass_note} ${latestScan.recommendations}`.trim()
-        : undefined
       const data = await api.workouts.generatePlan({
         days_per_week: daysPerWeek,
         duration_weeks: durationWeeks,
@@ -72,8 +126,11 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
         experience_level: experienceLevel,
         equipment,
         notes,
-        body_context,
+        body_context: getBodyContext(),
         body_photo: bodyPhoto ?? undefined,
+        specific_goals: specificGoals,
+        goal_params: goalParams,
+        confirmed_target: confirmedTarget,
       })
       setPreview(data)
       setStep('preview')
@@ -88,7 +145,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
     if (!preview) return
     setSaving(true)
     try {
-      const saved = await api.workouts.savePlan({ ...preview, specific_goal: specificGoal })
+      const saved = await api.workouts.savePlan(preview)
       showToast('Plan saved!')
       onSaved(saved)
       navigate(`/workouts/${saved.id}`)
@@ -99,18 +156,44 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
     }
   }
 
+  // For preview display: show week 1 if multi-week plan
+  const previewDays = preview?.weeks ? preview.weeks[0] : (preview?.days ?? [])
+  const totalWeeks = preview?.weeks?.length ?? preview?.duration_weeks ?? 1
+
+  const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors'
+  const chipBase = (active: boolean) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-gray-700 border-gray-200 hover:border-brand-300'}`
+
+  // Step indicator
+  const STEPS = ['Basics', 'Your Goals', 'AI Recommendation', 'Preview']
+  const stepIdx = { form: 0, goals: 1, recommendation: 2, preview: 3 }[step]
+
   return (
     <div>
-      <PageHeader title="Generate Plan" subtitle="AI will create a plan tailored to your preferences" />
-      <div className="p-6 max-w-2xl">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
-          ← Back to plans
+      <PageHeader title="Create Plan" subtitle="AI-powered, personalised for you" />
+      <div className="p-4 md:p-6 max-w-2xl">
+        <button onClick={step === 'form' ? onBack : () => setStep(step === 'goals' ? 'form' : step === 'recommendation' ? 'goals' : 'recommendation')}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors">
+          ← {step === 'form' ? 'Back to plans' : 'Back'}
         </button>
 
+        {/* Step indicator */}
+        <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex items-center gap-1 flex-shrink-0">
+              <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${i === stepIdx ? 'bg-brand-500 text-white' : i < stepIdx ? 'bg-brand-100 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>
+                <span>{i < stepIdx ? '✓' : i + 1}</span>
+                <span>{s}</span>
+              </div>
+              {i < STEPS.length - 1 && <div className={`w-4 h-px flex-shrink-0 ${i < stepIdx ? 'bg-brand-300' : 'bg-gray-200'}`} />}
+            </div>
+          ))}
+        </div>
+
+        {/* ── STEP 1: Basics ── */}
         {step === 'form' && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Goal</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Primary goal</label>
               <div className="flex gap-2">
                 {GOAL_OPTIONS.map((g) => (
                   <button key={g.value} onClick={() => setFitnessGoal(g.value)}
@@ -121,7 +204,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Experience level</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Experience level</label>
               <div className="flex gap-2">
                 {LEVEL_OPTIONS.map((l) => (
                   <button key={l.value} onClick={() => setExperienceLevel(l.value)}
@@ -132,7 +215,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Days per week</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Days per week</label>
               <div className="flex gap-2">
                 {[2, 3, 4, 5, 6].map((d) => (
                   <button key={d} onClick={() => setDaysPerWeek(d)}
@@ -143,7 +226,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Duration</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Duration</label>
               <div className="flex gap-2">
                 {[4, 6, 8, 12].map((w) => (
                   <button key={w} onClick={() => setDurationWeeks(w)}
@@ -154,7 +237,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Equipment</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Equipment</label>
               <div className="flex gap-2">
                 {EQUIPMENT_OPTIONS.map((e) => (
                   <button key={e.value} onClick={() => setEquipment(e.value)}
@@ -164,89 +247,174 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
                 ))}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Specific goal <span className="text-gray-400 font-normal">(optional — your target for this program)</span>
-              </label>
-              <input
-                type="text"
-                value={specificGoal}
-                onChange={(e) => setSpecificGoal(e.target.value)}
-                placeholder="e.g. Lose 5kg, bench press 100kg, run 5km..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4"
-              />
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes <span className="text-gray-400 font-normal">(injuries, preferences)</span>
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                placeholder="e.g. bad lower back, want to focus on upper body, no squats..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-            <div className="border-t border-gray-100 pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">Body context <span className="text-gray-400 font-normal">(optional — helps AI personalise weights)</span></label>
-
-              {latestScan ? (
-                <div className="flex items-start gap-3">
-                  <div className={`flex-1 rounded-xl border p-3 cursor-pointer transition-colors ${useBodyContext ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-white'}`} onClick={() => setUseBodyContext(v => !v)}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${useBodyContext ? 'border-brand-500 bg-brand-500' : 'border-gray-300'}`} />
-                      <p className="text-sm font-semibold text-gray-900">Use latest body scan</p>
-                    </div>
-                    <p className="text-xs text-gray-500 pl-6">{latestScan.physique_category}{latestScan.body_fat_pct ? ` · ${latestScan.body_fat_pct}% body fat` : ''}</p>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-2">
-                <label className="block text-xs text-gray-500 mb-1.5">Or upload a new photo</label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-brand-500 hover:text-brand-600 font-medium">
-                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setBodyPhoto(await compressImage(f)) }} />
-                  {bodyPhoto ? `📷 ${bodyPhoto.name}` : '+ Upload photo'}
-                </label>
-                {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-red-400 mt-1">Remove</button>}
-              </div>
-            </div>
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
-            >
-              {generating ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Generating plan...
-                </span>
-              ) : 'Generate my plan'}
+            <button onClick={() => setStep('goals')} className={btnBase}>
+              Next: Your Goals →
             </button>
           </div>
         )}
 
+        {/* ── STEP 2: Specific Goals ── */}
+        {step === 'goals' && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
+            <div>
+              <p className="text-base font-semibold text-gray-900 mb-1">What are you working towards?</p>
+              <p className="text-sm text-gray-500 mb-4">Select all that apply — mix and match freely.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {SPECIFIC_GOALS.map((g) => {
+                  const active = specificGoals.includes(g.id)
+                  return (
+                    <div key={g.id}>
+                      <button onClick={() => toggleGoal(g.id)} className={`w-full text-left ${chipBase(active)}`}>
+                        <span>{g.icon}</span>
+                        <span>{g.label}</span>
+                      </button>
+                      {active && g.targetType === 'weight' && (
+                        <div className="mt-1.5 flex items-center gap-2 px-1">
+                          <span className="text-xs text-gray-500">Lose</span>
+                          <input
+                            type="number" min={1} max={50}
+                            value={goalParams['lose_weight']?.amount ?? ''}
+                            onChange={(e) => setGoalParams(p => ({ ...p, lose_weight: { ...p.lose_weight, amount: Number(e.target.value) } }))}
+                            placeholder="kg"
+                            className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-400"
+                          />
+                          <select
+                            value={goalParams['lose_weight']?.unit ?? 'kg'}
+                            onChange={(e) => setGoalParams(p => ({ ...p, lose_weight: { ...p.lose_weight, unit: e.target.value } }))}
+                            className="border border-gray-200 rounded-lg px-1 py-1 text-xs focus:outline-none"
+                          >
+                            <option>kg</option><option>lb</option>
+                          </select>
+                        </div>
+                      )}
+                      {active && g.targetType === 'distance' && (
+                        <div className="mt-1.5 flex flex-wrap gap-1 px-1">
+                          {DISTANCE_OPTIONS.map((d) => (
+                            <button key={d} onClick={() => setGoalParams(p => ({ ...p, run_distance: { distance: d } }))}
+                              className={`text-xs px-2 py-1 rounded-lg border transition-colors ${goalParams['run_distance']?.distance === d ? 'bg-brand-500 text-white border-brand-500' : 'border-gray-200 text-gray-600 hover:border-brand-300'}`}>
+                              {d}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Injuries or limitations <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={notes} onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                placeholder="e.g. bad lower back, no squats, recovering from shoulder injury..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Body context <span className="text-gray-400 font-normal">(helps AI personalise weights)</span></label>
+              {latestScan && (
+                <div className={`rounded-xl border p-3 cursor-pointer transition-colors mb-2 ${useBodyContext ? 'border-brand-400 bg-brand-50' : 'border-gray-200'}`} onClick={() => setUseBodyContext(v => !v)}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${useBodyContext ? 'border-brand-500 bg-brand-500' : 'border-gray-300'}`} />
+                    <p className="text-sm font-medium text-gray-900">Use latest body scan</p>
+                  </div>
+                  <p className="text-xs text-gray-500 pl-6 mt-0.5">{latestScan.physique_category}{latestScan.body_fat_pct ? ` · ${latestScan.body_fat_pct}% body fat` : ''}</p>
+                </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-brand-500 hover:text-brand-600 font-medium">
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setBodyPhoto(await compressImage(f)) }} />
+                {bodyPhoto ? `📷 ${bodyPhoto.name}` : '+ Upload body photo'}
+              </label>
+              {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-red-400 mt-1">Remove</button>}
+            </div>
+
+            <button onClick={handleGetRecommendation} disabled={loadingRec} className={btnBase}>
+              {loadingRec ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Analyzing your goals...
+                </span>
+              ) : 'Get AI Recommendation →'}
+            </button>
+          </div>
+        )}
+
+        {/* ── STEP 3: AI Recommendation ── */}
+        {step === 'recommendation' && targetRec && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0 text-lg">🤖</div>
+                <p className="text-sm text-gray-700 leading-relaxed">{targetRec.message}</p>
+              </div>
+
+              {targetRec.program_target && (
+                <div className="bg-brand-50 border border-brand-100 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-brand-600 mb-2 uppercase tracking-wide">Recommended target</p>
+                  <p className="text-sm font-semibold text-gray-900 mb-3">{targetRec.program_target.label}</p>
+                  <div className="flex items-center gap-3">
+                    {targetRec.program_target.current_value != null && (
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-gray-400">{targetRec.program_target.current_value}</p>
+                        <p className="text-xs text-gray-400">Current</p>
+                      </div>
+                    )}
+                    {targetRec.program_target.current_value != null && <div className="text-gray-300 text-lg">→</div>}
+                    <div className="text-center">
+                      <input
+                        type="number"
+                        value={editedTarget ?? ''}
+                        onChange={(e) => setEditedTarget(Number(e.target.value))}
+                        className="w-20 text-center text-2xl font-extrabold text-brand-600 bg-white border-2 border-brand-300 rounded-xl py-1 focus:outline-none focus:border-brand-500"
+                      />
+                      <p className="text-xs text-brand-500 mt-0.5">Target (tap to edit)</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button onClick={handleGenerate} disabled={generating} className={btnBase}>
+              {generating ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Building your {durationWeeks}-week plan...
+                </span>
+              ) : `Generate my ${durationWeeks}-week plan →`}
+            </button>
+          </div>
+        )}
+
+        {/* ── STEP 4: Preview ── */}
         {step === 'preview' && preview && (
           <>
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{preview.title}</h2>
-                {preview.description && <p className="text-sm text-gray-500 mt-1">{preview.description}</p>}
+                <h2 className="text-lg font-bold text-gray-900">{preview.title}</h2>
+                {preview.description && <p className="text-sm text-gray-500 mt-0.5">{preview.description}</p>}
               </div>
-              <button
-                onClick={() => setChatOpen(true)}
-                className="text-sm text-brand-500 bg-brand-50 hover:bg-brand-100 font-semibold px-3 py-1.5 rounded-lg transition-colors"
-              >
-                ✨ Regenerate with AI
+              <button onClick={() => setChatOpen(true)}
+                className="text-sm text-brand-500 bg-brand-50 hover:bg-brand-100 font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 ml-2">
+                ✨ Refine
               </button>
             </div>
 
-            <div className="space-y-3 mb-6">
-              {preview.days.map((day) => (
+            {totalWeeks > 1 && (
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mb-3">
+                Showing <strong>Week 1</strong> preview · {totalWeeks} weeks total with progressive variation
+              </p>
+            )}
+
+            <div className="space-y-3 mb-5">
+              {previewDays.map((day) => (
                 <div key={day.day_number} className="bg-white rounded-2xl border border-gray-100 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center">
-                      {day.day_number}
-                    </span>
+                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center">{day.day_number}</span>
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
                       {day.focus && <p className="text-xs text-gray-500">{day.focus}</p>}
@@ -267,11 +435,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               ))}
             </div>
 
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
-            >
+            <button onClick={handleSave} disabled={saving} className={btnBase}>
               {saving ? 'Saving...' : 'Save this plan'}
             </button>
 

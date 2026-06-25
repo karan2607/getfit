@@ -617,49 +617,156 @@ def _auto_title(session: ChatSession, first_user_message: str) -> str:
 def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
                               fitness_goal: str = '', experience_level: str = '',
                               equipment: str = '', notes: str = '',
-                              body_context: str = '', preferred_unit: str = 'lb') -> tuple[str, str]:
-    system = (
-        f'You are an expert personal trainer. Generate a structured workout plan as valid JSON only. '
-        f'No markdown, no explanation — just the JSON object. '
-        f'Express all weights in {preferred_unit}. '
-        f'Include specific starting weight recommendations in each exercise\'s "notes" field based on the user\'s level and body context.'
-    )
+                              body_context: str = '', preferred_unit: str = 'lb',
+                              specific_goals: list = None, goal_params: dict = None,
+                              confirmed_target: dict = None,
+                              past_exercises: list = None) -> tuple[str, str]:
     goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
     goal = goal_map.get(fitness_goal or getattr(profile, 'fitness_goal', '') or '', 'general fitness')
     level = experience_level or getattr(profile, 'experience_level', 'beginner') or 'beginner'
     equip = equipment or 'full gym'
 
-    user = (
-        f'Generate a complete {duration_weeks}-week workout plan for a {level} with the goal of {goal}. '
-        f'Train {days_per_week} days per week. '
-        f'Available equipment: {equip}. '
-        + (f'Additional notes: {notes}. ' if notes else '')
-        + (f'Body context: {body_context}. ' if body_context else '')
-        + f'IMPORTANT: You MUST generate all {duration_weeks} weeks. Each week should have DIFFERENT exercises '
-        f'to provide progressive overload and variation (e.g. Week 1-2: foundation/hypertrophy, '
-        f'Week 3-4: volume increase, Week 5-6: intensity/strength, Week 7-8: peak or deload). '
-        f'Rotate exercises within the same muscle groups across weeks — do not repeat the same exercise list every week. '
-        f'Return JSON with a "weeks" array (one entry per week, each entry is an array of day objects). '
-        'Schema:\n'
-        '{\n'
-        '  "title": "string",\n'
-        '  "description": "string",\n'
-        '  "duration_weeks": number,\n'
-        '  "weeks": [\n'
-        '    [\n'
-        '      {\n'
-        '        "day_number": number,\n'
-        '        "name": "string",\n'
-        '        "focus": "string",\n'
-        '        "is_rest_day": boolean,\n'
-        '        "exercises": [\n'
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
-        '        ]\n'
-        '      }\n'
-        '    ]\n'
-        '  ]\n'
-        '}'
+    system = (
+        f'You are a certified personal trainer, strength and conditioning coach, and sports scientist '
+        f'with 15+ years of experience. Design evidence-based programs for clients of all levels. '
+        f'Return valid JSON only — no markdown, no explanation outside the JSON object. '
+        f'Express all weights in {preferred_unit}.\n\n'
+
+        'YOUR DESIGN PRINCIPLES:\n'
+        '- Read every detail of the client profile before designing anything\n'
+        '- Apply periodization based on goal + experience — never a generic template\n'
+        '- Every exercise choice must serve the goal\n'
+        '- Progressive overload is non-negotiable: the program MUST get harder week to week\n\n'
+
+        'PERIODIZATION STYLES:\n'
+        'LINEAR (beginners): Same exercises each week, increase weight linearly. '
+        'Full-body 3x/week. Simple progression: 3x8-12, add weight when all reps completed.\n\n'
+
+        'BLOCK PERIODIZATION (intermediate/advanced):\n'
+        '  Accumulation: high volume, moderate intensity — 4x10-15, 60-75s rest\n'
+        '  Intensification: moderate volume, high intensity — 4x5-8, 90-120s rest\n'
+        '  Realization/Peak: low volume, max intensity — 3x3-5, 2-3 min rest\n'
+        '  Deload (advanced, every 4th week): 50-60% volume reduction, same exercises\n\n'
+
+        'UNDULATING (advanced or hybrid goals):\n'
+        '  Vary rep ranges within same week: Mon power (3x5), Wed hypertrophy (4x10), Fri endurance (3x15)\n\n'
+
+        'GOAL-SPECIFIC PROGRAMMING:\n\n'
+
+        'MUSCLE GAIN:\n'
+        '- Foundation: squat, deadlift, bench press, barbell row, overhead press\n'
+        '- Rep range 6-12 for hypertrophy, 60-90s rest. Volume: 10-20 sets/muscle group/week\n'
+        '- Progression within phase: add 1 rep/week until top of range, then add weight and reset\n'
+        '- 8-week structure: Wk1-4 Accumulation (4x10-12) → Wk5-7 Intensification (4x5-8) → Wk8 Deload\n\n'
+
+        'FAT LOSS:\n'
+        '- Metabolic resistance training: compound movements, supersets, short rest (30-45s)\n'
+        '- Rep range 12-20. Full-body circuits for max calorie burn\n'
+        '- Include strength work to preserve muscle mass\n'
+        '- Add 10-15 min metabolic finisher at end of each session\n'
+        '- 8-week structure: Wk1-3 Circuits (15-20 reps, 30s rest) → Wk4-6 Superset strength (10-15) → Wk7-8 Strength maintenance\n\n'
+
+        'HYBRID (e.g. muscle gain + fat loss, strength + running):\n'
+        '- 70% training towards primary goal, 30% towards secondary\n'
+        '- Muscle + fat loss: heavy strength days with 10-min metabolic finisher each session\n'
+        '- Strength + running: lift Mon/Wed/Fri, conditioning Tue/Thu; never heavy lift and long cardio same day\n\n'
+
+        'MAINTAIN:\n'
+        '- Balanced upper/lower or full-body. Consistent 3x10-12, 60-90s rest\n'
+        '- Rotate exercise variations every 4 weeks to prevent adaptation\n\n'
+
+        'EXPERIENCE RULES:\n'
+        '- BEGINNER: Full-body 3x/week, basic compounds only, linear progression, 3x8-12\n'
+        '- INTERMEDIATE: Push/pull/legs or upper/lower, block periodization, more variety\n'
+        '- ADVANCED: RPE-based loading, undulating periodization, mandatory deload every 4th week\n\n'
+
+        'EXERCISE SELECTION (priority order):\n'
+        '1. Primary compound: squat/hinge/horizontal push/vertical pull/loaded carry\n'
+        '2. Secondary compound: lunge, dip, cable row, incline/decline variation\n'
+        '3. Isolation accessory: curl, extension, lateral raise — supplementary only\n\n'
+
+        'PAST EXERCISE CONTEXT:\n'
+        'Client\'s previous program exercises are provided for reference. '
+        'Repeat them if they are the optimal choice. Vary them if the phase calls for a different stimulus. '
+        'Never avoid an exercise just because it appeared before — effectiveness over novelty.\n\n'
+
+        'NOTES FIELD (mandatory for every exercise):\n'
+        f'Format: "Start [weight]{preferred_unit}. Add [increment] when all sets completed with good form."\n'
+        f'Example: "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."'
     )
+
+    # Build the structured user prompt
+    age = getattr(profile, 'age', None) if profile else None
+    gender = getattr(profile, 'gender', None) if profile else None
+    weight = getattr(profile, 'weight_kg', None) if profile else None
+    height = getattr(profile, 'height_cm', None) if profile else None
+    personal_notes = getattr(profile, 'personal_notes', '') if profile else ''
+
+    profile_line = f'Client: {age}yo {gender}, {weight}{preferred_unit}, {height}cm' if all([age, gender, weight, height]) else ''
+
+    specific_goals_line = ''
+    if specific_goals:
+        goal_labels = {
+            'lose_weight': 'lose weight', 'reduce_belly_fat': 'reduce belly fat',
+            'build_muscle': 'build muscle', 'run_distance': 'run a distance goal',
+            'get_stronger': 'get stronger', 'improve_stamina': 'improve stamina/energy',
+            'better_posture': 'improve posture/mobility',
+        }
+        goal_strs = [goal_labels.get(g, g) for g in specific_goals]
+        if goal_params:
+            if 'lose_weight' in goal_params:
+                p = goal_params['lose_weight']
+                goal_strs = [f"lose {p.get('amount', '')} {p.get('unit', preferred_unit)}" if g == 'lose weight' else g for g in goal_strs]
+            if 'run_distance' in goal_params:
+                p = goal_params['run_distance']
+                goal_strs = [f"run {p.get('distance', '5K')}" if g == 'run a distance goal' else g for g in goal_strs]
+        specific_goals_line = f'Specific goals: {", ".join(goal_strs)}'
+
+    target_line = ''
+    if confirmed_target:
+        target_line = (f'Confirmed program target: {confirmed_target.get("label", "")} = '
+                       f'{confirmed_target.get("recommended_value", "")} '
+                       f'(current: {confirmed_target.get("current_value", "unknown")})')
+
+    past_line = f'Previous program exercises (for reference): {", ".join(past_exercises[:30])}' if past_exercises else 'Previous exercises: none (first program)'
+
+    phases = '1 phase, linear progression' if duration_weeks <= 4 else ('2-3 phases' if duration_weeks <= 8 else '3-4 phases, deload every 4th week')
+
+    user = '\n'.join(filter(None, [
+        profile_line,
+        f'Personal notes/limitations: {personal_notes}' if personal_notes else '',
+        f'Primary goal: {goal} | Experience: {level} | Equipment: {equip}',
+        specific_goals_line,
+        target_line,
+        f'Days/week: {days_per_week} | Duration: {duration_weeks} weeks',
+        f'Extra notes: {notes}' if notes else '',
+        f'Body context: {body_context}' if body_context else '',
+        past_line,
+        '',
+        f'Design the optimal {duration_weeks}-week plan for this specific person using your full trainer expertise.',
+        f'Structure into {phases}. Consider ALL stated goals — blend programming for hybrid goals.',
+        'Within each phase increase overload week-to-week (sets or reduced rest before adding load).',
+        f'Return ALL {duration_weeks} weeks in the weeks array.',
+        'Schema:',
+        '{',
+        '  "title": "string",',
+        '  "description": "string",',
+        '  "duration_weeks": number,',
+        '  "weeks": [',
+        '    [',
+        '      {',
+        '        "day_number": number,',
+        '        "name": "string",',
+        '        "focus": "string",',
+        '        "is_rest_day": boolean,',
+        '        "exercises": [',
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}',
+        '        ]',
+        '      }',
+        '    ]',
+        '  ]',
+        '}',
+    ]))
     return system, user
 
 
@@ -687,6 +794,91 @@ def _validate_plan_json(data: dict) -> None:
         if not day.get('is_rest_day', False):
             if not isinstance(day.get('exercises', []), list):
                 raise ValueError('exercises must be a list')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_suggest_target(request):
+    """Light Gemini call: given user profile + goals, return a recommended measurable target."""
+    from .gemini import call_gemini_json, GeminiError as _GeminiError
+
+    try:
+        profile = request.user.profile
+    except Exception:
+        profile = None
+
+    preferred_unit = getattr(profile, 'preferred_unit', 'lb') or 'lb'
+    age = getattr(profile, 'age', None) if profile else None
+    gender = getattr(profile, 'gender', None) if profile else None
+    weight = getattr(profile, 'weight_kg', None) if profile else None
+    height = getattr(profile, 'height_cm', None) if profile else None
+
+    fitness_goal = request.data.get('fitness_goal', '')
+    experience_level = request.data.get('experience_level', '')
+    days_per_week = request.data.get('days_per_week', 4)
+    duration_weeks = request.data.get('duration_weeks', 8)
+    specific_goals = request.data.get('specific_goals', [])
+    goal_params = request.data.get('goal_params', {})
+    notes = request.data.get('notes', '')
+    body_context = request.data.get('body_context', '')
+
+    goal_label_map = {
+        'lose_weight': 'lose weight', 'reduce_belly_fat': 'reduce belly fat',
+        'build_muscle': 'build muscle', 'run_distance': 'run a distance goal',
+        'get_stronger': 'get stronger', 'improve_stamina': 'improve stamina/energy',
+        'better_posture': 'improve posture/mobility',
+    }
+    goal_strs = [goal_label_map.get(g, g) for g in specific_goals]
+    if goal_params.get('lose_weight'):
+        p = goal_params['lose_weight']
+        goal_strs = [f"lose {p.get('amount', '')} {p.get('unit', preferred_unit)}" if 'lose weight' in g else g for g in goal_strs]
+    if goal_params.get('run_distance'):
+        p = goal_params['run_distance']
+        goal_strs = [f"run {p.get('distance', '5K')}" if 'distance' in g else g for g in goal_strs]
+
+    system = (
+        'You are a certified personal trainer and sports scientist with 15 years of experience. '
+        'Analyze the client profile and goals and return a realistic, motivating, personalized '
+        'program target recommendation as JSON only. No markdown, no explanation.\n\n'
+        'REALISTIC TARGET RATES:\n'
+        '- Weight loss: 0.5-1 kg/week (1-2 lb/week) is healthy. Never recommend exceeding this.\n'
+        '- Muscle gain: 0.5-1 kg/month for intermediate, 0.25-0.5 kg/month for advanced.\n'
+        '- Running: beginner 0→5K in 6-8 wks; 5K→10K in 6-8 wks; 10K→half marathon in 10-12 wks.\n'
+        '- Strength: beginner adds 5 lb/week on main lifts; intermediate 5 lb/month.\n'
+        '- Body fat reduction: 0.5-1% per month realistic with resistance training.\n\n'
+        'If user has multiple specific goals, pick the single most important measurable target. '
+        'Mention secondary goals in the message.\n\n'
+        'Return exactly:\n'
+        '{\n'
+        '  "message": "2-3 sentences, warm and direct. Start with your assessment. State the recommendation with reasoning. End with motivation.",\n'
+        '  "program_target": {\n'
+        '    "metric": "weight_kg|weight_lb|running_km|running_miles|lift_kg|lift_lb|body_fat_pct",\n'
+        '    "label": "Human-readable label e.g. Target weight",\n'
+        '    "recommended_value": <number>,\n'
+        '    "current_value": <number or null>\n'
+        '  }\n'
+        '}'
+    )
+
+    goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
+    primary = goal_map.get(fitness_goal, fitness_goal or 'general fitness')
+
+    user_parts = [
+        f'Client profile: {age}yo {gender}, current weight {weight}{preferred_unit}, height {height}cm' if all([age, gender, weight, height]) else 'Client profile: not provided',
+        f'Primary goal: {primary} | Experience: {experience_level or "unknown"}',
+        f'Duration: {duration_weeks} weeks, {days_per_week} days/week',
+        f'Specific goals: {", ".join(goal_strs)}' if goal_strs else 'No specific secondary goals',
+        f'Notes / limitations: {notes}' if notes else '',
+        f'Body context: {body_context}' if body_context else '',
+    ]
+    user_prompt = '\n'.join(p for p in user_parts if p)
+
+    try:
+        result = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
+    except _GeminiError as e:
+        return Response({'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    return Response(result)
 
 
 @api_view(['POST'])
@@ -721,6 +913,10 @@ def workout_plan_generate(request):
         except Exception:
             pass
 
+    specific_goals = request.data.get('specific_goals', [])
+    goal_params = request.data.get('goal_params', {})
+    confirmed_target = request.data.get('confirmed_target', None)
+
     try:
         profile = request.user.profile
     except Exception:
@@ -732,11 +928,25 @@ def workout_plan_generate(request):
     except Exception:
         pass
 
+    # Gather past exercises as context for the AI (not a blocklist — AI decides whether to repeat)
+    past_exercises = []
+    try:
+        for pp in WorkoutPlan.objects.filter(user=request.user).prefetch_related(
+                'days__exercises').order_by('-created_at')[:2]:
+            for day in pp.days.all():
+                for ex in day.exercises.all():
+                    if ex.name not in past_exercises:
+                        past_exercises.append(ex.name)
+    except Exception:
+        pass
+
     system, user_prompt = _workout_generate_prompt(
         profile, days_per_week, duration_weeks,
         fitness_goal=fitness_goal, experience_level=experience_level,
         equipment=equipment, notes=notes, body_context=body_context,
         preferred_unit=preferred_unit,
+        specific_goals=specific_goals, goal_params=goal_params,
+        confirmed_target=confirmed_target, past_exercises=past_exercises,
     )
 
     try:
@@ -748,6 +958,10 @@ def workout_plan_generate(request):
         _validate_plan_json(plan_data)
     except ValueError as e:
         return Response({'detail': f'AI returned invalid plan: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    # Attach the confirmed target so the frontend can save it with the plan
+    if confirmed_target:
+        plan_data['program_target'] = confirmed_target
 
     return Response(plan_data)
 
@@ -1737,7 +1951,7 @@ def health_status(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_summary(request):
-    summaries = HealthDailySummary.objects.filter(user=request.user)[:30]
+    summaries = HealthDailySummary.objects.filter(user=request.user).order_by('-date')[:30]
     data = [
         {
             'date': s.date.isoformat(),
@@ -1755,7 +1969,7 @@ def health_summary(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_workouts(request):
-    workouts = HealthWorkout.objects.filter(user=request.user)[:20]
+    workouts = HealthWorkout.objects.filter(user=request.user).order_by('-start_time')[:20]
     data = [
         {
             'id': str(w.id),

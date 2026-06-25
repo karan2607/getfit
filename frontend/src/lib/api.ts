@@ -142,6 +142,21 @@ export const api = {
   },
 
   workouts: {
+    suggestTarget: (data: {
+      fitness_goal?: string
+      experience_level?: string
+      days_per_week: number
+      duration_weeks: number
+      equipment?: string
+      specific_goals?: string[]
+      goal_params?: Record<string, unknown>
+      notes?: string
+      body_context?: string
+    }) =>
+      request<{ message: string; program_target: WorkoutPlan['program_target'] }>(
+        '/api/workouts/plans/suggest-target/', { method: 'POST', body: JSON.stringify(data) }
+      ),
+
     generatePlan: (data: {
       days_per_week: number
       duration_weeks: number
@@ -151,11 +166,15 @@ export const api = {
       notes?: string
       body_context?: string
       body_photo?: File
+      specific_goals?: string[]
+      goal_params?: Record<string, unknown>
+      confirmed_target?: WorkoutPlan['program_target']
     }) => {
       if (data.body_photo) {
         const fd = new FormData()
         Object.entries(data).forEach(([k, v]) => {
           if (k === 'body_photo') fd.append('body_photo', v as File)
+          else if (k === 'specific_goals' || k === 'goal_params' || k === 'confirmed_target') fd.append(k, JSON.stringify(v))
           else if (v !== undefined) fd.append(k, String(v))
         })
         return request<WorkoutPlanPreview>('/api/workouts/plans/generate/', { method: 'POST', body: fd })
@@ -383,6 +402,20 @@ export interface WorkoutPlanDetail extends WorkoutPlan {
   days: WorkoutDay[]
 }
 
+export type PreviewDay = {
+  day_number: number
+  name: string
+  focus?: string
+  is_rest_day: boolean
+  exercises: Array<{
+    name: string
+    sets: number
+    reps: string
+    rest_seconds?: number
+    notes?: string
+  }>
+}
+
 export interface WorkoutPlanPreview {
   title: string
   description?: string
@@ -390,19 +423,8 @@ export interface WorkoutPlanPreview {
   specific_goal?: string
   program_target?: WorkoutPlan['program_target']
   generated_by_ai?: boolean
-  days: Array<{
-    day_number: number
-    name: string
-    focus?: string
-    is_rest_day: boolean
-    exercises: Array<{
-      name: string
-      sets: number
-      reps: string
-      rest_seconds?: number
-      notes?: string
-    }>
-  }>
+  days?: PreviewDay[]
+  weeks?: PreviewDay[][]
 }
 
 export interface SetLog {

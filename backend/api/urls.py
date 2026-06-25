@@ -19,6 +19,7 @@ urlpatterns = [
     path('chat/sessions/<uuid:session_id>/', views.chat_session_detail, name='chat-session-detail'),
     path('chat/sessions/<uuid:session_id>/messages/', csrf_exempt(views.chat_message_stream), name='chat-message-stream'),
     # Workout Planner
+    path('workouts/plans/suggest-target/', views.workout_plan_suggest_target, name='workout-plan-suggest-target'),
     path('workouts/plans/generate/', views.workout_plan_generate, name='workout-plan-generate'),
     path('workouts/plans/', views.workout_plans, name='workout-plans'),
     path('workouts/plans/<uuid:plan_id>/', views.workout_plan_detail, name='workout-plan-detail'),
