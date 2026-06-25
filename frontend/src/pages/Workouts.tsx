@@ -733,45 +733,63 @@ function PlanDetail({ planId }: { planId: string }) {
           </div>
         </div>
 
-        {/* Repeat weeks (collapsed) */}
+        {/* Other weeks (collapsed) */}
         {hasRepeatWeeks && (
           <div
             onClick={() => setWeeksExpanded((v) => !v)}
             className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors select-none"
           >
             <p className="text-sm font-medium text-gray-700">
-              Weeks 2–{durationWeeks} — same schedule repeats
+              View weeks 2–{maxWeekInDb} ▸ progressive overload across phases
             </p>
             <span className="text-gray-400 text-sm">{weeksExpanded ? '▾' : '▸'}</span>
           </div>
         )}
 
-        {weeksExpanded && hasRepeatWeeks && (
-          <div className="mt-4 space-y-6 opacity-60">
-            {plan.days.map((day) => (
-              <div key={day.id}>
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                    {day.day_number}
-                  </span>
-                  <p className="font-semibold text-gray-700 text-sm">{day.name}</p>
-                  {day.focus && (
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{day.focus}</span>
-                  )}
-                </div>
-                {day.is_rest_day ? (
-                  <RestDayCard />
-                ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                    {day.exercises.map((ex) => (
-                      <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
+        {weeksExpanded && hasRepeatWeeks && (() => {
+          // Group days by week_number, exclude week 1 (shown above)
+          const weekMap: Record<number, typeof plan.days> = {}
+          plan.days.forEach((d) => {
+            if (d.week_number > 1) {
+              if (!weekMap[d.week_number]) weekMap[d.week_number] = []
+              weekMap[d.week_number].push(d)
+            }
+          })
+          const weekNums = Object.keys(weekMap).map(Number).sort((a, b) => a - b)
+          return (
+            <div className="mt-4 space-y-8">
+              {weekNums.map((wk) => (
+                <div key={wk}>
+                  <p className="text-xs font-bold text-brand-500 uppercase tracking-widest mb-3">Week {wk}</p>
+                  <div className="space-y-6 opacity-75">
+                    {weekMap[wk].map((day) => (
+                      <div key={day.id}>
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                            {day.day_number}
+                          </span>
+                          <p className="font-semibold text-gray-700 text-sm">{day.name}</p>
+                          {day.focus && (
+                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{day.focus}</span>
+                          )}
+                        </div>
+                        {day.is_rest_day ? (
+                          <RestDayCard />
+                        ) : (
+                          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                            {day.exercises.map((ex) => (
+                              <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Chat FAB */}
