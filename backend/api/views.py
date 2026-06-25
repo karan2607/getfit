@@ -630,26 +630,33 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
     equip = equipment or 'full gym'
 
     user = (
-        f'Generate a {duration_weeks}-week workout plan for a {level} with the goal of {goal}. '
+        f'Generate a complete {duration_weeks}-week workout plan for a {level} with the goal of {goal}. '
         f'Train {days_per_week} days per week. '
         f'Available equipment: {equip}. '
         + (f'Additional notes: {notes}. ' if notes else '')
         + (f'Body context: {body_context}. ' if body_context else '')
-        + 'Return JSON matching exactly this schema:\n'
+        + f'IMPORTANT: You MUST generate all {duration_weeks} weeks. Each week should have DIFFERENT exercises '
+        f'to provide progressive overload and variation (e.g. Week 1-2: foundation/hypertrophy, '
+        f'Week 3-4: volume increase, Week 5-6: intensity/strength, Week 7-8: peak or deload). '
+        f'Rotate exercises within the same muscle groups across weeks — do not repeat the same exercise list every week. '
+        f'Return JSON with a "weeks" array (one entry per week, each entry is an array of day objects). '
+        'Schema:\n'
         '{\n'
         '  "title": "string",\n'
         '  "description": "string",\n'
         '  "duration_weeks": number,\n'
-        '  "days": [\n'
-        '    {\n'
-        '      "day_number": number,\n'
-        '      "name": "string",\n'
-        '      "focus": "string",\n'
-        '      "is_rest_day": boolean,\n'
-        '      "exercises": [\n'
-        '        {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
-        '      ]\n'
-        '    }\n'
+        '  "weeks": [\n'
+        '    [\n'
+        '      {\n'
+        '        "day_number": number,\n'
+        '        "name": "string",\n'
+        '        "focus": "string",\n'
+        '        "is_rest_day": boolean,\n'
+        '        "exercises": [\n'
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "string"}\n'
+        '        ]\n'
+        '      }\n'
+        '    ]\n'
         '  ]\n'
         '}'
     )
@@ -657,13 +664,23 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
 
 
 def _validate_plan_json(data: dict) -> None:
-    required = ['title', 'days']
-    for key in required:
-        if key not in data:
-            raise ValueError(f'Missing required field: {key}')
-    if not isinstance(data['days'], list) or len(data['days']) == 0:
-        raise ValueError('days must be a non-empty list')
-    for day in data['days']:
+    if 'title' not in data:
+        raise ValueError('Missing required field: title')
+    days_list = []
+    if 'weeks' in data:
+        if not isinstance(data['weeks'], list) or len(data['weeks']) == 0:
+            raise ValueError('weeks must be a non-empty list')
+        for week in data['weeks']:
+            if not isinstance(week, list):
+                raise ValueError('each week must be a list of days')
+            days_list.extend(week)
+    elif 'days' in data:
+        if not isinstance(data['days'], list) or len(data['days']) == 0:
+            raise ValueError('days must be a non-empty list')
+        days_list = data['days']
+    else:
+        raise ValueError('Missing required field: days or weeks')
+    for day in days_list:
         for field in ['day_number', 'name', 'is_rest_day']:
             if field not in day:
                 raise ValueError(f'Day missing field: {field}')
