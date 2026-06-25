@@ -29,15 +29,14 @@ function fmtDistance(m: number | null) {
 }
 
 function fillLast7(summaries: HealthDailySummary[]): HealthDailySummary[] {
-  const byDate: Record<string, HealthDailySummary> = {}
-  summaries.forEach((s) => { byDate[s.date] = s })
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - (6 - i))
-    const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    return byDate[key] ?? { date: key, steps: null, active_calories: null, resting_calories: null, resting_heart_rate: null, sleep_hours: null }
-  })
+  // Sort ascending by date and take up to the last 7 records that actually have data.
+  // Avoids the case where data is old (> 7 days ago) and a calendar-based window returns all nulls.
+  const sorted = [...summaries].sort((a, b) => a.date.localeCompare(b.date))
+  const withData = sorted.filter((s) =>
+    s.steps != null || s.active_calories != null || s.resting_calories != null || s.resting_heart_rate != null
+  )
+  const records = withData.length > 0 ? withData.slice(-7) : sorted.slice(-7)
+  return records
 }
 
 const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }
