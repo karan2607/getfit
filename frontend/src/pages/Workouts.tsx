@@ -46,6 +46,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
   // Step state
   const [step, setStep] = useState<'form' | 'goals' | 'recommendation' | 'preview'>('form')
+  const [expandedPreviewWeeks, setExpandedPreviewWeeks] = useState<Set<number>>(new Set([1]))
 
   // Step 1 — basics
   const [daysPerWeek, setDaysPerWeek] = useState(4)
@@ -156,11 +157,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
     }
   }
 
-  // For preview display: show week 1 if multi-week plan
-  const previewDays = preview?.weeks ? preview.weeks[0] : (preview?.days ?? [])
-  const totalWeeks = preview?.weeks?.length ?? preview?.duration_weeks ?? 1
-
-  const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors'
+const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors'
   const chipBase = (active: boolean) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-gray-700 border-gray-200 hover:border-brand-300'}`
 
   // Step indicator
@@ -404,35 +401,60 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
               </button>
             </div>
 
-            {totalWeeks > 1 && (
-              <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mb-3">
-                Showing <strong>Week 1</strong> preview · {totalWeeks} weeks total with progressive variation
-              </p>
-            )}
-
-            <div className="space-y-3 mb-5">
-              {previewDays.map((day) => (
-                <div key={day.day_number} className="bg-white rounded-2xl border border-gray-100 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-500 text-xs font-bold flex items-center justify-center">{day.day_number}</span>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
-                      {day.focus && <p className="text-xs text-gray-500">{day.focus}</p>}
-                    </div>
-                    {day.is_rest_day && <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Rest</span>}
-                  </div>
-                  {!day.is_rest_day && (
-                    <div className="pl-8 space-y-1">
-                      {day.exercises.map((ex, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs text-gray-600">
-                          <span>{ex.name}</span>
-                          <span className="text-gray-400">{ex.sets} × {ex.reps}</span>
+            <div className="space-y-2 mb-5">
+              {(preview.weeks ?? (preview.days ? [preview.days] : [])).map((weekDays, idx) => {
+                const weekNum = idx + 1
+                const isOpen = expandedPreviewWeeks.has(weekNum)
+                const trainingCount = weekDays.filter((d) => !d.is_rest_day).length
+                return (
+                  <div key={weekNum} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <button
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                      onClick={() => setExpandedPreviewWeeks((prev) => {
+                        const next = new Set(prev)
+                        next.has(weekNum) ? next.delete(weekNum) : next.add(weekNum)
+                        return next
+                      })}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-full bg-brand-100 text-brand-600 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {weekNum}
+                        </span>
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-gray-900">Week {weekNum}</p>
+                          <p className="text-xs text-gray-400">{trainingCount} training day{trainingCount !== 1 ? 's' : ''}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                      </div>
+                      <span className="text-gray-400 text-sm">{isOpen ? '▾' : '▸'}</span>
+                    </button>
+
+                    {isOpen && (
+                      <div className="border-t border-gray-50 px-4 pb-3 pt-2 space-y-3">
+                        {weekDays.map((day) => (
+                          <div key={day.day_number}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{day.day_number}</span>
+                              <p className="font-semibold text-gray-800 text-sm">{day.name}</p>
+                              {day.focus && <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{day.focus}</span>}
+                              {day.is_rest_day && <span className="ml-auto text-xs text-gray-400">Rest</span>}
+                            </div>
+                            {!day.is_rest_day && (
+                              <div className="pl-7 space-y-0.5">
+                                {day.exercises.map((ex, i) => (
+                                  <div key={i} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
+                                    <span>{ex.name}</span>
+                                    <span className="text-gray-400 ml-2 whitespace-nowrap">{ex.sets} × {ex.reps}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             <button onClick={handleSave} disabled={saving} className={btnBase}>
