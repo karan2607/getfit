@@ -440,6 +440,8 @@ export interface SetLog {
 
 export interface WorkoutSessionDetail {
   id: string
+  plan_id: string | null
+  day_name: string
   exercise_day: WorkoutDay | null
   started_at: string
   completed_at: string | null

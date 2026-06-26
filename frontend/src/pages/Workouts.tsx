@@ -851,6 +851,10 @@ function isTimeBased(exerciseName: string): boolean {
   return /plank|wall sit|hold|isometric|dead hang|farmer.?s? carry/i.test(exerciseName)
 }
 
+function isWarmup(exerciseName: string): boolean {
+  return /warmup|warm.?up|mobility/i.test(exerciseName)
+}
+
 type PendingLog = { weight_kg?: number | null; reps_completed?: number | null; is_completed?: boolean }
 
 function ActiveSession({ sessionId }: { sessionId: string }) {
@@ -863,6 +867,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [editChatOpen, setEditChatOpen] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [progressFor, setProgressFor] = useState<string | null>(null)
   const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
@@ -888,11 +895,13 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     const num = rawValue === '' ? null : Number(rawValue)
     const stored = field === 'weight_kg' && num !== null ? (unit === 'lb' ? num * KG_PER_LB : num) : num
     setPendingLogs((prev) => ({ ...prev, [logId]: { ...prev[logId], [field]: stored } }))
+    setIsDirty(true)
   }
 
   function handleToggle(log: SetLog) {
     const current = pendingLogs[log.id]?.is_completed ?? log.is_completed
     setPendingLogs((prev) => ({ ...prev, [log.id]: { ...prev[log.id], is_completed: !current } }))
+    setIsDirty(true)
   }
 
   async function flushPendingLogs(sess: WorkoutSessionDetail) {
@@ -936,9 +945,35 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
       await api.workouts.completeSession(session.id)
       localStorage.removeItem(storageKey)
       showToast('Workout complete! Great work 💪')
-      navigate('/dashboard')
+      // Navigate to session review page instead of dashboard
+      navigate(`/workouts/session/${session.id}`)
+      // Reload session so it shows as completed
+      const updated = await api.workouts.getSession(session.id)
+      setSession(updated)
+      setPendingLogs({})
+      setIsDirty(false)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+      setCompleting(false)
+    }
+  }
+
+  async function handleReComplete() {
+    if (!session) return
+    setCompleting(true)
+    try {
+      await flushPendingLogs(session)
+      if (isDirty) await api.workouts.completeSession(session.id)
+      localStorage.removeItem(storageKey)
+      const updated = await api.workouts.getSession(session.id)
+      setSession(updated)
+      setPendingLogs({})
+      setEditing(false)
+      setIsDirty(false)
+      if (isDirty) showToast('Workout updated!')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
       setCompleting(false)
     }
   }
@@ -973,7 +1008,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const completedSets = mergedLogs.filter((l) => l.is_completed).length
   const totalSets = mergedLogs.length
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
-  const isCompleted = session.is_completed
+  const isCompleted = session.is_completed && !editing
 
   return (
     <>
@@ -984,6 +1019,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           : (session.exercise_day?.focus ?? '')}
         action={!isCompleted ? (
           <div className="flex items-center gap-2">
+            {session.plan_id && session.exercise_day && (
+              <button
+                onClick={() => setEditChatOpen(true)}
+                className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl hover:bg-white/30 transition-colors"
+              >
+                Edit day
+              </button>
+            )}
             <button
               onClick={handleSaveProgress}
               disabled={saving || completing}
@@ -999,10 +1042,21 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
               {completing ? 'Finishing…' : 'Finish workout'}
             </button>
           </div>
+        ) : editing ? (
+          <button
+            onClick={handleReComplete}
+            disabled={completing}
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors disabled:opacity-50"
+          >
+            {completing ? 'Saving…' : isDirty ? 'Finish workout' : 'Done ✓'}
+          </button>
         ) : (
-          <span className="bg-white/20 text-white text-sm font-semibold px-4 py-2 rounded-xl">
-            Done ✓
-          </span>
+          <button
+            onClick={() => { setEditing(true); setIsDirty(false) }}
+            className="bg-white/20 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-white/30 transition-colors"
+          >
+            Edit
+          </button>
         )}
       />
       <div className="p-4 md:p-6 max-w-lg">
@@ -1026,6 +1080,18 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
         <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
         {progressFor && <ExerciseDetailsModal name={progressFor} onClose={() => setProgressFor(null)} />}
+        {session.plan_id && session.exercise_day && (
+          <WorkoutChatDrawer
+            isOpen={editChatOpen}
+            onClose={() => setEditChatOpen(false)}
+            planId={session.plan_id}
+            dayId={session.exercise_day.id}
+            onPlanUpdated={() => {
+              setEditChatOpen(false)
+              api.workouts.getSession(session.id).then(setSession)
+            }}
+          />
+        )}
 
         <div className="space-y-4 mb-8">
           {exerciseEntries.map(([exerciseName, logs]) => {
@@ -1047,12 +1113,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                    <button
-                      onClick={() => setProgressFor(exerciseName)}
-                      className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      Progress
-                    </button>
+                    {!isWarmup(exerciseName) && (
+                      <button
+                        onClick={() => setProgressFor(exerciseName)}
+                        className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        Progress
+                      </button>
+                    )}
                     <button
                       onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
                       className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
@@ -1072,69 +1140,87 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   </div>
                 </div>
 
-                {/* Column labels */}
-                <div className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
-                  <span>#</span>
-                  <span>{getWeightLabel(exerciseName, unit)}</span>
-                  {!isTimeBased(exerciseName) && <span>Reps done</span>}
-                  <span />
-                </div>
-
-                {/* Set rows */}
-                <div className="divide-y divide-gray-50 pb-1">
-                  {logs.map((log) => (
-                    <div
-                      key={log.id}
-                      className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 items-center px-4 py-2.5 transition-colors ${
-                        log.is_completed ? 'bg-emerald-50/70' : ''
-                      }`}
-                    >
-                      <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
-                        {log.set_number}
-                      </span>
-                      {isCompleted ? (
-                        <span className="text-sm text-gray-700 font-medium">
-                          {log.weight_kg != null
-                            ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
-                            : '—'}
-                        </span>
-                      ) : (
-                        <input
-                          type="number" min={0} step={isTimeBased(exerciseName) ? 1 : 0.5}
-                          placeholder="0"
-                          defaultValue={log.weight_kg != null
-                            ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
-                            : ''}
-                          onBlur={(e) => handleSetField(log.id, 'weight_kg', e.target.value)}
-                          className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                        />
-                      )}
-                      {!isTimeBased(exerciseName) && (isCompleted ? (
-                        <span className="text-sm text-gray-700 font-medium">
-                          {log.reps_completed ?? '—'}
-                        </span>
-                      ) : (
-                        <input
-                          type="number" min={0} placeholder="0"
-                          defaultValue={log.reps_completed ?? ''}
-                          onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
-                          className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                        />
-                      ))}
-                      <button
-                        onClick={!isCompleted ? () => handleToggle(log) : undefined}
-                        disabled={isCompleted}
-                        className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
-                          log.is_completed
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                            : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
-                        } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
-                      >
-                        ✓
-                      </button>
+                {/* Warmup — single check-off row, no weight/reps tracking */}
+                {isWarmup(exerciseName) ? (
+                  <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-emerald-50/70' : ''}`}>
+                    <span className="text-sm text-gray-600">{planEx?.reps ?? '5-10 min'}</span>
+                    <button
+                      onClick={!isCompleted ? () => handleToggle(logs[0]) : undefined}
+                      disabled={isCompleted}
+                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
+                        logs[0]?.is_completed
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                          : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
+                      } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
+                    >✓</button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Column labels */}
+                    <div className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
+                      <span>#</span>
+                      <span>{getWeightLabel(exerciseName, unit)}</span>
+                      {!isTimeBased(exerciseName) && <span>Reps done</span>}
+                      <span />
                     </div>
-                  ))}
-                </div>
+
+                    {/* Set rows */}
+                    <div className="divide-y divide-gray-50 pb-1">
+                      {logs.map((log) => (
+                        <div
+                          key={log.id}
+                          className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 items-center px-4 py-2.5 transition-colors ${
+                            log.is_completed ? 'bg-emerald-50/70' : ''
+                          }`}
+                        >
+                          <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
+                            {log.set_number}
+                          </span>
+                          {isCompleted ? (
+                            <span className="text-sm text-gray-700 font-medium">
+                              {log.weight_kg != null
+                                ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
+                                : '—'}
+                            </span>
+                          ) : (
+                            <input
+                              type="number" min={0} step={isTimeBased(exerciseName) ? 1 : 0.5}
+                              placeholder="0"
+                              defaultValue={log.weight_kg != null
+                                ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
+                                : ''}
+                              onBlur={(e) => handleSetField(log.id, 'weight_kg', e.target.value)}
+                              className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                            />
+                          )}
+                          {!isTimeBased(exerciseName) && (isCompleted ? (
+                            <span className="text-sm text-gray-700 font-medium">
+                              {log.reps_completed ?? '—'}
+                            </span>
+                          ) : (
+                            <input
+                              type="number" min={0} placeholder="0"
+                              defaultValue={log.reps_completed ?? ''}
+                              onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
+                              className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                            />
+                          ))}
+                          <button
+                            onClick={!isCompleted ? () => handleToggle(log) : undefined}
+                            disabled={isCompleted}
+                            className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
+                              log.is_completed
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
+                            } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )
           })}

@@ -1,5 +1,6 @@
 import logging
 from django.contrib.auth import get_user_model, authenticate
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse
@@ -1142,32 +1143,59 @@ def workout_plan_detail(request, plan_id):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        plan.title = data['title']
-        plan.description = data.get('description', '')
-        plan.duration_weeks = data.get('duration_weeks', plan.duration_weeks)
-        plan.save()
+        with transaction.atomic():
+            plan.title = data['title']
+            plan.description = data.get('description', '')
+            plan.duration_weeks = data.get('duration_weeks', plan.duration_weeks)
+            plan.save()
 
-        # Replace all days and exercises
-        plan.days.all().delete()
-        for i, day_data in enumerate(data['days']):
-            day = WorkoutDay.objects.create(
-                plan=plan,
-                day_number=day_data['day_number'],
-                name=day_data['name'],
-                focus=day_data.get('focus', ''),
-                is_rest_day=day_data.get('is_rest_day', False),
-                order=i,
-            )
-            for j, ex_data in enumerate(day_data.get('exercises', [])):
-                Exercise.objects.create(
-                    day=day,
-                    name=ex_data['name'],
-                    sets=ex_data.get('sets', 3),
-                    reps=str(ex_data.get('reps', '10')),
-                    rest_seconds=ex_data.get('rest_seconds'),
-                    notes=ex_data.get('notes', ''),
-                    order=j,
-                )
+            # Replace all days and exercises — support both weeks[][] and days[] formats
+            plan.days.all().delete()
+            order_counter = 0
+            if 'weeks' in data:
+                for week_idx, week_days in enumerate(data['weeks'], start=1):
+                    for day_data in week_days:
+                        day = WorkoutDay.objects.create(
+                            plan=plan,
+                            day_number=day_data['day_number'],
+                            week_number=week_idx,
+                            name=day_data['name'],
+                            focus=day_data.get('focus', ''),
+                            is_rest_day=day_data.get('is_rest_day', False),
+                            order=order_counter,
+                        )
+                        order_counter += 1
+                        for j, ex_data in enumerate(day_data.get('exercises', [])):
+                            Exercise.objects.create(
+                                day=day,
+                                name=ex_data['name'],
+                                sets=ex_data.get('sets', 3),
+                                reps=str(ex_data.get('reps', '10')),
+                                rest_seconds=ex_data.get('rest_seconds'),
+                                notes=ex_data.get('notes', ''),
+                                order=j,
+                            )
+            else:
+                for i, day_data in enumerate(data['days']):
+                    day = WorkoutDay.objects.create(
+                        plan=plan,
+                        day_number=day_data['day_number'],
+                        week_number=day_data.get('week_number', 1),
+                        name=day_data['name'],
+                        focus=day_data.get('focus', ''),
+                        is_rest_day=day_data.get('is_rest_day', False),
+                        order=i,
+                    )
+                    for j, ex_data in enumerate(day_data.get('exercises', [])):
+                        Exercise.objects.create(
+                            day=day,
+                            name=ex_data['name'],
+                            sets=ex_data.get('sets', 3),
+                            reps=str(ex_data.get('reps', '10')),
+                            rest_seconds=ex_data.get('rest_seconds'),
+                            notes=ex_data.get('notes', ''),
+                            order=j,
+                        )
         return Response(WorkoutPlanDetailSerializer(plan).data)
 
     plan.delete()
@@ -1229,15 +1257,26 @@ def workout_sessions(request):
     if not force:
         other = WorkoutSession.objects.filter(
             user=request.user, is_completed=False
-        ).exclude(exercise_day=day).select_related('exercise_day').first()
+        ).exclude(exercise_day=day).select_related('exercise_day__plan').first()
         if other:
-            day_name = other.exercise_day.name if other.exercise_day else 'another day'
-            data = WorkoutSessionSerializer(other).data
-            data['already_active'] = True
-            data['conflict_day_name'] = day_name
-            return Response(data, status=status.HTTP_200_OK)
+            # Auto-clean orphaned sessions (day deleted or plan no longer active)
+            day_belongs_to_active_plan = (
+                other.exercise_day is not None and
+                other.exercise_day.plan.user == request.user
+            )
+            if not day_belongs_to_active_plan:
+                other.is_completed = True
+                other.save(update_fields=['is_completed'])
+            else:
+                conflict_name = other.day_name or (
+                    other.exercise_day.name if other.exercise_day else 'a previous session'
+                )
+                data = WorkoutSessionSerializer(other).data
+                data['already_active'] = True
+                data['conflict_day_name'] = conflict_name
+                return Response(data, status=status.HTTP_200_OK)
 
-    session = WorkoutSession.objects.create(user=request.user, exercise_day=day)
+    session = WorkoutSession.objects.create(user=request.user, exercise_day=day, day_name=day.name)
 
     # Pre-populate set logs from the plan
     for exercise in day.exercises.all():
@@ -1356,6 +1395,59 @@ def _bg_cache_plan_guides(plan_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def _analyze_progression(logs: list, target_reps=None) -> dict:
+    """Group SetLog history by session date and detect weight progression signal."""
+    if not logs or len(logs) < 3:
+        return {'direction': None, 'summary': None}
+
+    by_session: dict = {}
+    for log in logs:
+        date = log['workout_session__started_at'][:10]
+        by_session.setdefault(date, []).append(log)
+
+    sessions = sorted(by_session.items(), reverse=True)[:4]
+    if len(sessions) < 2:
+        return {'direction': None, 'summary': None}
+
+    target = target_reps or 10
+    results = []
+    for _date, sets in sessions:
+        weights = [s['weight_kg'] for s in sets if s['weight_kg']]
+        reps = [s['reps_completed'] or 0 for s in sets]
+        if not weights:
+            continue
+        max_w = max(weights)
+        hit_all = all(r >= target for r in reps if r > 0)
+        results.append({'weight': max_w, 'hit_all': hit_all, 'reps': reps})
+
+    if len(results) < 2:
+        return {'direction': None, 'summary': None}
+
+    recent, prev = results[0], results[1]
+
+    if recent['hit_all'] and prev['hit_all'] and recent['weight'] == prev['weight']:
+        return {
+            'direction': 'increase',
+            'last_weight': recent['weight'],
+            'summary': f"Hit all {target}+ reps at {recent['weight']}kg for 2 sessions → INCREASE WEIGHT",
+        }
+
+    if not recent['hit_all'] and not prev['hit_all']:
+        avg_reps = sum(recent['reps']) / max(len(recent['reps']), 1)
+        if avg_reps < target * 0.75:
+            return {
+                'direction': 'decrease',
+                'last_weight': recent['weight'],
+                'summary': f"Averaging {avg_reps:.0f} reps (target {target}) at {recent['weight']}kg for 2 sessions → DECREASE WEIGHT",
+            }
+
+    return {
+        'direction': 'maintain',
+        'last_weight': recent['weight'] if recent.get('weight') else None,
+        'summary': f"Consistent at {recent['weight']}kg, maintaining" if recent.get('weight') else None,
+    }
+
+
 def workout_plan_prepare_week(request, plan_id):
     """
     Bulk-generate ExerciseGuide entries for all exercises in the plan's current week.
@@ -1408,7 +1500,16 @@ def workout_plan_prepare_week(request, plan_id):
     prompt_lines.append('  tips: array of 2-3 form cues or common mistakes to avoid')
     prompt_lines.append('  category: one of squat/push/press/pull/row/hinge/curl/lunge/core/cardio/other')
     prompt_lines.append('  kb_key: best matching key from the image library, or null')
-    prompt_lines.append('  recommended_weight: a short string like "Start with 40kg (3x8)" or null if no history')
+    prompt_lines.append(
+        '  recommended_weight: Based on the PROGRESSION hint in the history, recommend weight for the NEXT session.\n'
+        '    If hint says INCREASE WEIGHT: suggest the increased weight (upper body +2.5kg, lower body +5kg).\n'
+        '    Example: "Increase to 42.5kg — you nailed 3x12 at 40kg twice in a row."\n'
+        '    If hint says DECREASE WEIGHT: suggest a lower weight for form/recovery.\n'
+        '    Example: "Drop to 35kg — hit 10/8/7 reps at 40kg. Rebuild consistency, then progress."\n'
+        '    If hint says maintaining: confirm current weight.\n'
+        '    If no history: suggest a starting weight from general knowledge.\n'
+        '    Return null only if the exercise has no meaningful weight (e.g. bodyweight only).'
+    )
     prompt_lines.append('')
     prompt_lines.append('Exercises:')
     for i, name in enumerate(exercise_names, 1):
@@ -1419,7 +1520,11 @@ def workout_plan_prepare_week(request, plan_id):
                 f"{s['workout_session__started_at'][:10]}: {s['weight_kg']}kg x {s['reps_completed'] or '?'}"
                 for s in hist[:3]
             )
-            hist_str = f' [Recent: {sets_summary}]'
+            progression = _analyze_progression(hist)
+            hist_str = f' [Recent: {sets_summary}'
+            if progression['summary']:
+                hist_str += f' | PROGRESSION: {progression["summary"]}'
+            hist_str += ']'
         candidates = _get_kb_candidates(name, top_n=10)
         cands_str = ', '.join(candidates[:5]) if candidates else 'none'
         prompt_lines.append(f'{i}. {name}{hist_str} | Image library candidates: {cands_str}')

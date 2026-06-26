@@ -149,8 +149,8 @@ export default function WorkoutChatDrawer({
           )}
         </div>
 
-        {/* Input */}
-        <div className="px-4 pb-4 pt-2 border-t border-gray-100">
+        {/* Input — pb accounts for mobile bottom nav bar (~64px) */}
+        <div className="px-4 pb-[calc(1rem+4rem)] sm:pb-4 pt-2 border-t border-gray-100">
           <ChatInput onSend={handleSend} disabled={isSending || busy} />
         </div>
       </div>

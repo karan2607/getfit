@@ -152,10 +152,20 @@ class SetLogSerializer(serializers.ModelSerializer):
 class WorkoutSessionSerializer(serializers.ModelSerializer):
     exercise_day = WorkoutDaySerializer(read_only=True)
     set_logs = SetLogSerializer(many=True, read_only=True)
+    plan_id = serializers.SerializerMethodField()
+    day_name = serializers.SerializerMethodField()
+
+    def get_plan_id(self, obj):
+        return str(obj.exercise_day.plan_id) if obj.exercise_day_id else None
+
+    def get_day_name(self, obj):
+        if obj.exercise_day:
+            return obj.exercise_day.name
+        return obj.day_name or ''
 
     class Meta:
         model = WorkoutSession
-        fields = ['id', 'exercise_day', 'started_at', 'completed_at', 'notes', 'is_completed', 'set_logs']
+        fields = ['id', 'plan_id', 'day_name', 'exercise_day', 'started_at', 'completed_at', 'notes', 'is_completed', 'set_logs']
         read_only_fields = ['id', 'started_at']
 
 

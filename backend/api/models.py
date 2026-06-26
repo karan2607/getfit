@@ -202,6 +202,7 @@ class WorkoutSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_sessions')
     exercise_day = models.ForeignKey(WorkoutDay, on_delete=models.SET_NULL, null=True, blank=True)
+    day_name = models.CharField(max_length=255, blank=True)  # denormalized — survives day deletion
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
