@@ -152,6 +152,8 @@ export const api = {
       goal_params?: Record<string, unknown>
       notes?: string
       body_context?: string
+      user_question?: string
+      previous_recommendation?: string
     }) =>
       request<{ message: string; program_target: WorkoutPlan['program_target'] }>(
         '/api/workouts/plans/suggest-target/', { method: 'POST', body: JSON.stringify(data) }

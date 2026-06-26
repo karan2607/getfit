@@ -743,11 +743,16 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
     # Build the structured user prompt
     age = getattr(profile, 'age', None) if profile else None
     gender = getattr(profile, 'gender', None) if profile else None
-    weight = getattr(profile, 'weight_kg', None) if profile else None
+    weight_kg = getattr(profile, 'weight_kg', None) if profile else None
     height = getattr(profile, 'height_cm', None) if profile else None
     personal_notes = getattr(profile, 'personal_notes', '') if profile else ''
 
-    profile_line = f'Client: {age}yo {gender}, {weight}{preferred_unit}, {height}cm' if all([age, gender, weight, height]) else ''
+    if weight_kg is not None:
+        weight_display = f'{round(weight_kg * 2.20462, 1)}lb' if preferred_unit == 'lb' else f'{weight_kg}kg'
+    else:
+        weight_display = None
+
+    profile_line = f'Client: {age}yo {gender}, {weight_display}, {height}cm' if all([age, gender, weight_display, height]) else ''
 
     specific_goals_line = ''
     if specific_goals:
@@ -862,8 +867,13 @@ def workout_plan_suggest_target(request):
     preferred_unit = getattr(profile, 'preferred_unit', 'lb') or 'lb'
     age = getattr(profile, 'age', None) if profile else None
     gender = getattr(profile, 'gender', None) if profile else None
-    weight = getattr(profile, 'weight_kg', None) if profile else None
+    weight_kg = getattr(profile, 'weight_kg', None) if profile else None
     height = getattr(profile, 'height_cm', None) if profile else None
+
+    if weight_kg is not None:
+        weight_display = f'{round(weight_kg * 2.20462, 1)}lb' if preferred_unit == 'lb' else f'{weight_kg}kg'
+    else:
+        weight_display = None
 
     fitness_goal = request.data.get('fitness_goal', '')
     experience_level = request.data.get('experience_level', '')
@@ -915,13 +925,18 @@ def workout_plan_suggest_target(request):
     goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
     primary = goal_map.get(fitness_goal, fitness_goal or 'general fitness')
 
+    user_question = request.data.get('user_question', '')
+    previous_recommendation = request.data.get('previous_recommendation', '')
+
     user_parts = [
-        f'Client profile: {age}yo {gender}, current weight {weight}{preferred_unit}, height {height}cm' if all([age, gender, weight, height]) else 'Client profile: not provided',
+        f'Client profile: {age}yo {gender}, current weight {weight_display}, height {height}cm' if all([age, gender, weight_display, height]) else 'Client profile: not provided',
         f'Primary goal: {primary} | Experience: {experience_level or "unknown"}',
         f'Duration: {duration_weeks} weeks, {days_per_week} days/week',
         f'Specific goals: {", ".join(goal_strs)}' if goal_strs else 'No specific secondary goals',
         f'Notes / limitations: {notes}' if notes else '',
         f'Body context: {body_context}' if body_context else '',
+        f'Previous recommendation: {previous_recommendation}' if previous_recommendation else '',
+        f'User follow-up: {user_question}' if user_question else '',
     ]
     user_prompt = '\n'.join(p for p in user_parts if p)
 

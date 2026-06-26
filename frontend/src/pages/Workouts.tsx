@@ -67,6 +67,8 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   const [loadingRec, setLoadingRec] = useState(false)
   const [targetRec, setTargetRec] = useState<{ message: string; program_target: WorkoutPlan['program_target'] } | null>(null)
   const [editedTarget, setEditedTarget] = useState<number | null>(null)
+  const [recQuestion, setRecQuestion] = useState('')
+  const [refiningRec, setRefiningRec] = useState(false)
 
   // Step 4 — preview
   const [generating, setGenerating] = useState(false)
@@ -111,6 +113,33 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
       showToast(getErrorMessage(err), 'error')
     } finally {
       setLoadingRec(false)
+    }
+  }
+
+  async function handleRefineRec() {
+    if (!recQuestion.trim() || !targetRec) return
+    setRefiningRec(true)
+    try {
+      const result = await api.workouts.suggestTarget({
+        fitness_goal: fitnessGoal,
+        experience_level: experienceLevel,
+        days_per_week: daysPerWeek,
+        duration_weeks: durationWeeks,
+        equipment,
+        specific_goals: specificGoals,
+        goal_params: goalParams,
+        notes,
+        body_context: getBodyContext(),
+        user_question: recQuestion,
+        previous_recommendation: targetRec.message,
+      })
+      setTargetRec(result)
+      setEditedTarget(result.program_target?.recommended_value ?? null)
+      setRecQuestion('')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setRefiningRec(false)
     }
   }
 
@@ -374,6 +403,31 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Ask AI to refine */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
+              <p className="text-xs font-semibold text-gray-500 mb-2">Not what you expected? Ask the AI to adjust</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={recQuestion}
+                  onChange={(e) => setRecQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !refiningRec && handleRefineRec()}
+                  placeholder="e.g. I want to focus more on fat loss, not muscle gain"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  disabled={refiningRec}
+                />
+                <button
+                  onClick={handleRefineRec}
+                  disabled={refiningRec || !recQuestion.trim()}
+                  className="bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                >
+                  {refiningRec ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                  ) : '→'}
+                </button>
+              </div>
             </div>
 
             <button onClick={handleGenerate} disabled={generating} className={btnBase}>
