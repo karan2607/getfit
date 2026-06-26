@@ -637,13 +637,21 @@ function PlanDetail({ planId }: { planId: string }) {
         title={plan.title}
         subtitle={`Week ${currentWeek} of ${durationWeeks} · ${trainingDays} training day${trainingDays !== 1 ? 's' : ''}`}
         action={
-          !plan.is_active ? (
-            <button onClick={handleActivate} className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors">
-              Set active
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setExplicitChatOpen(true)}
+              className="bg-white/20 text-white text-sm font-semibold px-3 py-2 rounded-xl hover:bg-white/30 transition-colors"
+            >
+              ✏️ Edit with AI
             </button>
-          ) : (
-            <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">Active</span>
-          )
+            {!plan.is_active ? (
+              <button onClick={handleActivate} className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors">
+                Set active
+              </button>
+            ) : (
+              <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">Active</span>
+            )}
+          </div>
         }
       />
 
@@ -719,9 +727,9 @@ function PlanDetail({ planId }: { planId: string }) {
                           return (
                             <button
                               onClick={() => navigate(`/workouts/session/${s.id}`)}
-                              className="text-sm bg-emerald-100 text-emerald-700 font-semibold px-3 py-1.5 rounded-lg"
+                              className="text-sm bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
                             >
-                              Done ✓
+                              Done ✓ · Review
                             </button>
                           )
                         }
@@ -814,10 +822,10 @@ function PlanDetail({ planId }: { planId: string }) {
         })()}
       </div>
 
-      {/* Chat FAB */}
+      {/* Chat FAB — sits above mobile bottom nav (4rem) and desktop support widget */}
       <button
         onClick={() => setExplicitChatOpen(true)}
-        className="fixed bottom-6 right-6 z-30 bg-brand-500 hover:bg-brand-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
+        className="fixed bottom-24 right-4 sm:bottom-8 sm:right-6 z-30 bg-brand-500 hover:bg-brand-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
         title="Chat with AI Trainer"
       >
         💬

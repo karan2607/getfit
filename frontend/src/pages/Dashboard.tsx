@@ -203,9 +203,9 @@ export default function Dashboard() {
               ) : todayCompletedSession ? (
                 <Link
                   to={`/workouts/session/${todayCompletedSession.id}`}
-                  className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-3 py-1.5 rounded-lg"
+                  className="text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors cursor-pointer"
                 >
-                  Done ✓
+                  Done ✓ · Review
                 </Link>
               ) : (
                 <button
