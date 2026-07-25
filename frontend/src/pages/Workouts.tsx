@@ -1295,7 +1295,6 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     </>
                   )
                 })()}
-                )}
               </div>
             )
           })}
