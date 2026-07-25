@@ -76,8 +76,7 @@ export default function Dashboard() {
   const completedSessions = recentSessions.filter((s) => s.is_completed).length
   const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
-  // An in-progress session takes priority over the calendar-based day calculation.
-  // This handles cases where the user started a session but the day counter has moved on.
+  // In-progress session takes priority; otherwise use current_day_order from plan.
   const anyInProgressSession = recentSessions.find((s) => !s.is_completed)
   const inProgressDay = anyInProgressSession && activePlan
     ? activePlan.days.find((d) =>
@@ -87,12 +86,12 @@ export default function Dashboard() {
       )
     : undefined
 
-  const scheduledDay = activePlan?.days.find((d) => {
-    if (!activePlan.activated_at) return d.order === 0
-    const msPerDay = 86_400_000
-    const daysSince = Math.floor((Date.now() - new Date(activePlan.activated_at).getTime()) / msPerDay)
-    return d.order === daysSince % activePlan.days.length
-  })
+  const currentWeekDays = activePlan
+    ? [...activePlan.days]
+        .filter((d) => d.week_number === (activePlan.current_week ?? 1))
+        .sort((a, b) => a.day_number - b.day_number)
+    : []
+  const scheduledDay = currentWeekDays[activePlan?.current_day_order ?? 0]
 
   const todayWorkout = inProgressDay ?? scheduledDay
   const todayInProgressSession = inProgressDay ? anyInProgressSession : undefined
@@ -108,6 +107,8 @@ export default function Dashboard() {
     ? recentSessions.find((s) => s.is_completed && matchesTodayWorkout(s))
     : undefined
 
+  const [markingRestDone, setMarkingRestDone] = useState(false)
+
   async function handleStartWorkout() {
     if (!todayWorkout) return
     if (todayInProgressSession) {
@@ -116,7 +117,6 @@ export default function Dashboard() {
     }
     setStartingWorkout(true)
     try {
-      // Check for in-progress sessions not in the recent list (edge case)
       const sessions = await api.workouts.listSessions()
       const existing = sessions.find(
         (s) => !s.is_completed && (s.exercise_day_id === todayWorkout.id || s.day_name === todayWorkout.name)
@@ -125,12 +125,29 @@ export default function Dashboard() {
         navigate(`/workouts/session/${existing.id}`)
       } else {
         const session = await api.workouts.startSession(todayWorkout.id)
+        // Refresh plan to get updated current_day_order
+        if (activePlan) api.workouts.getPlan(activePlan.id).then(setActivePlan).catch(() => {})
         navigate(`/workouts/session/${session.id}`)
       }
     } catch {
       showToast('Could not start workout', 'error')
     } finally {
       setStartingWorkout(false)
+    }
+  }
+
+  async function handleMarkRestDone() {
+    if (!activePlan || !todayWorkout) return
+    setMarkingRestDone(true)
+    try {
+      const updated = await api.workouts.markRestDayDone(activePlan.id, todayWorkout.id)
+      // Refresh plan detail to get new current_day_order
+      const detail = await api.workouts.getPlan(updated.id)
+      setActivePlan(detail)
+    } catch {
+      showToast('Could not mark rest day done', 'error')
+    } finally {
+      setMarkingRestDone(false)
     }
   }
 
@@ -199,7 +216,17 @@ export default function Dashboard() {
                 {todayWorkout.focus && <p className="text-xs text-gray-400">{todayWorkout.focus}</p>}
               </div>
               {todayWorkout.is_rest_day ? (
-                <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">Rest day</span>
+                todayWorkout.last_completed_at ? (
+                  <span className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full font-medium">Done ✓</span>
+                ) : (
+                  <button
+                    onClick={handleMarkRestDone}
+                    disabled={markingRestDone}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors disabled:opacity-50"
+                  >
+                    {markingRestDone ? 'Marking…' : 'Mark done'}
+                  </button>
+                )
               ) : todayCompletedSession ? (
                 <Link
                   to={`/workouts/session/${todayCompletedSession.id}`}

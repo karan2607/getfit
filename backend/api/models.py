@@ -149,6 +149,7 @@ class WorkoutPlan(models.Model):
     generated_by_ai = models.BooleanField(default=True)
     duration_weeks = models.PositiveIntegerField(null=True, blank=True)
     current_week = models.PositiveIntegerField(default=1)
+    current_day_order = models.PositiveIntegerField(default=0)
     specific_goal = models.TextField(blank=True)
     program_target = models.JSONField(null=True, blank=True)
     goal_check_in_shown = models.BooleanField(default=False)
@@ -182,6 +183,14 @@ class WorkoutDay(models.Model):
 
 
 class Exercise(models.Model):
+    MEASUREMENT_TYPE_CHOICES = [
+        ('weight_reps', 'Weight + Reps'),
+        ('weight_duration', 'Weight + Duration'),
+        ('duration', 'Duration only'),
+        ('warmup', 'Warmup/Mobility'),
+        ('bodyweight_reps', 'Bodyweight + Reps'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE, related_name='exercises')
     name = models.CharField(max_length=150)
@@ -190,6 +199,7 @@ class Exercise(models.Model):
     rest_seconds = models.PositiveIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
+    measurement_type = models.CharField(max_length=20, choices=MEASUREMENT_TYPE_CHOICES, default='weight_reps')
 
     class Meta:
         ordering = ['order']

@@ -220,6 +220,12 @@ export const api = {
     prepareWeek: (id: string) =>
       request<{ generated: number; exercises: string[] }>(`/api/workouts/plans/${id}/prepare-week/`, { method: 'POST' }),
 
+    markRestDayDone: (planId: string, dayId: string) =>
+      request<WorkoutPlan>(`/api/workouts/plans/${planId}/mark-rest-day/`, {
+        method: 'POST',
+        body: JSON.stringify({ day_id: dayId }),
+      }),
+
     listSessions: () =>
       request<WorkoutSessionSummary[]>('/api/workouts/sessions/'),
 
@@ -362,6 +368,8 @@ export interface ChatSessionDetail extends ChatSession {
   messages: ChatMessage[]
 }
 
+export type MeasurementType = 'weight_reps' | 'weight_duration' | 'duration' | 'warmup' | 'bodyweight_reps'
+
 export interface Exercise {
   id: string
   name: string
@@ -370,6 +378,7 @@ export interface Exercise {
   rest_seconds: number | null
   notes: string
   order: number
+  measurement_type: MeasurementType
 }
 
 export interface WorkoutDay {
@@ -393,6 +402,7 @@ export interface WorkoutPlan {
   generated_by_ai: boolean
   duration_weeks: number | null
   current_week: number
+  current_day_order: number
   specific_goal: string
   program_target: { metric: string; label: string; recommended_value: number; current_value?: number } | null
   goal_check_in_shown: boolean

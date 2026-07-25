@@ -734,6 +734,19 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         'Repeat them if they are the optimal choice. Vary them if the phase calls for a different stimulus. '
         'Never avoid an exercise just because it appeared before — effectiveness over novelty.\n\n'
 
+        'EXERCISE NAMES: Use exact common names found in standard gym facilities.\n'
+        'Cable crossover valid variants: "High-to-Low Cable Crossover", "Low-to-High Cable Crossover", '
+        '"Standing Cable Crossover". "Mid-to-High" does not exist — never use it.\n'
+        'When uncertain, use the simplest, most recognisable name.\n\n'
+
+        'MEASUREMENT TYPE (mandatory for every exercise):\n'
+        'Each exercise must include a "measurement_type" field. Use this reference:\n'
+        '  "weight_reps"     → barbell, dumbbell, cable, machine exercises (bench press, squat, row, curl, crossover)\n'
+        '  "weight_duration" → loaded carries (Farmer\'s Carry, Sled Carry, Yoke Walk)\n'
+        '  "duration"        → holds, cardio, treadmill, plank, wall sit, elliptical, bike, rowing machine, stair climber\n'
+        '  "warmup"          → any Warmup & Mobility block\n'
+        '  "bodyweight_reps" → push-ups, pull-ups, dips, chin-ups, inverted rows\n\n'
+
         'NOTES FIELD (mandatory for every exercise):\n'
         f'Format: "Start [weight]{preferred_unit}. Add [increment] when all sets completed with good form."\n'
         f'Example: "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."\n'
@@ -812,8 +825,8 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '        "focus": "string",',
         '        "is_rest_day": false,',
         '        "exercises": [',
-        '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "notes": "specific drills for today"},',
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "notes": "Start Xkg. Add Ykg when all sets clean."}',
+        '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "measurement_type": "warmup", "notes": "specific drills for today"},',
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "Start Xkg. Add Ykg when all sets clean."}',
         '        ]',
         '      }',
         '    ],',
@@ -1105,6 +1118,7 @@ def workout_plans(request):
                         rest_seconds=ex_data.get('rest_seconds'),
                         notes=ex_data.get('notes', ''),
                         order=j,
+                        measurement_type=ex_data.get('measurement_type', 'weight_reps'),
                     )
     else:
         for day_data in data['days']:
@@ -1127,6 +1141,7 @@ def workout_plans(request):
                     rest_seconds=ex_data.get('rest_seconds'),
                     notes=ex_data.get('notes', ''),
                     order=j,
+                    measurement_type=ex_data.get('measurement_type', 'weight_reps'),
                 )
 
     import threading
@@ -1189,6 +1204,7 @@ def workout_plan_detail(request, plan_id):
                                 rest_seconds=ex_data.get('rest_seconds'),
                                 notes=ex_data.get('notes', ''),
                                 order=j,
+                                measurement_type=ex_data.get('measurement_type', 'weight_reps'),
                             )
             else:
                 for i, day_data in enumerate(data['days']):
@@ -1210,6 +1226,7 @@ def workout_plan_detail(request, plan_id):
                             rest_seconds=ex_data.get('rest_seconds'),
                             notes=ex_data.get('notes', ''),
                             order=j,
+                            measurement_type=ex_data.get('measurement_type', 'weight_reps'),
                         )
         return Response(WorkoutPlanDetailSerializer(plan).data)
 
@@ -1243,7 +1260,28 @@ def workout_plan_advance_week(request, plan_id):
             plan.save(update_fields=['goal_check_in_shown'])
         return Response({'detail': 'Program complete', 'current_week': plan.current_week, 'program_complete': True})
     plan.current_week += 1
-    plan.save(update_fields=['current_week'])
+    plan.current_day_order = 0
+    plan.save(update_fields=['current_week', 'current_day_order'])
+    return Response(WorkoutPlanSerializer(plan).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_mark_rest_day(request, plan_id):
+    from django.utils import timezone as tz
+    plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
+    day_id = request.data.get('day_id')
+    if not day_id:
+        return Response({'detail': 'day_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    day = get_object_or_404(WorkoutDay, pk=day_id, plan=plan)
+    day.last_completed_at = tz.now()
+    day.save(update_fields=['last_completed_at'])
+
+    week_days = list(WorkoutDay.objects.filter(plan=plan, week_number=plan.current_week).order_by('day_number'))
+    current_idx = next((i for i, d in enumerate(week_days) if d.id == day.id), plan.current_day_order)
+    next_idx = min(current_idx + 1, len(week_days) - 1)
+    plan.current_day_order = next_idx
+    plan.save(update_fields=['current_day_order'])
     return Response(WorkoutPlanSerializer(plan).data)
 
 
@@ -1292,6 +1330,13 @@ def workout_sessions(request):
                 return Response(data, status=status.HTTP_200_OK)
 
     session = WorkoutSession.objects.create(user=request.user, exercise_day=day, day_name=day.name)
+
+    # Track current day in plan
+    plan = day.plan
+    week_days = list(WorkoutDay.objects.filter(plan=plan, week_number=plan.current_week).order_by('day_number'))
+    idx = next((i for i, d in enumerate(week_days) if d.id == day.id), 0)
+    plan.current_day_order = idx
+    plan.save(update_fields=['current_day_order'])
 
     # Pre-populate set logs from the plan
     for exercise in day.exercises.all():
@@ -1525,6 +1570,15 @@ def workout_plan_prepare_week(request, plan_id):
         '    If no history: suggest a starting weight from general knowledge.\n'
         '    Return null only if the exercise has no meaningful weight (e.g. bodyweight only).'
     )
+    prompt_lines.append(
+        '  coaching_note: 1-2 sentence personalised coaching note for this session based on the history.\n'
+        '    If PROGRESSION says INCREASE: "You hit X reps at Ykg twice — step up to Zkg today. Keep the form tight."\n'
+        '    If PROGRESSION says DECREASE: "You\'ve been short of target reps — drop to Zkg and nail your form this session."\n'
+        '    If PROGRESSION says MAINTAIN: "Solid consistency at Ykg — lock in every rep this week before adding load."\n'
+        '    If no history: give a 1-sentence starting tip or key form cue specific to this exercise.\n'
+        '    Be direct, specific, and motivating. No generic phrases like "keep progressing" or "progress from last week".\n'
+        '    Return null for warmup/mobility exercises.'
+    )
     prompt_lines.append('')
     prompt_lines.append('Exercises:')
     for i, name in enumerate(exercise_names, 1):
@@ -1566,6 +1620,7 @@ def workout_plan_prepare_week(request, plan_id):
             guide['images'] = kb[kb_key][:2]
         else:
             guide['images'] = _lookup_exercise_images(name)
+        # recommended_weight and coaching_note are kept in the saved data (not popped)
         try:
             eg = ExerciseGuide.objects.get(name__iexact=name)
             eg.data = guide
@@ -1684,10 +1739,23 @@ def _lookup_exercise_images(name: str) -> list:
     return []
 
 
+_KB_ALIASES = {
+    'bird dog': 'superman',
+    'bird-dog': 'superman',
+    'birddog': 'superman',
+    'pallof press': 'cable pull through',
+    'dead bug': 'superman',
+}
+
+
 def _get_kb_candidates(name: str, top_n: int = 20) -> list:
     """Return the top N KB keys by score for Gemini to choose from."""
     import re as _re
     kb = _load_exercise_kb()
+
+    alias = _KB_ALIASES.get(name.lower().strip())
+    if alias and alias in kb:
+        return [alias]
 
     _stop = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or', 'for', 'from', 'at', 'by'}
 

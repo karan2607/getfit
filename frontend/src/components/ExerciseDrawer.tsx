@@ -14,6 +14,7 @@ interface GuideData {
   category: string
   images: string[]
   recommended_weight?: string | null
+  coaching_note?: string | null
 }
 
 export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProps) {
@@ -82,6 +83,14 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
               <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-xl px-4 py-3">
                 {exercise.notes}
               </p>
+            </div>
+          )}
+
+          {/* Coaching note from weekly prep */}
+          {guide?.coaching_note && (
+            <div className="mb-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 flex items-start gap-2">
+              <span className="text-emerald-500 mt-0.5">🎯</span>
+              <p className="text-sm text-emerald-700 leading-snug">{guide.coaching_note}</p>
             </div>
           )}
 

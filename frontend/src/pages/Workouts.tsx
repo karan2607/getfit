@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistoryPoint, type Exercise } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistoryPoint, type Exercise, type MeasurementType } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
@@ -917,6 +917,13 @@ function isWarmup(exerciseName: string): boolean {
   return /warmup|warm.?up|mobility/i.test(exerciseName)
 }
 
+function getMeasurementType(planEx: Exercise | null | undefined, name: string): MeasurementType {
+  if (planEx?.measurement_type) return planEx.measurement_type
+  if (isWarmup(name)) return 'warmup'
+  if (isTimeBased(name)) return 'duration'
+  return 'weight_reps'
+}
+
 type PendingLog = { weight_kg?: number | null; reps_completed?: number | null; is_completed?: boolean }
 
 function ActiveSession({ sessionId }: { sessionId: string }) {
@@ -1007,15 +1014,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
       await api.workouts.completeSession(session.id)
       localStorage.removeItem(storageKey)
       showToast('Workout complete! Great work 💪')
-      // Navigate to session review page instead of dashboard
-      navigate(`/workouts/session/${session.id}`)
-      // Reload session so it shows as completed
-      const updated = await api.workouts.getSession(session.id)
-      setSession(updated)
-      setPendingLogs({})
-      setIsDirty(false)
+      navigate('/dashboard')
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
       setCompleting(false)
     }
   }
@@ -1175,7 +1177,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                    {!isWarmup(exerciseName) && (
+                    {getMeasurementType(planEx, exerciseName) !== 'warmup' && (
                       <button
                         onClick={() => setProgressFor(exerciseName)}
                         className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
@@ -1184,7 +1186,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                       </button>
                     )}
                     <button
-                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '' })}
+                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: 'weight_reps' })}
                       className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
                     >
                       How to
@@ -1202,86 +1204,97 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   </div>
                 </div>
 
-                {/* Warmup — single check-off row, no weight/reps tracking */}
-                {isWarmup(exerciseName) ? (
-                  <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-emerald-50/70' : ''}`}>
-                    <span className="text-sm text-gray-600">{planEx?.reps ?? '5-10 min'}</span>
-                    <button
-                      onClick={!isCompleted ? () => handleToggle(logs[0]) : undefined}
-                      disabled={isCompleted}
-                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
-                        logs[0]?.is_completed
-                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                          : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
-                      } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
-                    >✓</button>
-                  </div>
-                ) : (
-                  <>
-                    {/* Column labels */}
-                    <div className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
-                      <span>#</span>
-                      <span>{getWeightLabel(exerciseName, unit)}</span>
-                      {!isTimeBased(exerciseName) && <span>Reps done</span>}
-                      <span />
-                    </div>
+                {/* Exercise rows by measurement type */}
+                {(() => {
+                  const mType = getMeasurementType(planEx, exerciseName)
+                  const hasTwoInputs = mType === 'weight_reps' || mType === 'weight_duration'
+                  const gridCols = hasTwoInputs ? 'grid-cols-[2rem_1fr_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_2.5rem]'
 
-                    {/* Set rows */}
-                    <div className="divide-y divide-gray-50 pb-1">
-                      {logs.map((log) => (
-                        <div
-                          key={log.id}
-                          className={`grid ${isTimeBased(exerciseName) ? 'grid-cols-[2rem_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_1fr_2.5rem]'} gap-2 items-center px-4 py-2.5 transition-colors ${
-                            log.is_completed ? 'bg-emerald-50/70' : ''
-                          }`}
-                        >
-                          <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
-                            {log.set_number}
-                          </span>
-                          {isCompleted ? (
-                            <span className="text-sm text-gray-700 font-medium">
-                              {log.weight_kg != null
-                                ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
-                                : '—'}
-                            </span>
-                          ) : (
-                            <input
-                              type="number" min={0} step={isTimeBased(exerciseName) ? 1 : 0.5}
-                              placeholder="0"
-                              defaultValue={log.weight_kg != null
-                                ? (unit === 'lb' ? Math.round(log.weight_kg * 2.20462 * 10) / 10 : log.weight_kg)
-                                : ''}
-                              onBlur={(e) => handleSetField(log.id, 'weight_kg', e.target.value)}
-                              className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                            />
-                          )}
-                          {!isTimeBased(exerciseName) && (isCompleted ? (
-                            <span className="text-sm text-gray-700 font-medium">
-                              {log.reps_completed ?? '—'}
-                            </span>
-                          ) : (
-                            <input
-                              type="number" min={0} placeholder="0"
-                              defaultValue={log.reps_completed ?? ''}
-                              onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
-                              className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                            />
-                          ))}
-                          <button
-                            onClick={!isCompleted ? () => handleToggle(log) : undefined}
-                            disabled={isCompleted}
-                            className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
-                              log.is_completed
-                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                                : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
-                            } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                  if (mType === 'warmup') {
+                    return (
+                      <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-emerald-50/70' : ''}`}>
+                        <span className="text-sm text-gray-600">{planEx?.reps ?? '5-10 min'}</span>
+                        <button
+                          onClick={!isCompleted ? () => handleToggle(logs[0]) : undefined}
+                          disabled={isCompleted}
+                          className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
+                            logs[0]?.is_completed
+                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                              : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
+                          } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
+                        >✓</button>
+                      </div>
+                    )
+                  }
+
+                  // Column header labels
+                  const col1Label = mType === 'duration' ? 'Duration (sec)'
+                    : mType === 'bodyweight_reps' ? 'Reps done'
+                    : getWeightLabel(exerciseName, unit)
+                  const col2Label = mType === 'weight_duration' ? 'Duration (sec)' : 'Reps done'
+
+                  return (
+                    <>
+                      <div className={`grid ${gridCols} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
+                        <span>#</span>
+                        <span>{col1Label}</span>
+                        {hasTwoInputs && <span>{col2Label}</span>}
+                        <span />
+                      </div>
+                      <div className="divide-y divide-gray-50 pb-1">
+                        {logs.map((log) => {
+                          // Determine display value and field for col1
+                          const col1Field: 'weight_kg' | 'reps_completed' = mType === 'bodyweight_reps' ? 'reps_completed' : 'weight_kg'
+                          const col1Raw = col1Field === 'weight_kg' ? log.weight_kg : log.reps_completed
+                          const col1Display = col1Field === 'weight_kg' && col1Raw != null && mType !== 'duration'
+                            ? (unit === 'lb' ? Math.round(col1Raw * 2.20462 * 10) / 10 : col1Raw)
+                            : col1Raw
+
+                          return (
+                            <div
+                              key={log.id}
+                              className={`grid ${gridCols} gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-emerald-50/70' : ''}`}
+                            >
+                              <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
+                                {log.set_number}
+                              </span>
+                              {isCompleted ? (
+                                <span className="text-sm text-gray-700 font-medium">{col1Display ?? '—'}</span>
+                              ) : (
+                                <input
+                                  type="number" min={0} step={mType === 'duration' || mType === 'weight_duration' ? 1 : 0.5}
+                                  placeholder="0"
+                                  defaultValue={col1Display ?? ''}
+                                  onBlur={(e) => handleSetField(log.id, col1Field, e.target.value)}
+                                  className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                                />
+                              )}
+                              {hasTwoInputs && (isCompleted ? (
+                                <span className="text-sm text-gray-700 font-medium">{log.reps_completed ?? '—'}</span>
+                              ) : (
+                                <input
+                                  type="number" min={0} step={1} placeholder="0"
+                                  defaultValue={log.reps_completed ?? ''}
+                                  onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
+                                  className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                                />
+                              ))}
+                              <button
+                                onClick={!isCompleted ? () => handleToggle(log) : undefined}
+                                disabled={isCompleted}
+                                className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
+                                  log.is_completed
+                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                    : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
+                                } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
+                              >✓</button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )
+                })()}
                 )}
               </div>
             )
@@ -1343,6 +1356,7 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
 
   const [history, setHistory] = useState<ExerciseHistoryPoint[]>([])
   const [loading, setLoading] = useState(true)
+  const [chartView, setChartView] = useState<'weight' | 'reps'>('weight')
 
   useEffect(() => {
     api.workouts.getExerciseHistory(name)
@@ -1351,7 +1365,7 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
       .finally(() => setLoading(false))
   }, [name])
 
-  const chartPoints = (() => {
+  const weightPoints = (() => {
     const byDate = new Map<string, number>()
     for (const p of history) {
       const date = p.workout_session__started_at.split('T')[0]
@@ -1361,6 +1375,17 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
     return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, weight]) => ({ date, weight }))
   })()
 
+  const repsPoints = (() => {
+    const byDate = new Map<string, number>()
+    for (const p of history) {
+      const date = p.workout_session__started_at.split('T')[0]
+      const r = p.reps_completed ?? 0
+      if (r > (byDate.get(date) ?? 0)) byDate.set(date, r)
+    }
+    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, weight]) => ({ date, weight }))
+  })()
+
+  const chartPoints = chartView === 'weight' ? weightPoints : repsPoints
   const pb = history.reduce<number | null>((max, p) => p.weight_kg != null ? Math.max(max ?? 0, p.weight_kg) : max, null)
 
   return (
@@ -1384,7 +1409,25 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                 </div>
               )}
               <div className="mb-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Max weight per session ({unit})</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    {chartView === 'weight' ? `Max weight per session (${unit})` : 'Max reps per session'}
+                  </p>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-medium">
+                    <button
+                      onClick={() => setChartView('weight')}
+                      className={`px-3 py-1 transition-colors ${chartView === 'weight' ? 'bg-brand-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                    >
+                      Weight
+                    </button>
+                    <button
+                      onClick={() => setChartView('reps')}
+                      className={`px-3 py-1 transition-colors ${chartView === 'reps' ? 'bg-brand-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                    >
+                      Reps
+                    </button>
+                  </div>
+                </div>
                 <LineChart points={chartPoints} />
               </div>
               <div className="bg-gray-50 rounded-xl overflow-hidden">
