@@ -1,8 +1,18 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import sentry_sdk
 
 load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+
+_sentry_dsn = os.getenv('SENTRY_DSN')
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        send_default_pii=True,
+        enable_logs=True,
+        traces_sample_rate=0.2,
+    )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
