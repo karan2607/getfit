@@ -171,6 +171,24 @@ _RULES = [
         r'\bshadow box',
         r'\bjumping jacks?\b',
     ], [r'\bclean\b', r'\bsnatch\b', r'\bgood morning\b']),
+
+    # Positive rule for ordinary resistance work, checked LAST so the more
+    # specific rules above always win.
+    #
+    # Without this the classifier had no opinion on any standard lift -- it just
+    # fell through to the DEFAULT_TYPE -- which meant normalize() would accept
+    # the AI calling a barbell bench press 'duration'. Equipment and movement
+    # nouns are a strong enough signal to be confident.
+    (WEIGHT_REPS, [
+        r'\bbarbell\b', r'\bdumbbell\b', r'\bkettlebell\b', r'\bcable\b',
+        r'\bmachine\b', r'\bsmith\b', r'\bez[- ]?bar\b', r'\btrap bar\b',
+        r'\blandmine\b', r'\bplate\b', r'\bhack\b', r'\bpulldown\b',
+        r'\bpulley\b', r'\bbench press\b', r'\bpress\b', r'\bcurl\b',
+        r'\bsquat\b', r'\bdeadlift\b', r'\brow\b', r'\bextension\b',
+        r'\braise\b', r'\bflye?s?\b', r'\blunge\b', r'\bshrug\b',
+        r'\bpushdown\b', r'\bpullover\b', r'\bthruster\b', r'\bhip thrust\b',
+        r'\bcrossover\b', r'\bpec deck\b', r'\bleg curl\b', r'\bcalf\b',
+    ], []),
 ]
 
 # Secondary signal: Exercise.reps is a free-text CharField ("8-12", "AMRAP",
@@ -228,32 +246,47 @@ def is_warmup_name(name):
     return _matches_any(_normalize_name(name), _WARMUP_PATTERNS)
 
 
-def classify(name, reps=None):
+def _classify_with_confidence(name, reps=None):
     """
-    Deterministically classify an exercise by name.
+    Classify, and report whether a rule actually matched.
 
-    Returns one of ALL_TYPES. Falls back to DEFAULT_TYPE ('weight_reps') when no
-    rule matches, so callers can detect "no opinion" by comparing to DEFAULT_TYPE.
+    The confidence flag matters because DEFAULT_TYPE is itself 'weight_reps':
+    without it, "a rule confidently says this is a barbell lift" and "nothing
+    matched, so assume weight+reps" are indistinguishable, and normalize() would
+    let the AI relabel a bench press as 'duration'.
+
+    Returns (measurement_type, matched) where `matched` is True only when a name
+    rule or the reps-text signal fired.
     """
     text = _normalize_name(name)
     if not text:
-        return DEFAULT_TYPE
+        return DEFAULT_TYPE, False
 
     for measurement_type, includes, excludes in _RULES:
         if _matches_any(text, includes) and not _matches_any(text, excludes):
-            return measurement_type
+            return measurement_type, True
 
     # No name rule matched. Fall back to the reps-text signal: "3 x 30 sec" on an
     # otherwise unrecognised movement means it is timed, not rep-counted.
     if _reps_imply_duration(reps):
-        return DURATION
+        return DURATION, True
 
-    return DEFAULT_TYPE
+    return DEFAULT_TYPE, False
+
+
+def classify(name, reps=None):
+    """
+    Deterministically classify an exercise by name.
+
+    Returns one of ALL_TYPES, falling back to DEFAULT_TYPE ('weight_reps') when
+    nothing matches. Use has_opinion() to tell a real verdict from the fallback.
+    """
+    return _classify_with_confidence(name, reps=reps)[0]
 
 
 def has_opinion(name, reps=None):
     """True if the deterministic rules actually recognised this exercise."""
-    return classify(name, reps=reps) != DEFAULT_TYPE
+    return _classify_with_confidence(name, reps=reps)[1]
 
 
 def normalize(raw, name, day_name=None, reps=None):
@@ -273,8 +306,8 @@ def normalize(raw, name, day_name=None, reps=None):
     if is_warmup_name(name):
         return WARMUP
 
-    deterministic = classify(name, reps=reps)
-    if deterministic != DEFAULT_TYPE:
+    deterministic, confident = _classify_with_confidence(name, reps=reps)
+    if confident:
         return deterministic
 
     if raw in ALL_TYPES:

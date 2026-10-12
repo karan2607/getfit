@@ -2040,7 +2040,10 @@ _KB_ALIASES = {
     'bird dog': 'superman',
     'bird-dog': 'superman',
     'birddog': 'superman',
-    'pallof press': 'cable pull through',
+    # NOTE: no 'pallof press' alias -- the KB contains "pallof press" verbatim,
+    # so exact matching already finds it. The old alias pointed at
+    # "cable pull through", which is not a KB key at all, so it silently did
+    # nothing (and would have been the wrong exercise anyway).
     'dead bug': 'superman',
     # The KB has no "pec deck" key. Fuzzy matching scored "reverse machine
     # flyes" highest (shared "machine" + "flye" tokens), so a CHEST exercise was

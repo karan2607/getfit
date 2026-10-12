@@ -1,0 +1,88 @@
+name: CI
+
+# Runs on every push and PR. Before this, the repo had no tests and no CI, so
+# cross-layer regressions (an AI schema change breaking the serializer, a
+# serializer change breaking the frontend) only surfaced in production.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is what the local venv runs; 3.12 is what Render is likely to pick
+        # given requirements.txt pins no Python version. Testing both catches
+        # version-specific syntax before a Render default bump breaks the deploy.
+        python-version: ['3.9', '3.12']
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SECRET_KEY: ci-not-a-real-secret
+      # DEBUG=True keeps settings.py on SQLite. With DEBUG=False it now refuses
+      # to start without a postgres DATABASE_URL, which is deliberate.
+      DEBUG: 'True'
+      GEMINI_API_KEY: ''
+      SENTRY_DSN: ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system checks
+        run: python manage.py check
+
+      - name: Fail if models drifted from migrations
+        # Catches a model field added without a matching migration — which would
+        # otherwise only explode during the Render build.
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Migrations apply from scratch
+        run: python manage.py migrate --noinput
+
+      - name: Data upgrades are safe to run
+        run: python manage.py upgrade_data --dry-run
+
+      - name: Tests
+        run: python manage.py test api.tests --verbosity 2
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
