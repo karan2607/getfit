@@ -13,8 +13,14 @@ interface GuideData {
   tips: string[]
   category: string
   images: string[]
+  /** Weighted exercises only — the server nulls this for other types. */
   recommended_weight?: string | null
+  /** Time target for duration work, rep target for bodyweight work. */
+  recommended_target?: string | null
   coaching_note?: string | null
+  measurement_type?: string | null
+  /** Unit the advice above is written in, so the heading cannot contradict it. */
+  unit?: string | null
 }
 
 export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProps) {
@@ -94,13 +100,31 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
             </div>
           )}
 
-          {/* AI weight recommendation from bulk pre-gen */}
+          {/* Progression advice from the weekly prep run.
+              recommended_weight only ever appears for weighted exercises and
+              recommended_target only for duration/bodyweight work — the server
+              nulls whichever does not apply, so a warmup or a plank can never
+              show a "start Xlb" line. */}
           {guide?.recommended_weight && (
             <div className="mb-4 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-start gap-2">
               <span className="text-brand-500 mt-0.5">💡</span>
               <div>
-                <p className="text-xs font-semibold text-brand-600 mb-0.5">Recommended weight</p>
+                <p className="text-xs font-semibold text-brand-600 mb-0.5">
+                  Recommended weight{guide.unit ? ` (${guide.unit})` : ''}
+                </p>
                 <p className="text-sm text-brand-700">{guide.recommended_weight}</p>
+              </div>
+            </div>
+          )}
+
+          {guide?.recommended_target && (
+            <div className="mb-4 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-start gap-2">
+              <span className="text-brand-500 mt-0.5">💡</span>
+              <div>
+                <p className="text-xs font-semibold text-brand-600 mb-0.5">
+                  {guide.measurement_type === 'duration' ? 'Target time' : 'Target reps'}
+                </p>
+                <p className="text-sm text-brand-700">{guide.recommended_target}</p>
               </div>
             </div>
           )}

@@ -81,6 +81,18 @@ if _db_url.startswith('postgres'):
             'PORT': _r.port or 5432,
         }
     }
+elif not DEBUG:
+    # Fail loudly rather than silently falling back to SQLite.
+    #
+    # On Render the filesystem is ephemeral, so a missing or malformed
+    # DATABASE_URL used to mean the app booted happily against a throwaway
+    # db.sqlite3 and quietly lost every user's data on the next deploy. A
+    # misconfigured production database must stop the boot, not hide.
+    raise RuntimeError(
+        'DATABASE_URL must be a postgres:// URL when DEBUG is False. '
+        'Got %r. Refusing to start on ephemeral SQLite in production.'
+        % (_db_url[:30] + '...' if len(_db_url) > 30 else _db_url)
+    )
 else:
     DATABASES = {
         'default': {

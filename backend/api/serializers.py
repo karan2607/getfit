@@ -127,7 +127,7 @@ class WorkoutDaySerializer(serializers.ModelSerializer):
 class WorkoutPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'created_at', 'updated_at']
         read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at']
 
 
@@ -136,17 +136,25 @@ class WorkoutPlanDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'days', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'days', 'created_at', 'updated_at']
         read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at']
 
 
 class SetLogSerializer(serializers.ModelSerializer):
     exercise_id = serializers.UUIDField(source='exercise.id', read_only=True, default=None)
+    # The client needs the type to know which of the three value fields to render.
+    # Falls back to the parent Exercise; None when the Exercise was SET_NULL'd.
+    measurement_type = serializers.CharField(
+        source='exercise.measurement_type', read_only=True, default=None)
 
     class Meta:
         model = SetLog
-        fields = ['id', 'exercise_id', 'exercise_name', 'set_number', 'reps_completed', 'weight_kg', 'is_completed', 'notes']
-        read_only_fields = ['id', 'exercise_id']
+        fields = [
+            'id', 'exercise_id', 'exercise_name', 'set_number',
+            'reps_completed', 'weight_kg', 'duration_seconds',
+            'measurement_type', 'is_completed', 'notes',
+        ]
+        read_only_fields = ['id', 'exercise_id', 'measurement_type']
 
 
 class WorkoutSessionSerializer(serializers.ModelSerializer):

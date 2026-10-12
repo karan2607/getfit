@@ -2,10 +2,18 @@ import { useState, useRef, type KeyboardEvent } from 'react'
 
 interface Props {
   onSend: (content: string) => void
+  /**
+   * Hard block — the input cannot be used at all (e.g. the chat session is
+   * still being created). Deliberately NOT set while a reply is streaming:
+   * putting `disabled` on the textarea in that case is what stopped you typing
+   * your next question while the AI was still answering.
+   */
   disabled?: boolean
+  /** A reply is in flight; messages sent now are queued, not dropped. */
+  isReplying?: boolean
 }
 
-export default function ChatInput({ onSend, disabled }: Props) {
+export default function ChatInput({ onSend, disabled, isReplying }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -34,7 +42,13 @@ export default function ChatInput({ onSend, disabled }: Props) {
   }
 
   return (
-    <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+    <div>
+      {isReplying && (
+        <p className="text-[11px] text-gray-400 px-2 pb-1">
+          Still replying — send another and it'll answer both.
+        </p>
+      )}
+      <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
       <textarea
         ref={textareaRef}
         value={value}
@@ -42,7 +56,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         disabled={disabled}
-        placeholder="Ask your AI trainer anything..."
+        placeholder={isReplying ? 'Add another message...' : 'Ask your AI trainer anything...'}
         rows={1}
         className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent leading-relaxed disabled:opacity-50"
         style={{ maxHeight: '160px' }}
@@ -57,6 +71,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
           <path d="M2 8L14 2L8 14L7 9L2 8Z" fill="white" stroke="white" strokeWidth="1" strokeLinejoin="round"/>
         </svg>
       </button>
+      </div>
     </div>
   )
 }

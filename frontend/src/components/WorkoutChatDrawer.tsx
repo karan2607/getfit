@@ -17,27 +17,58 @@ interface WorkoutChatDrawerProps {
   onDietPlanUpdated?: () => void
   planPreview?: WorkoutPlanPreview
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
+  /** True when the caller has unsaved set edits that a plan update would destroy. */
+  hasUnsavedSets?: boolean
+  /** Awaited before a plan edit is applied, so pending sets can be flushed. */
+  onBeforePlanUpdate?: () => Promise<void>
 }
 
 export default function WorkoutChatDrawer({
   isOpen, onClose, planId, dayId, filterDayNumber, dietPlanId, mealId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
+  hasUnsavedSets, onBeforePlanUpdate,
 }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  // Messages typed while a reply is still streaming. Flushed as a single
+  // follow-up once the in-flight reply lands, so the AI answers both.
+  const queuedRef = useRef<string[]>([])
+  const [queuedCount, setQueuedCount] = useState(0)
 
   const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } =
     useChatSession(sessionId)
 
-  const handleSend = (content: string) => {
+  const buildExtra = () => {
     const extra: Record<string, unknown> = {}
     if (planId) extra.plan_id = planId
     else if (planPreview) extra.plan_context = JSON.stringify(planPreview)
     if (dayId) extra.day_id = dayId
     if (dietPlanId) extra.diet_plan_id = dietPlanId
     if (mealId) extra.meal_id = mealId
-    sendMessage(content, Object.keys(extra).length ? extra : undefined)
+    return Object.keys(extra).length ? extra : undefined
   }
+
+  const handleSend = (content: string) => {
+    if (isSending) {
+      // Don't drop it — hold it until the current reply finishes.
+      queuedRef.current.push(content)
+      setQueuedCount(queuedRef.current.length)
+      return
+    }
+    sendMessage(content, buildExtra())
+  }
+
+  // Drain the queue when the in-flight reply completes.
+  useEffect(() => {
+    if (isSending || queuedRef.current.length === 0) return
+    const pending = queuedRef.current
+    queuedRef.current = []
+    setQueuedCount(0)
+    const combined = pending.length === 1
+      ? pending[0]
+      : `${pending.join('\n\n')}\n\n(Please address each of the points above.)`
+    sendMessage(combined, buildExtra())
+  }, [isSending]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isOpen || sessionId) return
@@ -119,6 +150,7 @@ export default function WorkoutChatDrawer({
                   filterDayNumber={filterDayNumber}
                   onSaved={onPlanUpdated}
                   onDietSaved={onDietPlanUpdated}
+                  onBeforeSave={onBeforePlanUpdate}
                   onPreviewUpdate={msg.role === 'assistant' ? onPreviewUpdate : undefined}
                 />
               ))}
@@ -133,6 +165,7 @@ export default function WorkoutChatDrawer({
                   filterDayNumber={filterDayNumber}
                   onSaved={onPlanUpdated}
                   onDietSaved={onDietPlanUpdated}
+                  onBeforeSave={onBeforePlanUpdate}
                   onPreviewUpdate={onPreviewUpdate}
                 />
               )}
@@ -151,7 +184,20 @@ export default function WorkoutChatDrawer({
 
         {/* Input — pb accounts for mobile bottom nav bar (~64px) */}
         <div className="px-4 pb-[calc(1rem+4rem)] sm:pb-4 pt-2 border-t border-gray-100">
-          <ChatInput onSend={handleSend} disabled={isSending || busy} />
+          {hasUnsavedSets && isEditDayMode && (
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
+              You have unticked sets. They'll be saved automatically before any
+              change is applied.
+            </p>
+          )}
+          {queuedCount > 0 && (
+            <p className="text-[11px] text-gray-400 px-2 pb-1">
+              {queuedCount} message{queuedCount > 1 ? 's' : ''} queued
+            </p>
+          )}
+          {/* `disabled` is only the hard block (session not ready). While a reply
+              streams the input stays usable and messages queue instead. */}
+          <ChatInput onSend={handleSend} disabled={busy} isReplying={isSending} />
         </div>
       </div>
     </>

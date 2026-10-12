@@ -153,6 +153,10 @@ class WorkoutPlan(models.Model):
     specific_goal = models.TextField(blank=True)
     program_target = models.JSONField(null=True, blank=True)
     goal_check_in_shown = models.BooleanField(default=False)
+    # Highest upgrade step from api/data_upgrades.py already applied to this plan.
+    # Lets a major update repair existing plans in place instead of requiring the
+    # user to recreate them. See `manage.py upgrade_data`.
+    data_version = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -231,8 +235,12 @@ class SetLog(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.SET_NULL, null=True, blank=True)
     exercise_name = models.CharField(max_length=150)   # denormalized — survives plan edits
     set_number = models.PositiveIntegerField()
+    # Which of these three carry meaning depends on the parent Exercise's
+    # measurement_type. See api/exercise_types.FIELD_CONTRACT -- it is enforced on
+    # write by coerce_set_fields(), so fields that do not apply are always NULL.
     reps_completed = models.PositiveIntegerField(null=True, blank=True)
-    weight_kg = models.FloatField(null=True, blank=True)
+    weight_kg = models.FloatField(null=True, blank=True)   # always kilograms
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
@@ -380,12 +388,21 @@ class BodyScanResult(models.Model):
 # ---------------------------------------------------------------------------
 
 class ExerciseGuide(models.Model):
-    name = models.CharField(max_length=255, unique=True, db_index=True)
+    # user=NULL is the shared generic guide (form steps, muscles, images).
+    # A row with a user is that user's personalised copy, carrying their weight
+    # recommendation and coaching note. Previously `name` was globally unique with
+    # no user FK, so one user's personalised advice was served to everyone.
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='exercise_guides',
+        null=True, blank=True,
+    )
+    name = models.CharField(max_length=255, db_index=True)
     data = models.JSONField()  # {steps, muscles, tips, category, images}
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['name']
+        unique_together = ('user', 'name')
 
     def __str__(self):
         return self.name

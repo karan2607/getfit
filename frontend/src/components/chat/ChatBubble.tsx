@@ -13,6 +13,8 @@ interface Props {
   onSaved?: () => void
   onDietSaved?: () => void
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
+  /** Awaited before a plan replace, so callers can flush unsaved set edits. */
+  onBeforeSave?: () => Promise<void>
 }
 
 const THINKING_MESSAGES = [
@@ -106,13 +108,14 @@ function PlanPreviewModal({ plan, filterDayNumber, onClose }: { plan: WorkoutPla
 }
 
 function InlinePlanCard({
-  plan, planId, filterDayNumber, onSaved, onPreviewUpdate,
+  plan, planId, filterDayNumber, onSaved, onPreviewUpdate, onBeforeSave,
 }: {
   plan: WorkoutPlanPreview
   planId?: string
   filterDayNumber?: number
   onSaved?: () => void
   onPreviewUpdate?: (plan: WorkoutPlanPreview) => void
+  onBeforeSave?: () => Promise<void>
 }) {
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
@@ -127,6 +130,10 @@ function InlinePlanCard({
     setSaving(true)
     try {
       if (planId) {
+        // replacePlan is a full PUT that deletes and recreates this plan's days,
+        // which takes every SetLog row with it. Any set edits still held in
+        // local state must be persisted FIRST or they are lost for good.
+        if (onBeforeSave) await onBeforeSave()
         await api.workouts.replacePlan(planId, plan)
         setSaved(true)
         showToast('Plan updated!')
@@ -252,7 +259,7 @@ function parseDietPlan(content: string): { text: string; plan: DietPlanPreview |
   }
 }
 
-export default function ChatBubble({ role, content, isStreaming, planId, dietPlanId, filterDayNumber, onSaved, onDietSaved, onPreviewUpdate }: Props) {
+export default function ChatBubble({ role, content, isStreaming, planId, dietPlanId, filterDayNumber, onSaved, onDietSaved, onPreviewUpdate, onBeforeSave }: Props) {
   const isUser = role === 'user'
 
   // While streaming, if a plan block is being built, show thinking card instead of raw JSON
@@ -297,7 +304,7 @@ export default function ChatBubble({ role, content, isStreaming, planId, dietPla
           </div>
         )}
         {isGeneratingPlan && <ThinkingCard />}
-        {workoutPlan && !isStreaming && <InlinePlanCard plan={workoutPlan} planId={planId} filterDayNumber={filterDayNumber} onSaved={onSaved} onPreviewUpdate={onPreviewUpdate} />}
+        {workoutPlan && !isStreaming && <InlinePlanCard plan={workoutPlan} planId={planId} filterDayNumber={filterDayNumber} onSaved={onSaved} onPreviewUpdate={onPreviewUpdate} onBeforeSave={onBeforeSave} />}
         {dietPlan && !isStreaming && <InlineDietPlanCard plan={dietPlan} dietPlanId={dietPlanId} onSaved={onDietSaved} />}
       </div>
     </div>

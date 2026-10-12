@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistoryPoint, type Exercise, type MeasurementType } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType } from '../lib/api'
+import {
+  type SetField, type WeightUnit,
+  fieldsFor, fieldLabel, toDisplayField, toStorageField,
+  chartSpecFor, chartLabel, formatChartValue, formatDuration,
+} from '../lib/units'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
@@ -60,7 +65,14 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
   // Step 2 — specific goals
   const [specificGoals, setSpecificGoals] = useState<string[]>([])
-  const [goalParams, setGoalParams] = useState<Record<string, { amount?: number; unit?: string; distance?: string }>>({})
+  // The unit is SEEDED from the profile and always written explicitly. It used
+  // to be set only by the <select>'s onChange, so it stayed `undefined` unless
+  // you actively touched the dropdown -- the backend then had to guess, and
+  // "lose 2 kg" came back as 2 lb.
+  const goalUnit: WeightUnit = (user?.profile?.preferred_unit ?? 'lb') as WeightUnit
+  const [goalParams, setGoalParams] = useState<Record<string, { amount?: number; unit?: string; distance?: string }>>(
+    { lose_weight: { unit: goalUnit } }
+  )
   const [notes, setNotes] = useState('')
 
   // Step 3 — AI recommendation
@@ -145,8 +157,16 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
 
   async function handleGenerate() {
     setGenerating(true)
+    // Carry the unit explicitly. Without it the unit survived only inside the
+    // free-text `label`, so the AI re-interpreted "lose 2 kg" however it liked.
     const confirmedTarget = targetRec?.program_target
-      ? { ...targetRec.program_target, recommended_value: editedTarget ?? targetRec.program_target.recommended_value }
+      ? {
+          ...targetRec.program_target,
+          recommended_value: editedTarget ?? targetRec.program_target.recommended_value,
+          unit: targetRec.program_target.unit
+            ?? goalParams['lose_weight']?.unit
+            ?? goalUnit,
+        }
       : undefined
     try {
       const data = await api.workouts.generatePlan({
@@ -300,16 +320,16 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                           <input
                             type="number" min={1} max={50}
                             value={goalParams['lose_weight']?.amount ?? ''}
-                            onChange={(e) => setGoalParams(p => ({ ...p, lose_weight: { ...p.lose_weight, amount: Number(e.target.value) } }))}
-                            placeholder="kg"
+                            onChange={(e) => setGoalParams(p => ({ ...p, lose_weight: { unit: goalUnit, ...p.lose_weight, amount: Number(e.target.value) } }))}
+                            placeholder="0"
                             className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-400"
                           />
                           <select
-                            value={goalParams['lose_weight']?.unit ?? 'kg'}
+                            value={goalParams['lose_weight']?.unit ?? goalUnit}
                             onChange={(e) => setGoalParams(p => ({ ...p, lose_weight: { ...p.lose_weight, unit: e.target.value } }))}
                             className="border border-gray-200 rounded-lg px-1 py-1 text-xs focus:outline-none"
                           >
-                            <option>kg</option><option>lb</option>
+                            <option value="kg">kg</option><option value="lb">lb</option>
                           </select>
                         </div>
                       )}
@@ -575,6 +595,18 @@ function PlanDetail({ planId }: { planId: string }) {
   const [editDayNumber, setEditDayNumber] = useState<number | null>(null)
   const [explicitChatOpen, setExplicitChatOpen] = useState(false)
   const [weeksExpanded, setWeeksExpanded] = useState(false)
+  // Day cards start collapsed so a 5-day week is scannable in one screen
+  // instead of a long scroll through every exercise.
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
+
+  function toggleDay(dayId: string) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev)
+      if (next.has(dayId)) next.delete(dayId)
+      else next.add(dayId)
+      return next
+    })
+  }
 
   const chatOpen = explicitChatOpen || editDayId !== null
 
@@ -750,15 +782,32 @@ function PlanDetail({ planId }: { planId: string }) {
                     && (Date.now() - new Date(day.last_completed_at).getTime()) < 7 * 86_400_000
                   return (
                 <div className="flex items-center gap-3 mb-3">
-                  <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
-                    {completedRecently ? '✓' : day.day_number}
-                  </span>
-                  <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
-                  {day.focus && (
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{day.focus}</span>
-                  )}
+                  {/* Tapping the name area expands/collapses this day. */}
+                  <button
+                    onClick={() => toggleDay(day.id)}
+                    className="flex items-center gap-3 min-w-0 flex-1 text-left group"
+                  >
+                    <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
+                      {completedRecently ? '✓' : day.day_number}
+                    </span>
+                    <span className="font-semibold text-gray-900 text-sm truncate group-hover:text-brand-600 transition-colors">
+                      {day.name}
+                    </span>
+                    {day.focus && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{day.focus}</span>
+                    )}
+                    {/* Collapsed summary, so you can still see the shape of the day. */}
+                    {!expandedDays.has(day.id) && !day.is_rest_day && (
+                      <span className="text-xs text-gray-400 flex-shrink-0">
+                        {day.exercises.length} exercise{day.exercises.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                    <span className="text-gray-400 text-xs flex-shrink-0">
+                      {expandedDays.has(day.id) ? '▾' : '▸'}
+                    </span>
+                  </button>
                   {!day.is_rest_day && (
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => { setEditDayId(day.id); setEditDayNumber(day.day_number) }}
                         className="text-xs text-brand-500 border border-brand-300 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
@@ -802,8 +851,8 @@ function PlanDetail({ planId }: { planId: string }) {
                 </div>
                   )
                 })()}
-                {/* Exercises */}
-                {day.is_rest_day ? (
+                {/* Exercises — only rendered when this day is expanded */}
+                {expandedDays.has(day.id) && (day.is_rest_day ? (
                   <RestDayCard />
                 ) : (
                   <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
@@ -811,7 +860,7 @@ function PlanDetail({ planId }: { planId: string }) {
                       <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
                     ))}
                   </div>
-                )}
+                ))}
               </div>
             ))}
           </div>
@@ -900,38 +949,43 @@ function PlanDetail({ planId }: { planId: string }) {
 
 // ── Active Session ─────────────────────────────────────────────────────────
 
-function getWeightLabel(exerciseName: string, unit: string): string {
-  const n = exerciseName.toLowerCase()
-  if (/dumbbell|db /.test(n)) return `Each (${unit})`
-  if (/barbell|bb |squat|deadlift|bench press|overhead press|ohp/.test(n)) return `Bar weight (${unit})`
-  if (/plank|wall sit|hold|isometric|dead hang|farmer.?s? carry/i.test(n)) return 'Duration (sec)'
-  if (/cable|machine/.test(n)) return `Stack (${unit})`
-  return `Weight (${unit})`
+/**
+ * The measurement type for a logged set.
+ *
+ * The server is authoritative: it is stamped on the Exercise, validated on
+ * write, and echoed on every SetLog. The frontend no longer guesses from the
+ * name -- the old local regexes disagreed with the backend's rules, which is why
+ * the same exercise could render differently in two places.
+ *
+ * `weight_reps` is only used when the server told us nothing at all (an orphaned
+ * SetLog whose Exercise was deleted).
+ */
+function getMeasurementType(
+  planEx: Exercise | null | undefined,
+  log?: Pick<SetLog, 'measurement_type'> | null,
+): MeasurementType {
+  return planEx?.measurement_type ?? log?.measurement_type ?? 'weight_reps'
 }
 
-function isTimeBased(exerciseName: string): boolean {
-  return /plank|wall sit|hold|isometric|dead hang|farmer.?s? carry/i.test(exerciseName)
-}
+type PendingLog = Partial<Record<SetField, number | null>> & { is_completed?: boolean }
 
-function isWarmup(exerciseName: string): boolean {
-  return /warmup|warm.?up|mobility/i.test(exerciseName)
+/**
+ * Draft key for a pending set edit.
+ *
+ * Keyed by (exercise, set number) rather than SetLog id on purpose. An AI plan
+ * edit deletes and recreates the day's rows, so every SetLog gets a NEW id --
+ * and the old code looked drafts up by the stale id, found nothing, and silently
+ * dropped every ticked set. That is the "sets data going away" bug.
+ */
+function pendKey(exerciseId: string | null, setNumber: number): string {
+  return `${exerciseId ?? 'orphan'}:${setNumber}`
 }
-
-function getMeasurementType(planEx: Exercise | null | undefined, name: string): MeasurementType {
-  if (planEx?.measurement_type) return planEx.measurement_type
-  if (isWarmup(name)) return 'warmup'
-  if (isTimeBased(name)) return 'duration'
-  return 'weight_reps'
-}
-
-type PendingLog = { weight_kg?: number | null; reps_completed?: number | null; is_completed?: boolean }
 
 function ActiveSession({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { user } = useAuth()
-  const unit = user?.profile?.preferred_unit ?? 'lb'
-  const KG_PER_LB = 0.453592
+  const unit: WeightUnit = (user?.profile?.preferred_unit ?? 'lb') as WeightUnit
   const [session, setSession] = useState<WorkoutSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
@@ -953,42 +1007,88 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
       .finally(() => setLoading(false))
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save to localStorage whenever pendingLogs changes
+  // Mirror pendingLogs into localStorage. Also writes the empty case, so a
+  // successful flush actually clears the draft instead of leaving a stale one
+  // behind for the next visit to re-apply.
   useEffect(() => {
     if (Object.keys(pendingLogs).length > 0) {
       localStorage.setItem(storageKey, JSON.stringify(pendingLogs))
+    } else {
+      localStorage.removeItem(storageKey)
     }
   }, [pendingLogs, storageKey])
 
-  function handleSetField(logId: string, field: 'weight_kg' | 'reps_completed', rawValue: string) {
-    const num = rawValue === '' ? null : Number(rawValue)
-    const stored = field === 'weight_kg' && num !== null ? (unit === 'lb' ? num * KG_PER_LB : num) : num
-    setPendingLogs((prev) => ({ ...prev, [logId]: { ...prev[logId], [field]: stored } }))
+  /** Current value for a set field: pending edit wins, else what the server has. */
+  function setFieldValue(log: SetLog, field: SetField): number | null {
+    const pending = pendingLogs[pendKey(log.exercise_id, log.set_number)]
+    if (pending && field in pending) return pending[field] ?? null
+    return (log[field] as number | null) ?? null
+  }
+
+  function isSetCompleted(log: SetLog): boolean {
+    const pending = pendingLogs[pendKey(log.exercise_id, log.set_number)]
+    return pending?.is_completed ?? log.is_completed
+  }
+
+  function handleSetField(log: SetLog, field: SetField, rawValue: string) {
+    // Convert by measurement type, never by field name. The old code scaled
+    // anything called `weight_kg` by KG_PER_LB, which corrupted duration seconds.
+    const typed = rawValue === '' ? null : Number(rawValue)
+    const stored = Number.isNaN(typed as number) ? null : toStorageField(field, typed, unit)
+    const key = pendKey(log.exercise_id, log.set_number)
+    setPendingLogs((prev) => ({ ...prev, [key]: { ...prev[key], [field]: stored } }))
     setIsDirty(true)
   }
 
   function handleToggle(log: SetLog) {
-    const current = pendingLogs[log.id]?.is_completed ?? log.is_completed
-    setPendingLogs((prev) => ({ ...prev, [log.id]: { ...prev[log.id], is_completed: !current } }))
+    const key = pendKey(log.exercise_id, log.set_number)
+    const current = isSetCompleted(log)
+    setPendingLogs((prev) => ({ ...prev, [key]: { ...prev[key], is_completed: !current } }))
     setIsDirty(true)
   }
 
+  /** Copy the previous set's values into this one ("same as above"). */
+  function handleCopyPrevious(log: SetLog, prev: SetLog, mType: MeasurementType) {
+    const key = pendKey(log.exercise_id, log.set_number)
+    const copied: PendingLog = {}
+    for (const field of fieldsFor(mType)) {
+      copied[field] = setFieldValue(prev, field)
+    }
+    setPendingLogs((p) => ({ ...p, [key]: { ...p[key], ...copied } }))
+    setIsDirty(true)
+  }
+
+  /**
+   * Push every pending edit to the server.
+   *
+   * Changed from Promise.allSettled to Promise.all: allSettled swallowed failures
+   * so "Progress saved" appeared even when every POST had 500'd. Sends explicit
+   * nulls so a cleared field is actually cleared (the old `!= null` guards made
+   * clearing impossible).
+   */
   async function flushPendingLogs(sess: WorkoutSessionDetail) {
     const entries = Object.entries(pendingLogs)
     if (entries.length === 0) return
-    await Promise.allSettled(
-      entries.map(([logId, changes]) => {
-        const log = sess.set_logs.find((l) => l.id === logId)
-        if (!log) return Promise.resolve()
-        return api.workouts.logSet(sess.id, {
-          exercise_id: log.exercise_id ?? '',
-          set_number: log.set_number,
-          ...(changes.weight_kg != null ? { weight_kg: changes.weight_kg } : {}),
-          ...(changes.reps_completed != null ? { reps_completed: changes.reps_completed } : {}),
-          ...(changes.is_completed !== undefined ? { is_completed: changes.is_completed } : {}),
-        })
-      })
-    )
+
+    const requests: Array<Promise<unknown>> = []
+    for (const [key, changes] of entries) {
+      const log = sess.set_logs.find(
+        (l) => pendKey(l.exercise_id, l.set_number) === key)
+      if (!log || !log.exercise_id) continue
+      const mType = getMeasurementType(
+        sess.exercise_day?.exercises.find((e) => e.id === log.exercise_id), log)
+      const allowed = fieldsFor(mType)
+      const payload: Parameters<typeof api.workouts.logSet>[1] = {
+        exercise_id: log.exercise_id,
+        set_number: log.set_number,
+      }
+      for (const field of allowed) {
+        if (field in changes) payload[field] = changes[field] ?? null
+      }
+      if (changes.is_completed !== undefined) payload.is_completed = changes.is_completed
+      requests.push(api.workouts.logSet(sess.id, payload))
+    }
+    await Promise.all(requests)
   }
 
   async function handleSaveProgress() {
@@ -1045,29 +1145,56 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   if (loading) return <div className="p-6"><SkeletonText lines={10} /></div>
   if (!session) return null
 
-  // Merge server logs with local pending changes for display
-  const mergedLogs = session.set_logs.map((log) => ({ ...log, ...pendingLogs[log.id] }))
+  // Merge server logs with local pending edits for display, keyed by
+  // (exercise, set number) so drafts survive the row replacement an AI plan
+  // edit causes.
+  const mergedLogs = session.set_logs.map((log) => ({
+    ...log,
+    ...pendingLogs[pendKey(log.exercise_id, log.set_number)],
+  }))
 
-  // Build ordered exercise list preserving plan order
-  const exerciseOrder = session.exercise_day?.exercises.map((e) => e.name) ?? []
-  const byExercise = mergedLogs.reduce<Record<string, typeof mergedLogs>>((acc, log) => {
-    if (!acc[log.exercise_name]) acc[log.exercise_name] = []
-    acc[log.exercise_name].push(log)
+  // Build the exercise list from the PLAN, not from the set logs.
+  //
+  // Grouping set_logs by exercise_name meant an exercise the AI had just added
+  // (which has no logs yet) never appeared at all, and renaming an exercise
+  // orphaned its logs because the join was on the name string. Driving off
+  // exercise_day.exercises and joining on exercise_id fixes both.
+  const planExercises = session.exercise_day?.exercises ?? []
+  const logsByExerciseId = mergedLogs.reduce<Record<string, typeof mergedLogs>>((acc, log) => {
+    const key = log.exercise_id ?? 'orphan'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(log)
     return acc
   }, {})
-  const exerciseEntries = Object.entries(byExercise).sort(([a], [b]) => {
-    const ai = exerciseOrder.indexOf(a)
-    const bi = exerciseOrder.indexOf(b)
-    if (ai === -1 && bi === -1) return 0
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
 
-  // Look up plan exercise details (reps target, rest) by name
-  const planExerciseMap = Object.fromEntries(
-    (session.exercise_day?.exercises ?? []).map((e) => [e.name, e])
-  )
+  const exerciseEntries: Array<{
+    key: string
+    name: string
+    planEx: Exercise | null
+    logs: typeof mergedLogs
+  }> = planExercises.map((ex) => ({
+    key: ex.id,
+    name: ex.name,
+    planEx: ex,
+    logs: (logsByExerciseId[ex.id] ?? []).sort((a, b) => a.set_number - b.set_number),
+  }))
+
+  // Any logs whose Exercise row is gone (SET_NULL after a past plan edit) still
+  // get shown, grouped by their denormalized name, so history is never hidden.
+  const orphanedByName = (logsByExerciseId['orphan'] ?? []).reduce<Record<string, typeof mergedLogs>>(
+    (acc, log) => {
+      if (!acc[log.exercise_name]) acc[log.exercise_name] = []
+      acc[log.exercise_name].push(log)
+      return acc
+    }, {})
+  for (const [name, logs] of Object.entries(orphanedByName)) {
+    exerciseEntries.push({
+      key: `orphan:${name}`,
+      name,
+      planEx: null,
+      logs: logs.sort((a, b) => a.set_number - b.set_number),
+    })
+  }
 
   const completedSets = mergedLogs.filter((l) => l.is_completed).length
   const totalSets = mergedLogs.length
@@ -1150,21 +1277,38 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
             onClose={() => setEditChatOpen(false)}
             planId={session.plan_id}
             dayId={session.exercise_day.id}
-            onPlanUpdated={() => {
+            hasUnsavedSets={Object.keys(pendingLogs).length > 0}
+            onBeforePlanUpdate={async () => {
+              // Applying a plan edit deletes and recreates this day's set rows,
+              // so anything still only in local state must reach the server
+              // first. This is what used to silently discard every ticked set.
+              if (Object.keys(pendingLogs).length > 0) await flushPendingLogs(session)
+            }}
+            onPlanUpdated={async () => {
               setEditChatOpen(false)
-              api.workouts.getSession(session.id).then(setSession)
+              try {
+                const updated = await api.workouts.getSession(session.id)
+                setSession(updated)
+                // Drafts were flushed above and the rows have new ids; clearing
+                // prevents a stale draft overwriting the refetched values.
+                setPendingLogs({})
+                setIsDirty(false)
+                showToast('Workout updated')
+              } catch (err) {
+                showToast(getErrorMessage(err), 'error')
+              }
             }}
           />
         )}
 
         <div className="space-y-4 mb-8">
-          {exerciseEntries.map(([exerciseName, logs]) => {
-            const planEx = planExerciseMap[exerciseName]
+          {exerciseEntries.map(({ key, name: exerciseName, planEx, logs }) => {
             const doneCount = logs.filter((l) => l.is_completed).length
             const allDone = doneCount === logs.length && logs.length > 0
+            const mType = getMeasurementType(planEx, logs[0])
 
             return (
-              <div key={exerciseName} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
+              <div key={key} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
                 {/* Exercise header */}
                 <div className={`flex items-center justify-between px-4 py-3 ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}>
                   <div className="min-w-0">
@@ -1177,7 +1321,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                    {getMeasurementType(planEx, exerciseName) !== 'warmup' && (
+                    {mType !== 'warmup' && (
                       <button
                         onClick={() => setProgressFor(exerciseName)}
                         className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
@@ -1186,7 +1330,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                       </button>
                     )}
                     <button
-                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: '', reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: 'weight_reps' })}
+                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType })}
                       className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
                     >
                       How to
@@ -1204,13 +1348,21 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   </div>
                 </div>
 
-                {/* Exercise rows by measurement type */}
+                {/* Set rows, driven entirely by the measurement-type contract */}
                 {(() => {
-                  const mType = getMeasurementType(planEx, exerciseName)
-                  const hasTwoInputs = mType === 'weight_reps' || mType === 'weight_duration'
-                  const gridCols = hasTwoInputs ? 'grid-cols-[2rem_1fr_1fr_2.5rem]' : 'grid-cols-[2rem_1fr_2.5rem]'
+                  // Which inputs to show comes from the shared contract, so the
+                  // frontend can never disagree with what the server accepts.
+                  const fields = fieldsFor(mType)
 
-                  if (mType === 'warmup') {
+                  if (fields.length === 0) {
+                    // Warmup: a single completion tick, no numeric inputs at all.
+                    if (!logs.length) {
+                      return (
+                        <div className="px-4 py-3 text-sm text-gray-400">
+                          {planEx?.reps ?? 'No sets logged yet'}
+                        </div>
+                      )
+                    }
                     return (
                       <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-emerald-50/70' : ''}`}>
                         <span className="text-sm text-gray-600">{planEx?.reps ?? '5-10 min'}</span>
@@ -1227,30 +1379,42 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )
                   }
 
-                  // Column header labels
-                  const col1Label = mType === 'duration' ? 'Duration (sec)'
-                    : mType === 'bodyweight_reps' ? 'Reps done'
-                    : getWeightLabel(exerciseName, unit)
-                  const col2Label = mType === 'weight_duration' ? 'Duration (sec)' : 'Reps done'
+                  if (!logs.length) {
+                    // An exercise the AI just added, before any sets exist.
+                    return (
+                      <div className="px-4 py-3 text-sm text-gray-400">
+                        No sets logged yet — finish and reopen to log this one.
+                      </div>
+                    )
+                  }
+
+                  const gridCols = fields.length === 2
+                    ? 'grid-cols-[2rem_1fr_1fr_2.5rem]'
+                    : 'grid-cols-[2rem_1fr_2.5rem]'
 
                   return (
                     <>
                       <div className={`grid ${gridCols} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
                         <span>#</span>
-                        <span>{col1Label}</span>
-                        {hasTwoInputs && <span>{col2Label}</span>}
+                        {fields.map((f) => (
+                          <span key={f}>{fieldLabel(f, unit, exerciseName)}</span>
+                        ))}
                         <span />
                       </div>
+                      {/* Fill every set from set 1 — typing the same weight and
+                          reps for each set is the tedious part. */}
+                      {!isCompleted && logs.length > 1 && (
+                        <div className="px-4 pb-1 -mt-0.5">
+                          <button
+                            onClick={() => logs.slice(1).forEach((l) => handleCopyPrevious(l, logs[0], mType))}
+                            className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 transition-colors"
+                          >
+                            ↓ Same as set 1 for all
+                          </button>
+                        </div>
+                      )}
                       <div className="divide-y divide-gray-50 pb-1">
-                        {logs.map((log) => {
-                          // Determine display value and field for col1
-                          const col1Field: 'weight_kg' | 'reps_completed' = mType === 'bodyweight_reps' ? 'reps_completed' : 'weight_kg'
-                          const col1Raw = col1Field === 'weight_kg' ? log.weight_kg : log.reps_completed
-                          const col1Display = col1Field === 'weight_kg' && col1Raw != null && mType !== 'duration'
-                            ? (unit === 'lb' ? Math.round(col1Raw * 2.20462 * 10) / 10 : col1Raw)
-                            : col1Raw
-
-                          return (
+                        {logs.map((log, logIdx) => (
                             <div
                               key={log.id}
                               className={`grid ${gridCols} gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-emerald-50/70' : ''}`}
@@ -1258,27 +1422,38 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                               <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
                                 {log.set_number}
                               </span>
-                              {isCompleted ? (
-                                <span className="text-sm text-gray-700 font-medium">{col1Display ?? '—'}</span>
-                              ) : (
-                                <input
-                                  type="number" min={0} step={mType === 'duration' || mType === 'weight_duration' ? 1 : 0.5}
-                                  placeholder="0"
-                                  defaultValue={col1Display ?? ''}
-                                  onBlur={(e) => handleSetField(log.id, col1Field, e.target.value)}
-                                  className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                                />
-                              )}
-                              {hasTwoInputs && (isCompleted ? (
-                                <span className="text-sm text-gray-700 font-medium">{log.reps_completed ?? '—'}</span>
-                              ) : (
-                                <input
-                                  type="number" min={0} step={1} placeholder="0"
-                                  defaultValue={log.reps_completed ?? ''}
-                                  onBlur={(e) => handleSetField(log.id, 'reps_completed', e.target.value)}
-                                  className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
-                                />
-                              ))}
+                              {fields.map((field) => {
+                                // Controlled value: pending edit wins over server
+                                // state. Previously these were uncontrolled
+                                // (defaultValue + stable key), so a refetch after
+                                // a plan update never repainted the inputs.
+                                const display = toDisplayField(field, setFieldValue(log, field), unit)
+                                if (isCompleted) {
+                                  return (
+                                    <span key={field} className="text-sm text-gray-700 font-medium">
+                                      {field === 'duration_seconds' && display !== null
+                                        ? formatDuration(display)
+                                        : display ?? '—'}
+                                    </span>
+                                  )
+                                }
+                                return (
+                                  <input
+                                    key={field}
+                                    type="number" min={0}
+                                    step={field === 'weight_kg' ? 0.5 : 1}
+                                    placeholder="0"
+                                    value={display ?? ''}
+                                    onChange={(e) => handleSetField(log, field, e.target.value)}
+                                    onDoubleClick={() => {
+                                      // Double-tap a later set to copy the one above it.
+                                      if (logIdx > 0) handleCopyPrevious(log, logs[logIdx - 1], mType)
+                                    }}
+                                    title={logIdx > 0 ? 'Double-tap to copy the set above' : undefined}
+                                    className="border border-gray-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 w-full bg-white"
+                                  />
+                                )
+                              })}
                               <button
                                 onClick={!isCompleted ? () => handleToggle(log) : undefined}
                                 disabled={isCompleted}
@@ -1289,8 +1464,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                 } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
                               >✓</button>
                             </div>
-                          )
-                        })}
+                          ))}
                       </div>
                     </>
                   )
@@ -1306,38 +1480,42 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
 // ── Progress Chart ─────────────────────────────────────────────────────────
 
-function LineChart({ points }: { points: { date: string; weight: number }[] }) {
+function LineChart({ points, formatValue }: {
+  points: { date: string; value: number }[]
+  formatValue?: (v: number) => string
+}) {
   if (points.length < 2) return (
     <p className="text-sm text-gray-400 text-center py-8">Log at least 2 sessions to see a trend.</p>
   )
 
-  const W = 480, H = 180, PAD = { top: 16, right: 16, bottom: 32, left: 40 }
-  const weights = points.map((p) => p.weight)
-  const minW = Math.min(...weights)
-  const maxW = Math.max(...weights)
-  const range = maxW - minW || 1
+  const W = 480, H = 180, PAD = { top: 16, right: 16, bottom: 32, left: 48 }
+  const values = points.map((p) => p.value)
+  const minV = Math.min(...values)
+  const maxV = Math.max(...values)
+  const range = maxV - minV || 1
 
   const x = (i: number) => PAD.left + (i / (points.length - 1)) * (W - PAD.left - PAD.right)
-  const y = (w: number) => PAD.top + (1 - (w - minW) / range) * (H - PAD.top - PAD.bottom)
+  const y = (v: number) => PAD.top + (1 - (v - minV) / range) * (H - PAD.top - PAD.bottom)
 
-  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(p.weight)}`).join(' ')
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(p.value)}`).join(' ')
+  const fmt = formatValue ?? ((v: number) => v.toFixed(1))
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
       {[0, 0.5, 1].map((t) => {
         const yPos = PAD.top + t * (H - PAD.top - PAD.bottom)
-        const val = maxW - t * range
+        const val = maxV - t * range
         return (
           <g key={t}>
             <line x1={PAD.left} y1={yPos} x2={W - PAD.right} y2={yPos} stroke="#f3f4f6" strokeWidth="1" />
-            <text x={PAD.left - 4} y={yPos + 4} textAnchor="end" fontSize="10" fill="#9ca3af">{val.toFixed(1)}</text>
+            <text x={PAD.left - 4} y={yPos + 4} textAnchor="end" fontSize="10" fill="#9ca3af">{fmt(val)}</text>
           </g>
         )
       })}
       <path d={pathD} fill="none" stroke="#be123c" strokeWidth="2.5" strokeLinejoin="round" />
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={x(i)} cy={y(p.weight)} r="4" fill="#be123c" />
+          <circle cx={x(i)} cy={y(p.value)} r="4" fill="#be123c" />
           <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#9ca3af">
             {new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </text>
@@ -1349,43 +1527,59 @@ function LineChart({ points }: { points: { date: string; weight: number }[] }) {
 
 function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { user } = useAuth()
-  const unit = user?.profile?.preferred_unit ?? 'lb'
-  const KG_PER_LB = 0.453592
-  const toDisplay = (kg: number) => unit === 'lb' ? Math.round(kg / KG_PER_LB * 10) / 10 : kg
+  const unit: WeightUnit = (user?.profile?.preferred_unit ?? 'lb') as WeightUnit
 
-  const [history, setHistory] = useState<ExerciseHistoryPoint[]>([])
+  const [history, setHistory] = useState<ExerciseHistory | null>(null)
   const [loading, setLoading] = useState(true)
-  const [chartView, setChartView] = useState<'weight' | 'reps'>('weight')
 
   useEffect(() => {
+    setLoading(true)
     api.workouts.getExerciseHistory(name)
       .then(setHistory)
-      .catch(() => setHistory([]))
+      .catch(() => setHistory(null))
       .finally(() => setLoading(false))
   }, [name])
 
-  const weightPoints = (() => {
+  const logs = history?.logs ?? []
+  // The server tells us the type and which field drives the chart, so seconds
+  // can never be plotted as pounds again (a 180s plank used to show as a
+  // 396.8 lb personal best).
+  const mType = history?.measurement_type ?? 'weight_reps'
+  const spec = chartSpecFor(mType)
+  const metric = history?.metric ?? spec.metric
+
+  /** Best value per session date, in storage units. */
+  const chartPoints = (() => {
+    if (!metric) return []
     const byDate = new Map<string, number>()
-    for (const p of history) {
+    for (const p of logs) {
       const date = p.workout_session__started_at.split('T')[0]
-      const dw = toDisplay(p.weight_kg)
-      if (dw > (byDate.get(date) ?? 0)) byDate.set(date, dw)
+      const raw = p[metric]
+      if (raw === null || raw === undefined) continue
+      if (raw > (byDate.get(date) ?? -Infinity)) byDate.set(date, raw)
     }
-    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, weight]) => ({ date, weight }))
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, stored]) => ({
+        date,
+        // Convert to display units only for mass; seconds and reps pass through.
+        value: spec.unit === 'mass' ? (toDisplayField('weight_kg', stored, unit) ?? 0) : stored,
+      }))
   })()
 
-  const repsPoints = (() => {
-    const byDate = new Map<string, number>()
-    for (const p of history) {
-      const date = p.workout_session__started_at.split('T')[0]
-      const r = p.reps_completed ?? 0
-      if (r > (byDate.get(date) ?? 0)) byDate.set(date, r)
-    }
-    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, weight]) => ({ date, weight }))
-  })()
+  // Personal best uses the metric for this type, not weight_kg unconditionally.
+  const pb = metric
+    ? logs.reduce<number | null>((max, p) => {
+        const raw = p[metric]
+        return raw !== null && raw !== undefined ? Math.max(max ?? 0, raw) : max
+      }, null)
+    : null
 
-  const chartPoints = chartView === 'weight' ? weightPoints : repsPoints
-  const pb = history.reduce<number | null>((max, p) => p.weight_kg != null ? Math.max(max ?? 0, p.weight_kg) : max, null)
+  const axisFormat = spec.unit === 'seconds'
+    ? (v: number) => formatDuration(Math.round(v))
+    : spec.unit === 'reps'
+      ? (v: number) => String(Math.round(v))
+      : undefined
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 sm:pb-4 bg-black/50" onClick={onClose}>
@@ -1397,37 +1591,25 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
         <div className="overflow-y-auto flex-1 p-5">
           {loading ? (
             <SkeletonText lines={6} />
-          ) : history.length === 0 ? (
+          ) : logs.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No data logged yet.</p>
           ) : (
             <>
               {pb != null && (
                 <div className="mb-4 bg-emerald-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-medium text-emerald-700">Personal best</span>
-                  <span className="font-bold text-emerald-700">{toDisplay(pb)}{unit}</span>
+                  <span className="text-sm font-medium text-emerald-700">
+                    {spec.unit === 'seconds' ? 'Longest hold' : spec.unit === 'reps' ? 'Most reps' : 'Personal best'}
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    {formatChartValue(mType, pb, unit)}
+                  </span>
                 </div>
               )}
               <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    {chartView === 'weight' ? `Max weight per session (${unit})` : 'Max reps per session'}
-                  </p>
-                  <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-medium">
-                    <button
-                      onClick={() => setChartView('weight')}
-                      className={`px-3 py-1 transition-colors ${chartView === 'weight' ? 'bg-brand-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                    >
-                      Weight
-                    </button>
-                    <button
-                      onClick={() => setChartView('reps')}
-                      className={`px-3 py-1 transition-colors ${chartView === 'reps' ? 'bg-brand-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                    >
-                      Reps
-                    </button>
-                  </div>
-                </div>
-                <LineChart points={chartPoints} />
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  {chartLabel(mType, unit)}
+                </p>
+                <LineChart points={chartPoints} formatValue={axisFormat} />
               </div>
               <div className="bg-gray-50 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
@@ -1435,17 +1617,34 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                     <tr className="border-b border-gray-200">
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400">Date</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Set</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Weight</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Reps</th>
+                      {/* Columns follow the measurement type instead of always
+                          showing Weight/Reps. */}
+                      {fieldsFor(mType).map((f) => (
+                        <th key={f} className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">
+                          {fieldLabel(f, unit, name)}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {history.slice(0, 30).map((p, i) => (
+                    {logs.slice(0, 30).map((p, i) => (
                       <tr key={i} className="border-b border-gray-100 last:border-0">
                         <td className="px-4 py-2 text-gray-600 text-xs">{new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
                         <td className="px-4 py-2 text-right text-gray-500 text-xs">{p.set_number}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-gray-900">{p.weight_kg != null ? `${toDisplay(p.weight_kg)}${unit}` : '—'}</td>
-                        <td className="px-4 py-2 text-right text-gray-500">{p.reps_completed ?? '—'}</td>
+                        {fieldsFor(mType).map((f) => {
+                          const raw = p[f]
+                          return (
+                            <td key={f} className="px-4 py-2 text-right font-semibold text-gray-900">
+                              {raw === null || raw === undefined
+                                ? '—'
+                                : f === 'weight_kg'
+                                  ? `${toDisplayField(f, raw, unit)}${unit}`
+                                  : f === 'duration_seconds'
+                                    ? formatDuration(raw)
+                                    : raw}
+                            </td>
+                          )
+                        })}
                       </tr>
                     ))}
                   </tbody>
@@ -1461,9 +1660,7 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
 
 function ProgressTab() {
   const { user } = useAuth()
-  const unit = user?.profile?.preferred_unit ?? 'lb'
-  const KG_PER_LB = 0.453592
-  const toDisplay = (kg: number) => unit === 'lb' ? Math.round(kg / KG_PER_LB * 10) / 10 : kg
+  const unit: WeightUnit = (user?.profile?.preferred_unit ?? 'lb') as WeightUnit
 
   const [allExercises, setAllExercises] = useState<import('../lib/api').ExerciseSummary[]>([])
   const [search, setSearch] = useState('')
@@ -1506,7 +1703,7 @@ function ProgressTab() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400">Exercise</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Best ({unit})</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Best</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400">Sessions</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400" />
               </tr>
@@ -1521,7 +1718,19 @@ function ProgressTab() {
                     </p>
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                    {ex.last_weight_kg != null ? toDisplay(ex.last_weight_kg) : '—'}
+                    {/* Best value in the unit that matches this exercise's type.
+                        Previously always Max(weight_kg), so a plank's seconds
+                        were shown as a weight. */}
+                    {(() => {
+                      const metric = chartSpecFor(ex.measurement_type).metric
+                      const best = metric === 'weight_kg' ? ex.best_weight_kg
+                        : metric === 'duration_seconds' ? ex.best_duration_seconds
+                        : metric === 'reps_completed' ? ex.best_reps
+                        : null
+                      return best === null || best === undefined
+                        ? '—'
+                        : formatChartValue(ex.measurement_type, best, unit)
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">{ex.total_sessions}</td>
                   <td className="px-4 py-3 text-right">

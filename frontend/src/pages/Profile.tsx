@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { api, type UserProfile } from '../lib/api'
+import { toDisplayWeight, toStorageWeight, type WeightUnit } from '../lib/units'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
@@ -256,8 +257,23 @@ export default function Profile() {
                   <input type="number" min={100} max={250} value={form.height_cm ?? ''} onChange={(e) => update({ height_cm: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Weight (kg)</label>
-                  <input type="number" min={30} max={300} value={form.weight_kg ?? ''} onChange={(e) => update({ weight_kg: e.target.value ? Number(e.target.value) : null })} className={inputCls} />
+                  {/* Stored as kg, displayed in the user's chosen unit. This
+                      field used to be labelled "(kg)" and stored the raw number
+                      regardless of preferred_unit, so an lb user entering 180
+                      was recorded as 180 kg. */}
+                  <label className={labelCls}>Weight ({form.preferred_unit ?? 'lb'})</label>
+                  <input
+                    type="number"
+                    min={30}
+                    max={700}
+                    value={toDisplayWeight(form.weight_kg, (form.preferred_unit ?? 'lb') as WeightUnit) ?? ''}
+                    onChange={(e) => update({
+                      weight_kg: e.target.value
+                        ? toStorageWeight(Number(e.target.value), (form.preferred_unit ?? 'lb') as WeightUnit)
+                        : null,
+                    })}
+                    className={inputCls}
+                  />
                 </div>
               </div>
               <div>

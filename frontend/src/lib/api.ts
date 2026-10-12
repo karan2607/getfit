@@ -247,8 +247,10 @@ export const api = {
     logSet: (sessionId: string, data: {
       exercise_id: string
       set_number: number
-      reps_completed?: number
-      weight_kg?: number
+      // null explicitly clears a field; omitting a key leaves it untouched.
+      reps_completed?: number | null
+      weight_kg?: number | null
+      duration_seconds?: number | null
       is_completed?: boolean
       notes?: string
     }) =>
@@ -261,7 +263,7 @@ export const api = {
       request<ExerciseSummary[]>('/api/workouts/exercises/'),
 
     getExerciseHistory: (exerciseName: string) =>
-      request<ExerciseHistoryPoint[]>(`/api/workouts/exercises/${encodeURIComponent(exerciseName)}/history/`),
+      request<ExerciseHistory>(`/api/workouts/exercises/${encodeURIComponent(exerciseName)}/history/`),
 
     getExerciseGuide: (exerciseName: string) =>
       request<{ steps: string[]; muscles: string[]; tips: string[]; category: string; images: string[] }>(
@@ -404,8 +406,17 @@ export interface WorkoutPlan {
   current_week: number
   current_day_order: number
   specific_goal: string
-  program_target: { metric: string; label: string; recommended_value: number; current_value?: number } | null
+  // `unit` is explicit so a "lose 2 kg" goal cannot be re-read as 2 lb. It used
+  // to survive only inside the free-text `label`, which the AI then guessed at.
+  program_target: {
+    metric: string
+    label: string
+    recommended_value: number
+    current_value?: number
+    unit?: string
+  } | null
   goal_check_in_shown: boolean
+  data_version?: number
   created_at: string
   updated_at: string
 }
@@ -425,6 +436,11 @@ export type PreviewDay = {
     reps: string
     rest_seconds?: number
     notes?: string
+    // Must round-trip. Plan edits go through replacePlan (a full PUT), so
+    // omitting this field here is what used to strip measurement types back to
+    // the default on every AI edit. The server re-classifies when it is absent,
+    // but sending it preserves any deliberate value.
+    measurement_type?: MeasurementType
   }>
 }
 
@@ -444,8 +460,12 @@ export interface SetLog {
   exercise_id: string | null
   exercise_name: string
   set_number: number
+  // Which of these three is meaningful depends on measurement_type. The server
+  // forces the others to null, so never infer from "has a value".
   reps_completed: number | null
-  weight_kg: number | null
+  weight_kg: number | null          // always kilograms
+  duration_seconds: number | null
+  measurement_type: MeasurementType | null
   is_completed: boolean
   notes: string
 }
@@ -477,14 +497,29 @@ export interface ExerciseSummary {
   exercise_name: string
   last_session: string
   total_sessions: number
-  last_weight_kg: number | null
+  measurement_type: MeasurementType
+  best_weight_kg: number | null
+  best_reps: number | null
+  best_duration_seconds: number | null
 }
 
 export interface ExerciseHistoryPoint {
   workout_session__started_at: string
   set_number: number
-  weight_kg: number
+  weight_kg: number | null
   reps_completed: number | null
+  duration_seconds: number | null
+}
+
+/**
+ * History response. Carries the measurement type and the field that drives the
+ * chart, so the caller never has to guess whether a number is kg or seconds.
+ */
+export interface ExerciseHistory {
+  exercise_name: string
+  measurement_type: MeasurementType
+  metric: 'weight_kg' | 'reps_completed' | 'duration_seconds' | null
+  logs: ExerciseHistoryPoint[]
 }
 
 export interface Meal {

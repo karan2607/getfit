@@ -42,6 +42,7 @@ from .serializers import (
 )
 from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
+from . import exercise_types
 
 User = get_user_model()
 
@@ -858,12 +859,62 @@ def _validate_plan_json(data: dict) -> None:
     else:
         raise ValueError('Missing required field: days or weeks')
     for day in days_list:
+        if not isinstance(day, dict):
+            raise ValueError('each day must be an object')
         for field in ['day_number', 'name', 'is_rest_day']:
             if field not in day:
                 raise ValueError(f'Day missing field: {field}')
         if not day.get('is_rest_day', False):
-            if not isinstance(day.get('exercises', []), list):
+            exercises = day.get('exercises', [])
+            if not isinstance(exercises, list):
                 raise ValueError('exercises must be a list')
+            # Exercise-level validation. This was previously absent entirely,
+            # which made a missing 'name' a KeyError -> 500 during plan creation.
+            for idx, ex_data in enumerate(exercises):
+                label = f"day '{day.get('name')}' exercise #{idx + 1}"
+                if not isinstance(ex_data, dict):
+                    raise ValueError(f'{label} must be an object')
+                name = ex_data.get('name')
+                if not name or not str(name).strip():
+                    raise ValueError(f'{label} is missing a name')
+                sets = ex_data.get('sets', 3)
+                try:
+                    if int(sets) < 1:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    raise ValueError(f'{label} has invalid sets: {sets!r}')
+                reps = ex_data.get('reps', '10')
+                if reps is None or not str(reps).strip():
+                    raise ValueError(f'{label} is missing reps')
+
+
+def _create_exercise(day, ex_data: dict, order: int):
+    """
+    Single creation path for Exercise rows.
+
+    Every caller must route through here so `measurement_type` is always decided
+    by the server. The AI only gets a vote -- exercise_types.normalize() overrides
+    it when the name is recognisable and forces 'warmup' on warmup days. This
+    replaced four duplicated `.get('measurement_type', 'weight_reps')` call sites
+    that silently stamped the worst-case default on anything the AI omitted.
+    """
+    name = str(ex_data['name']).strip()
+    reps = str(ex_data.get('reps', '10'))
+    return Exercise.objects.create(
+        day=day,
+        name=name,
+        sets=ex_data.get('sets', 3),
+        reps=reps,
+        rest_seconds=ex_data.get('rest_seconds'),
+        notes=ex_data.get('notes', ''),
+        order=order,
+        measurement_type=exercise_types.normalize(
+            ex_data.get('measurement_type'),
+            name,
+            day_name=getattr(day, 'name', None),
+            reps=reps,
+        ),
+    )
 
 
 @api_view(['POST'])
@@ -1114,16 +1165,7 @@ def workout_plans(request):
                 )
                 order_counter += 1
                 for j, ex_data in enumerate(day_data.get('exercises', [])):
-                    Exercise.objects.create(
-                        day=day,
-                        name=ex_data['name'],
-                        sets=ex_data.get('sets', 3),
-                        reps=str(ex_data.get('reps', '10')),
-                        rest_seconds=ex_data.get('rest_seconds'),
-                        notes=ex_data.get('notes', ''),
-                        order=j,
-                        measurement_type=ex_data.get('measurement_type', 'weight_reps'),
-                    )
+                    _create_exercise(day, ex_data, j)
     else:
         for day_data in data['days']:
             day = WorkoutDay.objects.create(
@@ -1137,16 +1179,7 @@ def workout_plans(request):
             )
             order_counter += 1
             for j, ex_data in enumerate(day_data.get('exercises', [])):
-                Exercise.objects.create(
-                    day=day,
-                    name=ex_data['name'],
-                    sets=ex_data.get('sets', 3),
-                    reps=str(ex_data.get('reps', '10')),
-                    rest_seconds=ex_data.get('rest_seconds'),
-                    notes=ex_data.get('notes', ''),
-                    order=j,
-                    measurement_type=ex_data.get('measurement_type', 'weight_reps'),
-                )
+                _create_exercise(day, ex_data, j)
 
     import threading
     threading.Thread(target=_bg_cache_plan_guides, args=(plan.id,), daemon=True).start()
@@ -1200,16 +1233,7 @@ def workout_plan_detail(request, plan_id):
                         )
                         order_counter += 1
                         for j, ex_data in enumerate(day_data.get('exercises', [])):
-                            Exercise.objects.create(
-                                day=day,
-                                name=ex_data['name'],
-                                sets=ex_data.get('sets', 3),
-                                reps=str(ex_data.get('reps', '10')),
-                                rest_seconds=ex_data.get('rest_seconds'),
-                                notes=ex_data.get('notes', ''),
-                                order=j,
-                                measurement_type=ex_data.get('measurement_type', 'weight_reps'),
-                            )
+                            _create_exercise(day, ex_data, j)
             else:
                 for i, day_data in enumerate(data['days']):
                     day = WorkoutDay.objects.create(
@@ -1222,16 +1246,7 @@ def workout_plan_detail(request, plan_id):
                         order=i,
                     )
                     for j, ex_data in enumerate(day_data.get('exercises', [])):
-                        Exercise.objects.create(
-                            day=day,
-                            name=ex_data['name'],
-                            sets=ex_data.get('sets', 3),
-                            reps=str(ex_data.get('reps', '10')),
-                            rest_seconds=ex_data.get('rest_seconds'),
-                            notes=ex_data.get('notes', ''),
-                            order=j,
-                            measurement_type=ex_data.get('measurement_type', 'weight_reps'),
-                        )
+                        _create_exercise(day, ex_data, j)
         return Response(WorkoutPlanDetailSerializer(plan).data)
 
     plan.delete()
@@ -1397,14 +1412,34 @@ def workout_session_log_set(request, session_id):
         defaults={'exercise_name': exercise.name},
     )
     log.exercise_name = exercise.name
-    if 'reps_completed' in request.data:
-        log.reps_completed = request.data['reps_completed']
-    if 'weight_kg' in request.data:
-        log.weight_kg = request.data['weight_kg']
+
+    # Enforce the measurement-type field contract on write. This endpoint
+    # previously accepted whatever the client sent, which is how seconds ended up
+    # in `weight_kg` for duration exercises. The Exercise row is already loaded
+    # above, so there is no excuse not to use it.
+    #
+    # Start from what is already stored so a partial update stays partial, then
+    # overlay only the keys the client actually sent, then coerce. Using a
+    # sentinel (rather than `is not None`) means a client CAN clear a field by
+    # sending an explicit null.
+    incoming = {
+        'weight_kg': log.weight_kg,
+        'reps_completed': log.reps_completed,
+        'duration_seconds': log.duration_seconds,
+    }
+    for field in exercise_types.ALL_SET_FIELDS:
+        if field in request.data:
+            incoming[field] = request.data[field]
+
+    coerced = exercise_types.coerce_set_fields(exercise.measurement_type, incoming)
+    log.weight_kg = coerced['weight_kg']
+    log.reps_completed = coerced['reps_completed']
+    log.duration_seconds = coerced['duration_seconds']
+
     if 'is_completed' in request.data:
-        log.is_completed = request.data['is_completed']
+        log.is_completed = bool(request.data['is_completed'])
     if 'notes' in request.data:
-        log.notes = request.data['notes']
+        log.notes = request.data['notes'] or ''
     log.save()
     return Response(SetLogSerializer(log).data)
 
@@ -1420,8 +1455,11 @@ def _bg_cache_plan_guides(plan_id):
             Exercise.objects.filter(day__plan=plan)
             .values_list('name', flat=True).distinct()
         )
-        # Skip exercises already cached
-        names = [n for n in names if not ExerciseGuide.objects.filter(name__iexact=n).exists()]
+        # Skip exercises that already have a generic (user=None) guide cached.
+        names = [
+            n for n in names
+            if not ExerciseGuide.objects.filter(user=None, name__iexact=n).exists()
+        ]
         if not names:
             return
         kb = _load_exercise_kb()
@@ -1448,26 +1486,136 @@ def _bg_cache_plan_guides(plan_id):
                 continue
             kb_key = guide.pop('kb_key', None)
             guide['images'] = kb[kb_key][:2] if kb_key and kb_key in kb else _lookup_exercise_images(name)
+            # These rows are GENERIC (user=None) and shared by every user, so they
+            # must never carry personalised advice. Per-user weight/coaching
+            # recommendations are written only by workout_plan_prepare_week
+            # against the requesting user's own row.
             guide.pop('recommended_weight', None)
+            guide.pop('recommended_target', None)
+            guide.pop('coaching_note', None)
             try:
-                ExerciseGuide.objects.get_or_create(name=name, defaults={'data': guide})
+                ExerciseGuide.objects.get_or_create(
+                    user=None, name=name, defaults={'data': guide})
             except Exception:
                 pass
     except Exception as exc:
         _log.warning('_bg_cache_plan_guides failed for plan %s: %s', plan_id, exc)
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def _analyze_progression(logs: list, target_reps=None) -> dict:
-    """Group SetLog history by session date and detect weight progression signal."""
+KG_PER_LB = 0.453592
+
+
+def _user_unit(user):
+    """The user's preferred weight unit, defaulting to 'lb' (the model default)."""
+    profile = getattr(user, 'profile', None)
+    return getattr(profile, 'preferred_unit', 'lb') or 'lb'
+
+
+def _to_display_weight(kg, unit):
+    """kg (storage) -> the user's preferred display unit."""
+    if kg is None:
+        return None
+    if unit == 'lb':
+        return round(kg / KG_PER_LB, 1)
+    return round(kg, 1)
+
+
+def _increment_for(unit, body_part):
+    """Sensible progression increment, expressed in the user's unit."""
+    if unit == 'lb':
+        return 5 if body_part == 'upper' else 10
+    return 2.5 if body_part == 'upper' else 5
+
+
+def _target_reps_from(reps):
+    """
+    Pull a numeric rep target out of the free-text `reps` field ("8-12" -> 12).
+
+    Returns None when the field is a time prescription or otherwise unparseable,
+    which tells _analyze_progression to use its default.
+    """
+    if not reps:
+        return None
+    import re as _re
+    nums = [int(n) for n in _re.findall(r'\d+', str(reps))]
+    if not nums:
+        return None
+    if _re.search(r'\b(sec|secs|second|seconds|min|mins|minute|minutes)\b',
+                  str(reps), _re.I):
+        return None
+    return max(nums)
+
+
+def _format_set_for_prompt(log, measurement_type, unit):
+    """
+    Render one SetLog for an AI prompt using the right field and unit.
+
+    The old version hardcoded f"{weight_kg}kg x {reps}" for every exercise, so a
+    plank was described to the model as "180kg x ?" while the user's profile said
+    lb -- the direct cause of nonsensical "start Xlb" advice.
+    """
+    if measurement_type == exercise_types.DURATION:
+        return '%ss' % (log.get('duration_seconds') or '?')
+    if measurement_type == exercise_types.WEIGHT_DURATION:
+        return '%s%s for %ss' % (
+            _to_display_weight(log.get('weight_kg'), unit) or '?',
+            unit,
+            log.get('duration_seconds') or '?',
+        )
+    if measurement_type == exercise_types.BODYWEIGHT_REPS:
+        return '%s reps (bodyweight)' % (log.get('reps_completed') or '?')
+    return '%s%s x %s' % (
+        _to_display_weight(log.get('weight_kg'), unit) or '?',
+        unit,
+        log.get('reps_completed') or '?',
+    )
+
+
+def _session_date(value):
+    """
+    Date key for a SetLog's session timestamp.
+
+    `.values()` hands back a real datetime, so the previous `value[:10]` raised
+    TypeError for every exercise that actually had history -- one of the two bugs
+    that made prepare_week 500 on every call.
+    """
+    if value is None:
+        return ''
+    if hasattr(value, 'date'):
+        return value.date().isoformat()
+    return str(value)[:10]
+
+
+def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg'):
+    """
+    Group SetLog history by session date and detect a progression signal.
+
+    NOT a view -- it is called internally. It previously carried @api_view and
+    @permission_classes decorators that belonged to workout_plan_prepare_week,
+    which both broke that endpoint and turned this into a DRF view that could not
+    be called with a plain list.
+
+    Branches on measurement_type so a plank progresses on time and a pull-up on
+    reps, instead of everything being treated as a barbell lift. Summaries are
+    written in `unit` so the AI is never handed kg while the user thinks in lb.
+    """
+    measurement_type = measurement_type or exercise_types.DEFAULT_TYPE
+    if measurement_type == exercise_types.WARMUP:
+        return {'direction': None, 'summary': None}
     if not logs or len(logs) < 3:
         return {'direction': None, 'summary': None}
 
-    by_session: dict = {}
+    # Which field carries the progression signal for this exercise type.
+    if measurement_type in (exercise_types.DURATION, exercise_types.WEIGHT_DURATION):
+        metric_field, metric_label = 'duration_seconds', ' sec'
+    elif measurement_type == exercise_types.BODYWEIGHT_REPS:
+        metric_field, metric_label = 'reps_completed', 'reps'
+    else:
+        metric_field, metric_label = 'weight_kg', unit
+
+    by_session = {}
     for log in logs:
-        date = log['workout_session__started_at'][:10]
-        by_session.setdefault(date, []).append(log)
+        by_session.setdefault(_session_date(log['workout_session__started_at']), []).append(log)
 
     sessions = sorted(by_session.items(), reverse=True)[:4]
     if len(sessions) < 2:
@@ -1476,24 +1624,49 @@ def _analyze_progression(logs: list, target_reps=None) -> dict:
     target = target_reps or 10
     results = []
     for _date, sets in sessions:
-        weights = [s['weight_kg'] for s in sets if s['weight_kg']]
-        reps = [s['reps_completed'] or 0 for s in sets]
-        if not weights:
+        values = [s[metric_field] for s in sets if s.get(metric_field)]
+        if not values:
             continue
-        max_w = max(weights)
-        hit_all = all(r >= target for r in reps if r > 0)
-        results.append({'weight': max_w, 'hit_all': hit_all, 'reps': reps})
+        reps = [s['reps_completed'] or 0 for s in sets]
+        best = max(values)
+        if metric_field == 'weight_kg':
+            best = _to_display_weight(best, unit)
+            hit_all = all(r >= target for r in reps if r > 0)
+        else:
+            # For time/rep-driven work the metric IS the target.
+            hit_all = True
+        results.append({'value': best, 'hit_all': hit_all, 'reps': reps})
 
     if len(results) < 2:
         return {'direction': None, 'summary': None}
 
     recent, prev = results[0], results[1]
 
-    if recent['hit_all'] and prev['hit_all'] and recent['weight'] == prev['weight']:
+    def fmt(value):
+        return f'{value}{metric_label}' if metric_label != 'reps' else f'{value} reps'
+
+    if metric_field != 'weight_kg':
+        # Time/reps: progress when the latest session matched or beat the previous.
+        if recent['value'] > prev['value']:
+            direction, summary = 'increase', (
+                f"Improved to {fmt(recent['value'])} from {fmt(prev['value'])} "
+                f"→ KEEP PROGRESSING")
+        elif recent['value'] == prev['value']:
+            direction, summary = 'increase', (
+                f"Held {fmt(recent['value'])} for 2 sessions → INCREASE TARGET")
+        else:
+            direction, summary = 'maintain', (
+                f"Dropped to {fmt(recent['value'])} from {fmt(prev['value'])} "
+                f"→ REBUILD CONSISTENCY")
+        return {'direction': direction, 'last_value': recent['value'], 'summary': summary}
+
+    if recent['hit_all'] and prev['hit_all'] and recent['value'] == prev['value']:
         return {
             'direction': 'increase',
-            'last_weight': recent['weight'],
-            'summary': f"Hit all {target}+ reps at {recent['weight']}kg for 2 sessions → INCREASE WEIGHT",
+            'last_value': recent['value'],
+            'summary': (
+                f"Hit all {target}+ reps at {fmt(recent['value'])} for 2 sessions "
+                f"→ INCREASE WEIGHT"),
         }
 
     if not recent['hit_all'] and not prev['hit_all']:
@@ -1501,59 +1674,97 @@ def _analyze_progression(logs: list, target_reps=None) -> dict:
         if avg_reps < target * 0.75:
             return {
                 'direction': 'decrease',
-                'last_weight': recent['weight'],
-                'summary': f"Averaging {avg_reps:.0f} reps (target {target}) at {recent['weight']}kg for 2 sessions → DECREASE WEIGHT",
+                'last_value': recent['value'],
+                'summary': (
+                    f"Averaging {avg_reps:.0f} reps (target {target}) at "
+                    f"{fmt(recent['value'])} for 2 sessions → DECREASE WEIGHT"),
             }
 
     return {
         'direction': 'maintain',
-        'last_weight': recent['weight'] if recent.get('weight') else None,
-        'summary': f"Consistent at {recent['weight']}kg, maintaining" if recent.get('weight') else None,
+        'last_value': recent['value'] if recent.get('value') else None,
+        'summary': (
+            f"Consistent at {fmt(recent['value'])}, maintaining"
+            if recent.get('value') else None),
     }
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def workout_plan_prepare_week(request, plan_id):
     """
-    Bulk-generate ExerciseGuide entries for all exercises in the plan's current week.
-    Also includes weight recommendations based on user's recent history.
+    Bulk-generate per-user ExerciseGuide entries for the plan's current week,
+    including progression advice derived from the user's own recent history.
+
+    Previously non-functional: the @api_view/@permission_classes decorators had
+    drifted onto _analyze_progression above, so this received a plain HttpRequest
+    and returned an unrendered DRF Response (ContentNotRenderedError). Combined
+    with a datetime being string-sliced, it 500'd on every single call -- which is
+    why the personalised weight advice never appeared no matter how many times it
+    was "fixed".
     """
     from .gemini import call_gemini_json, GeminiError as _GeminiError
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
     current_week = plan.current_week
 
-    # Collect unique exercise names for this week; fall back to week 1 for legacy single-week plans
-    exercise_names = list(
+    unit = _user_unit(request.user)
+
+    # Collect this week's exercises WITH their measurement types; fall back to all
+    # weeks for legacy single-week plans.
+    rows = list(
         Exercise.objects
         .filter(day__plan=plan, day__week_number=current_week)
-        .values_list('name', flat=True)
+        .values_list('name', 'measurement_type', 'reps')
         .distinct()
     )
-    if not exercise_names:
-        exercise_names = list(
+    if not rows:
+        rows = list(
             Exercise.objects
             .filter(day__plan=plan)
-            .values_list('name', flat=True)
+            .values_list('name', 'measurement_type', 'reps')
             .distinct()
         )
-    if not exercise_names:
+    if not rows:
         return Response({'detail': 'No exercises found for this week', 'generated': 0})
 
-    # Build history context for weight recommendations
+    # De-duplicate by name, keeping the first measurement type seen.
+    type_by_name = {}
+    exercise_names = []
+    reps_by_name = {}
+    for name, mtype, reps in rows:
+        if name in type_by_name:
+            continue
+        type_by_name[name] = mtype or exercise_types.DEFAULT_TYPE
+        reps_by_name[name] = reps
+        exercise_names.append(name)
+
+    # Build history context. Filter on the field that actually matters for the
+    # type rather than blanket-requiring weight_kg, which previously excluded all
+    # bodyweight and duration work from the analysis.
     history_ctx = {}
     for ex_name in exercise_names:
-        logs = (
+        mtype = type_by_name[ex_name]
+        metric = exercise_types.CHART_CONTRACT.get(
+            mtype, exercise_types.CHART_CONTRACT[exercise_types.DEFAULT_TYPE]
+        )['metric']
+        if not metric:
+            continue
+        logs = list(
             SetLog.objects
             .filter(
                 workout_session__user=request.user,
                 exercise_name__iexact=ex_name,
                 is_completed=True,
-                weight_kg__isnull=False,
+                **{'%s__isnull' % metric: False}
             )
             .order_by('-workout_session__started_at')
-            .values('workout_session__started_at', 'set_number', 'weight_kg', 'reps_completed')[:9]
+            .values(
+                'workout_session__started_at', 'set_number',
+                'weight_kg', 'reps_completed', 'duration_seconds',
+            )[:9]
         )
         if logs:
-            history_ctx[ex_name] = list(logs)
+            history_ctx[ex_name] = logs
 
     kb = _load_exercise_kb()
 
@@ -1564,49 +1775,72 @@ def workout_plan_prepare_week(request, plan_id):
     prompt_lines.append('  tips: array of 2-3 form cues or common mistakes to avoid')
     prompt_lines.append('  category: one of squat/push/press/pull/row/hinge/curl/lunge/core/cardio/other')
     prompt_lines.append('  kb_key: best matching key from the image library, or null')
+    prompt_lines.append('')
     prompt_lines.append(
-        '  recommended_weight: Based on the PROGRESSION hint in the history, recommend weight for the NEXT session.\n'
-        '    If hint says INCREASE WEIGHT: suggest the increased weight (upper body +2.5kg, lower body +5kg).\n'
-        '    Example: "Increase to 42.5kg — you nailed 3x12 at 40kg twice in a row."\n'
+        f'ALL WEIGHTS ARE IN {unit.upper()}. The user thinks in {unit}. Never mention '
+        f'any other unit, and never convert. Write every number as "{unit}".'
+    )
+    prompt_lines.append('')
+    prompt_lines.append(
+        '  recommended_weight: ONLY for exercises tagged [weight_reps] or [weight_duration].\n'
+        f'    Use the PROGRESSION hint. All values in {unit}.\n'
+        '    If hint says INCREASE WEIGHT: suggest the increased weight '
+        f'(upper body +{_increment_for(unit, "upper")}{unit}, lower body +{_increment_for(unit, "lower")}{unit}).\n'
+        f'    Example: "Increase to 95{unit} — you nailed 3x12 at 90{unit} twice in a row."\n'
         '    If hint says DECREASE WEIGHT: suggest a lower weight for form/recovery.\n'
-        '    Example: "Drop to 35kg — hit 10/8/7 reps at 40kg. Rebuild consistency, then progress."\n'
         '    If hint says maintaining: confirm current weight.\n'
-        '    If no history: suggest a starting weight from general knowledge.\n'
-        '    Return null only if the exercise has no meaningful weight (e.g. bodyweight only).'
+        '    If no history: suggest a sensible starting weight from general knowledge.\n'
+        '    MUST be null for [duration], [bodyweight_reps] and [warmup] exercises.'
+    )
+    prompt_lines.append(
+        '  recommended_target: ONLY for exercises tagged [duration] or [bodyweight_reps].\n'
+        '    For [duration]: the time to aim for next session, e.g. "Hold 75 sec — up from 60 sec."\n'
+        '    For [bodyweight_reps]: the rep target, e.g. "Go for 18 reps — you hit 15 clean twice."\n'
+        '    MUST be null for weighted and warmup exercises.'
     )
     prompt_lines.append(
         '  coaching_note: 1-2 sentence personalised coaching note for this session based on the history.\n'
-        '    If PROGRESSION says INCREASE: "You hit X reps at Ykg twice — step up to Zkg today. Keep the form tight."\n'
-        '    If PROGRESSION says DECREASE: "You\'ve been short of target reps — drop to Zkg and nail your form this session."\n'
-        '    If PROGRESSION says MAINTAIN: "Solid consistency at Ykg — lock in every rep this week before adding load."\n'
-        '    If no history: give a 1-sentence starting tip or key form cue specific to this exercise.\n'
-        '    Be direct, specific, and motivating. No generic phrases like "keep progressing" or "progress from last week".\n'
-        '    Return null for warmup/mobility exercises.'
+        '    Reference the actual numbers from the history and the correct unit.\n'
+        '    Be direct, specific, and motivating. No generic phrases like "keep progressing".\n'
+        '    MUST be null for [warmup] exercises.'
     )
     prompt_lines.append('')
-    prompt_lines.append('Exercises:')
+    prompt_lines.append('Exercises (the [tag] is authoritative — respect it):')
     for i, name in enumerate(exercise_names, 1):
+        mtype = type_by_name[name]
         hist = history_ctx.get(name)
         hist_str = ''
         if hist:
             sets_summary = '; '.join(
-                f"{s['workout_session__started_at'][:10]}: {s['weight_kg']}kg x {s['reps_completed'] or '?'}"
+                '%s: %s' % (
+                    _session_date(s['workout_session__started_at']),
+                    _format_set_for_prompt(s, mtype, unit),
+                )
                 for s in hist[:3]
             )
-            progression = _analyze_progression(hist)
+            progression = _analyze_progression(
+                hist,
+                target_reps=_target_reps_from(reps_by_name.get(name)),
+                measurement_type=mtype,
+                unit=unit,
+            )
             hist_str = f' [Recent: {sets_summary}'
             if progression['summary']:
                 hist_str += f' | PROGRESSION: {progression["summary"]}'
             hist_str += ']'
         candidates = _get_kb_candidates(name, top_n=10)
         cands_str = ', '.join(candidates[:5]) if candidates else 'none'
-        prompt_lines.append(f'{i}. {name}{hist_str} | Image library candidates: {cands_str}')
+        prompt_lines.append(
+            f'{i}. {name} [{mtype}]{hist_str} | Image library candidates: {cands_str}')
 
     prompt = '\n'.join(prompt_lines)
 
     try:
         guides_list = call_gemini_json(
-            system_prompt='You are a certified personal trainer providing exercise instructions and weight recommendations.',
+            system_prompt=(
+                'You are a certified personal trainer providing exercise '
+                f'instructions and progression advice. The user works in {unit}.'
+            ),
             user_prompt=prompt,
         )
     except _GeminiError as e:
@@ -1619,21 +1853,50 @@ def workout_plan_prepare_week(request, plan_id):
     for name, guide in zip(exercise_names, guides_list):
         if not isinstance(guide, dict):
             continue
+        mtype = type_by_name.get(name, exercise_types.DEFAULT_TYPE)
         kb_key = guide.pop('kb_key', None)
         if kb_key and kb_key in kb:
             guide['images'] = kb[kb_key][:2]
         else:
             guide['images'] = _lookup_exercise_images(name)
-        # recommended_weight and coaching_note are kept in the saved data (not popped)
-        try:
-            eg = ExerciseGuide.objects.get(name__iexact=name)
-            eg.data = guide
-            eg.save(update_fields=['data'])
-        except ExerciseGuide.DoesNotExist:
-            ExerciseGuide.objects.create(name=name, data=guide)
+
+        # Belt-and-braces: strip advice the contract forbids, in case the model
+        # ignored the instruction above.
+        if not exercise_types.uses_field(mtype, 'weight_kg'):
+            guide['recommended_weight'] = None
+        if mtype in (exercise_types.WEIGHT_REPS, exercise_types.WEIGHT_DURATION,
+                     exercise_types.WARMUP):
+            guide['recommended_target'] = None
+        if mtype == exercise_types.WARMUP:
+            guide['coaching_note'] = None
+        guide['measurement_type'] = mtype
+        guide['unit'] = unit
+
+        # Personalised guides are per-user. update_or_create is safe now that
+        # uniqueness is (user, name) -- the old code read with name__iexact but
+        # created with the exact name, raising IntegrityError on case variants.
+        ExerciseGuide.objects.update_or_create(
+            user=request.user, name=name, defaults={'data': guide})
         generated += 1
 
-    return Response({'generated': generated, 'exercises': exercise_names})
+    return Response({'generated': generated, 'exercises': exercise_names, 'unit': unit})
+
+
+def _measurement_type_for_name(user, exercise_name):
+    """
+    Best-known measurement type for a logged exercise name.
+
+    SetLog.exercise is SET_NULL, so history rows can outlive their Exercise row.
+    Prefer a live Exercise owned by this user; fall back to the deterministic
+    classifier so an orphaned row is still typed correctly.
+    """
+    row = (
+        Exercise.objects
+        .filter(day__plan__user=user, name__iexact=exercise_name)
+        .values_list('measurement_type', flat=True)
+        .first()
+    )
+    return row or exercise_types.classify(exercise_name)
 
 
 @api_view(['GET'])
@@ -1641,35 +1904,65 @@ def workout_plan_prepare_week(request, plan_id):
 def workout_exercises_list(request):
     """All exercises the user has ever logged, with summary stats."""
     from django.db.models import Max, Count
-    rows = (
+    rows = list(
         SetLog.objects
         .filter(workout_session__user=request.user, is_completed=True)
         .values('exercise_name')
         .annotate(
             last_session=Max('workout_session__started_at'),
             total_sessions=Count('workout_session', distinct=True),
-            last_weight_kg=Max('weight_kg'),
+            best_weight_kg=Max('weight_kg'),
+            best_reps=Max('reps_completed'),
+            best_duration_seconds=Max('duration_seconds'),
         )
         .order_by('-last_session')
     )
-    return Response(list(rows))
+    # Tell the client how to interpret each row. Without this the UI guessed, and
+    # `Max('weight_kg')` was shown as "last weight" even for timed exercises.
+    for row in rows:
+        row['measurement_type'] = _measurement_type_for_name(
+            request.user, row['exercise_name'])
+    return Response(rows)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def workout_exercise_history(request, exercise_name):
-    logs = (
-        SetLog.objects
-        .filter(
-            workout_session__user=request.user,
-            exercise_name__iexact=exercise_name,
-            weight_kg__isnull=False,
-            is_completed=True,
-        )
-        .order_by('workout_session__started_at')
-        .values('workout_session__started_at', 'set_number', 'weight_kg', 'reps_completed')
+    """
+    Full logged history for one exercise.
+
+    Returns `measurement_type` so the caller can pick the right metric and unit
+    instead of assuming weight. The old implementation filtered
+    `weight_kg__isnull=False` with no type discriminator, which charted plank
+    seconds as pounds and made bodyweight history invisible entirely.
+    """
+    measurement_type = _measurement_type_for_name(request.user, exercise_name)
+    metric = exercise_types.CHART_CONTRACT.get(
+        measurement_type, exercise_types.CHART_CONTRACT[exercise_types.DEFAULT_TYPE]
+    )['metric']
+
+    qs = SetLog.objects.filter(
+        workout_session__user=request.user,
+        exercise_name__iexact=exercise_name,
+        is_completed=True,
     )
-    return Response(list(logs))
+    # Only require a value in the field that actually matters for this type.
+    if metric:
+        qs = qs.filter(**{'%s__isnull' % metric: False})
+
+    logs = list(
+        qs.order_by('workout_session__started_at')
+        .values(
+            'workout_session__started_at', 'set_number',
+            'weight_kg', 'reps_completed', 'duration_seconds',
+        )
+    )
+    return Response({
+        'exercise_name': exercise_name,
+        'measurement_type': measurement_type,
+        'metric': metric,
+        'logs': logs,
+    })
 
 
 _EXERCISE_KB = None
@@ -1749,6 +2042,28 @@ _KB_ALIASES = {
     'birddog': 'superman',
     'pallof press': 'cable pull through',
     'dead bug': 'superman',
+    # The KB has no "pec deck" key. Fuzzy matching scored "reverse machine
+    # flyes" highest (shared "machine" + "flye" tokens), so a CHEST exercise was
+    # illustrated with REAR-DELT photos. "butterfly" is this machine's standard
+    # name in the KB.
+    'pec deck': 'butterfly',
+    'pec deck fly': 'butterfly',
+    'pec deck flye': 'butterfly',
+    'pec deck fly machine': 'butterfly',
+    'pec deck machine': 'butterfly',
+    'pec fly': 'butterfly',
+    'pec fly machine': 'butterfly',
+    'machine chest fly': 'butterfly',
+    'machine chest flye': 'butterfly',
+    'chest fly machine': 'butterfly',
+    'butterfly machine': 'butterfly',
+    # Guard the opposite direction too: rear-delt work must not match the chest
+    # machine now that "butterfly" is strongly aliased.
+    'rear delt machine': 'reverse machine flyes',
+    'rear delt fly machine': 'reverse machine flyes',
+    'reverse pec deck': 'reverse machine flyes',
+    'reverse fly machine': 'reverse machine flyes',
+    'machine reverse fly': 'reverse machine flyes',
 }
 
 
@@ -1794,13 +2109,21 @@ def exercise_guide(request):
     if not name:
         return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # DB cache — survives server restarts
-    try:
-        cached = ExerciseGuide.objects.get(name__iexact=name)
-        logger.info('exercise_guide: DB hit for %r', name)
+    # DB cache — survives server restarts.
+    # Prefer this user's personalised guide (carries their weight/coaching advice)
+    # and fall back to the shared generic row. `.filter().first()` rather than
+    # `.get()` because name uniqueness is now scoped per-user, so a case variant
+    # can legitimately match more than one row.
+    cached = (
+        ExerciseGuide.objects
+        .filter(user=request.user, name__iexact=name)
+        .first()
+        or ExerciseGuide.objects.filter(user=None, name__iexact=name).first()
+    )
+    if cached is not None:
+        logger.info('exercise_guide: DB hit for %r (personalised=%s)',
+                    name, cached.user_id is not None)
         return Response(cached.data)
-    except ExerciseGuide.DoesNotExist:
-        pass
 
     # Get top KB candidates via F1 matching for Gemini to choose from
     kb_candidates = _get_kb_candidates(name, top_n=20)
@@ -1830,7 +2153,9 @@ Return only valid JSON, no extra text."""
             logger.info('exercise_kb gemini pick for %r: %r', name, kb_key)
         else:
             guide['images'] = _lookup_exercise_images(name)
-        ExerciseGuide.objects.create(name=name, data=guide)
+        # Generic row: no personalised advice, shared across users.
+        ExerciseGuide.objects.update_or_create(
+            user=None, name=name, defaults={'data': guide})
         return Response(guide)
     except Exception as exc:
         logger.error('exercise_guide failed for %r: %s', name, exc, exc_info=True)
