@@ -4,7 +4,6 @@ from . import views
 
 urlpatterns = [
     path('health/', views.health, name='health'),
-    path('sentry-debug/', lambda r: (_ for _ in ()).throw(Exception('Sentry test error')), name='sentry-debug'),
     # Auth
     path('auth/signup/', views.signup, name='signup'),
     path('auth/login/', views.login, name='login'),
