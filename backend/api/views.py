@@ -1020,14 +1020,18 @@ def workout_plan_generate(request):
     except Exception:
         pass
 
-    system, user_prompt = _workout_generate_prompt(
-        profile, days_per_week, duration_weeks,
-        fitness_goal=fitness_goal, experience_level=experience_level,
-        equipment=equipment, notes=notes, body_context=body_context,
-        preferred_unit=preferred_unit,
-        specific_goals=specific_goals, goal_params=goal_params,
-        confirmed_target=confirmed_target, past_exercises=past_exercises,
-    )
+    try:
+        system, user_prompt = _workout_generate_prompt(
+            profile, days_per_week, duration_weeks,
+            fitness_goal=fitness_goal, experience_level=experience_level,
+            equipment=equipment, notes=notes, body_context=body_context,
+            preferred_unit=preferred_unit,
+            specific_goals=specific_goals, goal_params=goal_params,
+            confirmed_target=confirmed_target, past_exercises=past_exercises,
+        )
+    except Exception as e:
+        logger.exception('workout_plan_generate: prompt build failed')
+        return Response({'detail': f'Failed to build prompt: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
         plan_data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
