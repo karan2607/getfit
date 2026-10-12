@@ -39,6 +39,7 @@ urlpatterns = [
     path('diet/plans/', views.diet_plans, name='diet-plans'),
     path('diet/plans/<uuid:plan_id>/', views.diet_plan_detail, name='diet-plan-detail'),
     path('diet/plans/<uuid:plan_id>/activate/', views.diet_plan_activate, name='diet-plan-activate'),
+    path('diet/documents/parse/', views.diet_document_parse, name='diet-document-parse'),
     path('diet/food-scan/', views.food_scan, name='food-scan'),
     path('diet/food-scan/history/', views.food_scan_history, name='food-scan-history'),
     # Body Scanner
@@ -56,4 +57,10 @@ urlpatterns = [
     path('health/recovery/', views.health_recovery, name='health-recovery'),
     path('health/calorie-balance/', views.health_calorie_balance, name='health-calorie-balance'),
     path('health/activity-suggestion/', views.health_activity_suggestion, name='health-activity-suggestion'),
+    # Feedback (superuser only — enforced in the view)
+    path('feedback/', views.feedback, name='feedback'),
+    path('feedback/<uuid:feedback_id>/', views.feedback_detail, name='feedback-detail'),
+    # MCP — JSON-RPC for external AI agents, Token auth, csrf_exempt like the
+    # other non-browser POST endpoint (chat streaming).
+    path('mcp/', csrf_exempt(views.mcp_endpoint), name='mcp'),
 ]

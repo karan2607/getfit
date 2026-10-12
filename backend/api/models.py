@@ -473,3 +473,47 @@ class HealthWorkout(models.Model):
 
     def __str__(self):
         return f'{self.activity_type} at {self.start_time} ({self.user.email})'
+
+
+# ---------------------------------------------------------------------------
+# Feedback
+# ---------------------------------------------------------------------------
+
+class Feedback(models.Model):
+    """
+    In-app feedback queued for automated implementation.
+
+    Submission is restricted to superusers (enforced in the view, not just by
+    hiding the button). That restriction is the security boundary: an agent loop
+    that implements and pushes code from this table is only safe while the only
+    author of its contents is a trusted operator. Opening submission to all
+    users would turn this into a prompt-injection surface that writes to the
+    repository.
+    """
+
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('in_progress', 'In progress'),
+        ('done', 'Done'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feedback')
+    body = models.TextField()
+    # Where in the app it was submitted from, for context.
+    page = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new',
+                              db_index=True)
+    # Filled in by the automation: what it did, and the commit it shipped.
+    result_notes = models.TextField(blank=True)
+    commit_sha = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.status}] {self.body[:60]}'

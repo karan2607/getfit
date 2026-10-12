@@ -32,6 +32,41 @@ export interface User {
   email: string
   created_at: string
   profile: UserProfile | null
+  /** Read-only. Gates superuser-only UI; the server enforces access itself. */
+  is_superuser?: boolean
+}
+
+/** Structured extraction of a dietitian's written plan. */
+export interface DietDocument {
+  is_diet_document: boolean
+  title: string | null
+  target_calories: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  meals_per_day: number | null
+  foods_to_include: string[]
+  foods_to_avoid: string[]
+  restrictions: string[]
+  meal_timing: string[]
+  notes: string[]
+  /** Instruction block to pass back as `dietitian_notes` when generating. */
+  summary: string
+  saved_to_profile?: boolean
+}
+
+export type FeedbackStatus = 'new' | 'in_progress' | 'done' | 'failed' | 'skipped'
+
+export interface Feedback {
+  id: string
+  body: string
+  page: string
+  status: FeedbackStatus
+  result_notes: string
+  commit_sha: string
+  submitted_by: string
+  created_at: string
+  updated_at: string
 }
 
 export interface AuthResponse {
@@ -272,8 +307,22 @@ export const api = {
   },
 
   diet: {
-    generatePlan: (data?: { country?: string; cuisine_preference?: string; usual_foods?: string; duration_days?: number }) =>
+    generatePlan: (data?: { country?: string; cuisine_preference?: string; usual_foods?: string; duration_days?: number; dietitian_notes?: string }) =>
       request<DietPlanPreview>('/api/diet/plans/generate/', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+    /**
+     * Extract a dietitian's written plan from a PDF or photo.
+     * Parse-and-discard: the file is never stored server-side.
+     */
+    parseDocument: (file: File, saveToProfile = false) => {
+      const form = new FormData()
+      form.append('document', file)
+      if (saveToProfile) form.append('save_to_profile', 'true')
+      return request<DietDocument>('/api/diet/documents/parse/', {
+        method: 'POST',
+        body: form,
+      })
+    },
 
     getMealGuide: (meal: { name: string; calories: number; protein_g: number; carbs_g: number; fat_g: number }) =>
       request<{ ingredients: string[]; steps: string[]; prep_time: string; tips: string[] }>(
@@ -349,6 +398,34 @@ export const api = {
 
     getActivitySuggestion: () =>
       request<HealthActivitySuggestion>('/api/health/activity-suggestion/'),
+  },
+
+  // Superuser-only. The server returns 403 for everyone else; the UI hides
+  // these affordances as a convenience, not as the access control.
+  feedback: {
+    submit: (data: { body: string; page?: string }) =>
+      request<Feedback>('/api/feedback/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    list: (status?: FeedbackStatus) =>
+      request<Feedback[]>(
+        `/api/feedback/${status ? `?status=${status}` : ''}`
+      ),
+
+    update: (id: string, data: {
+      status?: FeedbackStatus
+      result_notes?: string
+      commit_sha?: string
+    }) =>
+      request<Feedback>(`/api/feedback/${id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    remove: (id: string) =>
+      request<void>(`/api/feedback/${id}/`, { method: 'DELETE' }),
   },
 }
 

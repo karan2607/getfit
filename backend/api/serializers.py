@@ -6,6 +6,7 @@ from .models import (
     UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
+    Feedback,
 )
 
 User = get_user_model()
@@ -50,8 +51,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'email', 'created_at', 'profile']
-        read_only_fields = ['id', 'created_at']
+        # is_superuser is exposed read-only so the client can hide
+        # superuser-only affordances. It is NOT the access control -- the
+        # endpoints enforce it server-side.
+        fields = ['id', 'name', 'email', 'created_at', 'profile', 'is_superuser']
+        read_only_fields = ['id', 'created_at', 'is_superuser']
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -244,3 +248,28 @@ class BodyScanResultSerializer(serializers.ModelSerializer):
         fields = ['id', 'body_fat_pct', 'physique_category', 'muscle_mass_note', 'posture_notes',
                   'recommendations', 'disclaimer', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class FeedbackSerializer(serializers.ModelSerializer):
+    submitted_by = serializers.CharField(source='user.email', read_only=True)
+
+    class Meta:
+        model = Feedback
+        fields = [
+            'id', 'body', 'page', 'status', 'result_notes', 'commit_sha',
+            'submitted_by', 'created_at', 'updated_at',
+        ]
+        # The client may only ever set body/page. status, result_notes and
+        # commit_sha are written by the automation, never by the submitter.
+        read_only_fields = [
+            'id', 'status', 'result_notes', 'commit_sha', 'submitted_by',
+            'created_at', 'updated_at',
+        ]
+
+    def validate_body(self, value):
+        text = (value or '').strip()
+        if not text:
+            raise serializers.ValidationError('Feedback cannot be empty.')
+        if len(text) > 5000:
+            raise serializers.ValidationError('Feedback is too long (max 5000).')
+        return text

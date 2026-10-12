@@ -6,6 +6,7 @@ import { setToken, clearToken, getToken } from './lib/auth'
 import { ToastProvider } from './components/Toast'
 import Sidebar from './components/Sidebar'
 import BottomNav from './components/BottomNav'
+import FeedbackButton from './components/FeedbackButton'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
@@ -104,6 +105,8 @@ function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <BottomNav />
+      {/* Renders nothing unless the signed-in user is a superuser. */}
+      <FeedbackButton />
     </div>
   )
 }

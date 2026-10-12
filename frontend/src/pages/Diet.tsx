@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type Meal, type FoodScanResult, type MealLog } from '../lib/api'
+import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type Meal, type FoodScanResult, type MealLog, type DietDocument } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
@@ -375,10 +375,36 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
   const [saving, setSaving] = useState(false)
   const [previewDay, setPreviewDay] = useState(1)
 
+  // Extracted dietitian instructions, if a document was uploaded. Passed to
+  // generation as `dietitian_notes`, where it takes precedence over the
+  // computed macro targets.
+  const [dietDoc, setDietDoc] = useState<DietDocument | null>(null)
+  const [parsingDoc, setParsingDoc] = useState(false)
+  const [docName, setDocName] = useState('')
+
+  async function handleDocUpload(file: File | null) {
+    if (!file) return
+    setParsingDoc(true)
+    setDocName(file.name)
+    try {
+      const parsed = await api.diet.parseDocument(file)
+      setDietDoc(parsed)
+      showToast('Read your dietitian\u2019s plan \u2014 it\u2019ll be followed')
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+      setDocName('')
+    } finally {
+      setParsingDoc(false)
+    }
+  }
+
   async function handleGenerate() {
     setStep('generating')
     try {
-      const data = await api.diet.generatePlan(form)
+      const data = await api.diet.generatePlan({
+        ...form,
+        ...(dietDoc?.summary ? { dietitian_notes: dietDoc.summary } : {}),
+      })
       setPreview(data)
       setPreviewDay(1)
       setStep('preview')
@@ -412,6 +438,58 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
         <p className="text-sm text-gray-500 mb-6">Tell us about your food preferences for a more personalised plan.</p>
 
         <div className="space-y-4">
+          {/* Dietitian document upload. Parse-and-discard — the file is sent to
+              the model for extraction and never stored. */}
+          <div className="border border-dashed border-emerald-300 bg-emerald-50/50 rounded-xl p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Have a plan from your dietitian?
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Upload the PDF or a photo and we'll follow it instead of guessing
+              your targets. The file isn't stored.
+            </p>
+            {dietDoc ? (
+              <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {dietDoc.title || docName || 'Dietitian plan'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {[
+                        dietDoc.target_calories && `${dietDoc.target_calories} kcal`,
+                        dietDoc.protein_g && `${dietDoc.protein_g}g protein`,
+                        dietDoc.meals_per_day && `${dietDoc.meals_per_day} meals/day`,
+                      ].filter(Boolean).join(' \u00b7 ') || 'Instructions captured'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setDietDoc(null); setDocName('') }}
+                    className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+                {(dietDoc.foods_to_avoid?.length > 0 || dietDoc.restrictions?.length > 0) && (
+                  <p className="text-xs text-gray-500 mt-2 border-t border-gray-100 pt-2">
+                    Avoiding: {[...(dietDoc.restrictions ?? []), ...(dietDoc.foods_to_avoid ?? [])].join(', ')}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <label className={`inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg cursor-pointer transition-colors ${parsingDoc ? 'bg-gray-100 text-gray-400' : 'bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50'}`}>
+                {parsingDoc ? 'Reading\u2026' : 'Choose PDF or photo'}
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  disabled={parsingDoc}
+                  onChange={(e) => handleDocUpload(e.target.files?.[0] ?? null)}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Country / Region</label>
             <input

@@ -1,9 +1,10 @@
+import json
 import logging
 from django.contrib.auth import get_user_model, authenticate
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
@@ -17,6 +18,7 @@ from .models import (
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
     ExerciseGuide, MealGuide,
     HealthConnection, HealthDailySummary, HealthWorkout,
+    Feedback,
 )
 from .serializers import (
     RegisterSerializer,
@@ -39,6 +41,7 @@ from .serializers import (
     DietPlanDetailSerializer,
     FoodScanResultSerializer,
     BodyScanResultSerializer,
+    FeedbackSerializer,
 )
 from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
@@ -2286,6 +2289,20 @@ def diet_plan_generate(request):
         cultural_lines.append(f'Usual foods / preferences: {usual_foods}')
     cultural_text = ('\n' + '\n'.join(cultural_lines)) if cultural_lines else ''
 
+    # Instructions extracted from an uploaded dietitian document
+    # (see diet_document_parse). These come from a professional who has seen the
+    # user, so they outrank the computed targets.
+    dietitian_notes = (request.data.get('dietitian_notes') or '').strip()
+    dietitian_text = ''
+    if dietitian_notes:
+        dietitian_text = (
+            "\n\nThe user's dietitian has given them these written instructions. "
+            'They take PRECEDENCE over the calculated targets above — where they '
+            'conflict, follow the dietitian and adjust the macros to match. Do '
+            'not contradict any stated restriction:\n'
+            + dietitian_notes[:4000]
+        )
+
     system = (
         'You are a certified nutritionist. Generate a structured multi-day diet plan as valid JSON only. '
         'No markdown, no explanation — just the JSON object.'
@@ -2293,7 +2310,8 @@ def diet_plan_generate(request):
     user_prompt = (
         f'Generate a {duration_days}-day diet plan with daily targets of {target_calories} kcal, '
         f'{protein_g}g protein, {carbs_g}g carbs, {fat_g}g fat. '
-        f'Dietary preference: {diet_pref}. Fitness goal: {goal}.{cultural_text}\n'
+        f'Dietary preference: {diet_pref}. Fitness goal: {goal}.{cultural_text}'
+        f'{dietitian_text}\n'
         f'Each day should have 4 meals (breakfast, lunch, dinner, snack). '
         f'Vary meals across days — do not repeat the same meals every day. '
         'Return JSON matching exactly this schema:\n'
@@ -2911,3 +2929,322 @@ def health_activity_suggestion(request):
         'weekly_workouts': weekly_workouts,
         'current': current,
     })
+
+
+# ---------------------------------------------------------------------------
+# Feedback
+# ---------------------------------------------------------------------------
+
+def _require_superuser(request):
+    """
+    Guard for the feedback queue.
+
+    This is the security boundary for the automated implementation loop: that
+    loop reads this table and writes code from it, so the table must only ever
+    contain content authored by a trusted operator. Hiding the button in the UI
+    is a convenience, not access control -- this check is.
+
+    Returns a Response to return early, or None if the caller may proceed.
+    """
+    if not request.user.is_superuser:
+        return Response(
+            {'detail': 'Feedback submission is restricted to administrators.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return None
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def feedback(request):
+    """
+    POST  — queue a feedback item (superuser only).
+    GET   — list the queue, newest first (superuser only).
+            ?status=new filters by status.
+    """
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    if request.method == 'POST':
+        serializer = FeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save(user=request.user)
+        logger.info('feedback queued by %s: %s', request.user.email,
+                    item.body[:120])
+        return Response(FeedbackSerializer(item).data,
+                        status=status.HTTP_201_CREATED)
+
+    qs = Feedback.objects.all().select_related('user')
+    status_filter = request.GET.get('status')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    return Response(FeedbackSerializer(qs[:200], many=True).data)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def feedback_detail(request, feedback_id):
+    """
+    Read, update or delete one feedback item (superuser only).
+
+    PATCH is how the automation reports back: it sets `status`, `result_notes`
+    and `commit_sha`. Those are read-only on the submit serializer, so they are
+    applied explicitly here rather than through it.
+    """
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    item = get_object_or_404(Feedback, pk=feedback_id)
+
+    if request.method == 'GET':
+        return Response(FeedbackSerializer(item).data)
+
+    if request.method == 'DELETE':
+        item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    new_status = request.data.get('status')
+    if new_status is not None:
+        valid = [choice for choice, _label in Feedback.STATUS_CHOICES]
+        if new_status not in valid:
+            return Response(
+                {'detail': 'status must be one of %s' % (valid,)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        item.status = new_status
+    if 'result_notes' in request.data:
+        item.result_notes = request.data['result_notes'] or ''
+    if 'commit_sha' in request.data:
+        item.commit_sha = (request.data['commit_sha'] or '')[:40]
+    item.save()
+    return Response(FeedbackSerializer(item).data)
+
+
+# ---------------------------------------------------------------------------
+# Diet document parsing (dietitian PDFs / photos)
+# ---------------------------------------------------------------------------
+
+# Gemini accepts PDFs as inline_data, so a dietitian's plan can be parsed
+# without any file-persistence infrastructure (this project has no MEDIA_ROOT
+# and no object storage). The bytes are read, sent, and discarded -- only the
+# extracted text is kept.
+DIET_DOC_MIME_TYPES = (
+    'application/pdf',
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic',
+    'image/heif',
+)
+DIET_DOC_MAX_BYTES = 18 * 1024 * 1024   # under the 20MB upload cap
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def diet_document_parse(request):
+    """
+    Extract a dietitian's instructions from an uploaded PDF or photo.
+
+    Parse-and-discard: the uploaded bytes are never written to disk. The
+    returned `summary` is what should be passed back to diet plan generation as
+    `dietitian_notes`, and optionally saved to the user's profile notes.
+    """
+    from .gemini import call_gemini_vision_json, GeminiError as _GeminiError
+
+    upload = request.FILES.get('document') or request.FILES.get('image')
+    if not upload:
+        return Response({'detail': 'document is required.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    mime_type = (upload.content_type or '').lower()
+    if mime_type not in DIET_DOC_MIME_TYPES:
+        return Response(
+            {'detail': 'Unsupported file type %r. Upload a PDF or an image.'
+                       % (mime_type or 'unknown')},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if upload.size and upload.size > DIET_DOC_MAX_BYTES:
+        return Response(
+            {'detail': 'File is too large (max %dMB).'
+                       % (DIET_DOC_MAX_BYTES // (1024 * 1024))},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    document_bytes = upload.read()
+    if not document_bytes:
+        return Response({'detail': 'Uploaded file is empty.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    unit = _user_unit(request.user)
+
+    system = (
+        'You are a registered dietitian reading a colleague\'s written plan for a '
+        'client. Extract what it actually says. Return JSON only, no markdown.'
+    )
+    user_prompt = (
+        'This document is a diet plan or set of dietary instructions written for '
+        'the user by their dietitian. Extract its contents faithfully.\n\n'
+        'Rules:\n'
+        '- Transcribe what the document says. Do NOT invent targets, foods or '
+        'restrictions that are not present.\n'
+        '- If a value is not stated, return null for it rather than guessing.\n'
+        f'- Express any body weights in {unit}.\n'
+        '- `summary` must be a compact instruction block suitable for handing to '
+        'a meal-planning model: targets, must-include foods, foods to avoid, '
+        'meal timing, and any medical constraints.\n\n'
+        'Return JSON matching exactly this schema:\n'
+        '{\n'
+        '  "is_diet_document": boolean,\n'
+        '  "title": "string or null",\n'
+        '  "target_calories": number or null,\n'
+        '  "protein_g": number or null,\n'
+        '  "carbs_g": number or null,\n'
+        '  "fat_g": number or null,\n'
+        '  "meals_per_day": number or null,\n'
+        '  "foods_to_include": ["string"],\n'
+        '  "foods_to_avoid": ["string"],\n'
+        '  "restrictions": ["string"],\n'
+        '  "meal_timing": ["string"],\n'
+        '  "notes": ["string"],\n'
+        '  "summary": "string"\n'
+        '}'
+    )
+
+    try:
+        parsed = call_gemini_vision_json(
+            system_prompt=system,
+            user_prompt=user_prompt,
+            image_bytes=document_bytes,
+            mime_type='application/pdf' if mime_type == 'application/pdf' else mime_type,
+        )
+    except _GeminiError as e:
+        return Response({'detail': str(e)},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    finally:
+        # Drop the reference promptly; nothing is persisted.
+        document_bytes = None
+
+    if not isinstance(parsed, dict):
+        return Response({'detail': 'AI returned unexpected format.'},
+                        status=status.HTTP_502_BAD_GATEWAY)
+
+    if parsed.get('is_diet_document') is False:
+        return Response(
+            {'detail': "That file doesn't look like a diet plan. "
+                       'Upload the instructions from your dietitian.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Optionally remember it on the profile so the AI chat has it too.
+    if str(request.data.get('save_to_profile', '')).lower() in ('1', 'true', 'yes'):
+        summary = (parsed.get('summary') or '').strip()
+        if summary:
+            try:
+                profile = request.user.profile
+                existing = (profile.personal_notes or '').strip()
+                marker = 'Dietitian plan:'
+                # Replace a previous block rather than appending forever.
+                if marker in existing:
+                    existing = existing.split(marker)[0].strip()
+                profile.personal_notes = (
+                    (existing + '\n\n' if existing else '') + marker + ' ' + summary
+                )[:4000]
+                profile.save(update_fields=['personal_notes'])
+                parsed['saved_to_profile'] = True
+            except Exception:
+                logger.exception('diet_document_parse: failed to save to profile')
+                parsed['saved_to_profile'] = False
+
+    return Response(parsed)
+
+
+# ---------------------------------------------------------------------------
+# MCP (Model Context Protocol) endpoint
+# ---------------------------------------------------------------------------
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mcp_endpoint(request):
+    """
+    JSON-RPC 2.0 endpoint implementing the MCP server methods.
+
+    Authenticates with the same `Authorization: Token <key>` header as the rest
+    of the API, so an agent can be pointed at this URL with an existing token.
+    Every tool scopes its queries to request.user.
+
+    Supported methods: initialize, notifications/initialized, ping, tools/list,
+    tools/call.
+    """
+    from . import mcp
+
+    body = request.data if isinstance(request.data, dict) else {}
+    rpc_id = body.get('id')
+    method = body.get('method')
+
+    def ok(result):
+        return Response({'jsonrpc': '2.0', 'id': rpc_id, 'result': result})
+
+    def err(code, message):
+        return Response({
+            'jsonrpc': '2.0', 'id': rpc_id,
+            'error': {'code': code, 'message': message},
+        })
+
+    if not method:
+        return err(mcp.INVALID_REQUEST, 'Missing "method".')
+
+    if method == 'initialize':
+        return ok({
+            'protocolVersion': mcp.PROTOCOL_VERSION,
+            'capabilities': {'tools': {'listChanged': False}},
+            'serverInfo': {'name': mcp.SERVER_NAME, 'version': mcp.SERVER_VERSION},
+        })
+
+    # Notifications carry no id and expect no result.
+    if method.startswith('notifications/'):
+        return Response({'jsonrpc': '2.0', 'id': rpc_id, 'result': {}})
+
+    if method == 'ping':
+        return ok({})
+
+    if method == 'tools/list':
+        return ok({'tools': mcp.tool_definitions()})
+
+    if method == 'tools/call':
+        params = body.get('params') or {}
+        name = params.get('name')
+        if not name:
+            return err(mcp.INVALID_PARAMS, 'params.name is required.')
+        try:
+            result = mcp.call_tool(request.user, name, params.get('arguments'))
+        except mcp.McpError as exc:
+            # An unknown tool name is a protocol-level mistake, so it gets a real
+            # JSON-RPC error. Everything else (bad arguments, missing object) is
+            # a tool-execution failure and comes back as isError content, which
+            # is what the MCP spec expects and what lets an agent recover.
+            if exc.code == mcp.METHOD_NOT_FOUND:
+                return err(exc.code, exc.message)
+            return ok({
+                'content': [{'type': 'text', 'text': exc.message}],
+                'isError': True,
+            })
+        except Http404 as exc:
+            return ok({
+                'content': [{'type': 'text',
+                             'text': str(exc) or 'Not found, or not yours.'}],
+                'isError': True,
+            })
+        except Exception as exc:
+            logger.exception('mcp tools/call failed: %s', name)
+            return ok({
+                'content': [{'type': 'text', 'text': 'Tool failed: %s' % exc}],
+                'isError': True,
+            })
+
+        return ok({
+            'content': [{'type': 'text', 'text': json.dumps(result, default=str)}],
+            'structuredContent': result,
+            'isError': False,
+        })
+
+    return err(mcp.METHOD_NOT_FOUND, 'Unknown method %r.' % method)
