@@ -1031,7 +1031,7 @@ def workout_plan_generate(request):
 
     try:
         plan_data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
-    except GeminiError as e:
+    except _GeminiError as e:
         return Response({'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     try:
