@@ -7,9 +7,11 @@
 # This script owns the queue mechanics; Claude owns the code changes.
 #
 # Setup (once):
-#   export GETFIT_API=https://<your-backend>.onrender.com
 #   printf '%s' '<your-40-char-app-token>' > ~/.getfit-loop-token
 #   chmod 600 ~/.getfit-loop-token
+#
+# The token must belong to a SUPERUSER — the queue endpoints return 403
+# otherwise. Override the backend URL with GETFIT_API if it changes.
 #
 # Run:
 #   bash scripts/feedback_loop.sh          # one pass over the queue
@@ -31,11 +33,8 @@ log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; 
 # ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------
-API="${GETFIT_API:-}"
-if [[ -z "$API" ]]; then
-  log "ERROR: set GETFIT_API to your backend base URL (no trailing slash)."
-  exit 1
-fi
+# Public backend URL. Override with GETFIT_API if it ever changes.
+API="${GETFIT_API:-https://getfit-backend-p00m.onrender.com}"
 API="${API%/}"
 
 if [[ ! -r "$TOKEN_FILE" ]]; then
