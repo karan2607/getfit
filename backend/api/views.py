@@ -764,17 +764,22 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         'If your intended number is not in that list, widen it to the bracket\n'
         'that contains it — 13 becomes "12-15", not "13".\n\n'
 
-        'NOTES FIELD (mandatory for every exercise):\n'
-        'CRITICAL: every weight must be a REAL NUMBER you have chosen. Never emit a\n'
-        'placeholder. The strings "X", "Y", "[weight]", "[increment]", "Xkg" and\n'
-        f'"X{preferred_unit}" are FORBIDDEN in your output — a note reading\n'
-        f'"Start X{preferred_unit}" is useless to the user and is a bug.\n'
-        'If you are unsure, estimate a sensible starting load from the user\'s\n'
-        'experience level and body weight, and state that number.\n'
-        f'Good:  "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."\n'
-        f'Good:  "Start 25{preferred_unit} per hand. Add 5{preferred_unit} once 3x12 is easy."\n'
-        f'BAD:   "Start X{preferred_unit}. Add Y{preferred_unit} when all sets clean."\n'
-        'For Warmup & Mobility notes: list the specific stretches/drills, not weight progression.'
+        'NOTES FIELD (mandatory for every exercise) — COACHING ONLY, NO WEIGHTS:\n'
+        'The notes field is for things that do not change week to week:\n'
+        '  - form cues and common mistakes ("Pause at the chest", "Keep the\n'
+        '    elbows tucked", "Drive through the heel")\n'
+        '  - why an exercise was substituted for an injury\n'
+        '  - for Warmup & Mobility: the specific stretches/drills for that day\n\n'
+        'Do NOT put a starting weight or a progression rule in notes. Weight\n'
+        'recommendations are generated separately each week from the user\'s own\n'
+        'logged history, which is far more accurate than anything you can guess\n'
+        'at plan-creation time. A static "Start 95lb" in notes competes with that\n'
+        'and goes stale immediately.\n'
+        'So: no "Start ...", no "Add ... when all sets clean", no placeholder\n'
+        'weights of any kind.\n'
+        f'Good:  "Pause 1s at the chest. Keep the elbows at 45 degrees."\n'
+        f'Good:  "Swapped from barbell squat — knee pain. Keep depth pain-free."\n'
+        f'BAD:   "Start 95{preferred_unit}. Add 5{preferred_unit} when all sets clean."'
     )
 
     # Build the structured user prompt
@@ -850,10 +855,11 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '        "is_rest_day": false,',
         '        "exercises": [',
         '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "measurement_type": "warmup", "notes": "specific drills for today"},',
-        # The notes example here MUST use a concrete number. It previously used
-        # single-letter placeholders, and the model copied them verbatim into
-        # real plans, so users saw a placeholder instead of a starting weight.
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "Start 135lb. Add 5lb when all sets clean."}',
+        # The notes example must be a FORM CUE, never a weight. It previously
+        # showed a starting-weight sentence, which the model dutifully copied --
+        # first as a literal placeholder ("Start Xkg"), then as a static guess
+        # that competed with the history-based weekly recommendation.
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "form cue for this exercise"}',
         '        ]',
         '      }',
         '    ],',

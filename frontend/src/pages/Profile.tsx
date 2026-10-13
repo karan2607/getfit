@@ -6,6 +6,7 @@ import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 import AdminResetCard from '../components/profile/AdminResetCard'
+import PasswordInput from '../components/PasswordInput'
 
 // ── Personal Notes Card ───────────────────────────────────────────────────────
 
@@ -355,15 +356,15 @@ export default function Profile() {
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div>
                 <label className={labelCls}>Current Password</label>
-                <input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className={inputCls} required />
+                <PasswordInput value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className={inputCls} required />
               </div>
               <div>
                 <label className={labelCls}>New Password</label>
-                <input type="password" value={pwForm.next} onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))} className={inputCls} required />
+                <PasswordInput value={pwForm.next} onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))} className={inputCls} required />
               </div>
               <div>
                 <label className={labelCls}>Confirm New Password</label>
-                <input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} className={inputCls} required />
+                <PasswordInput value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} className={inputCls} required />
               </div>
               <button type="submit" disabled={changingPassword} className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 font-medium rounded-xl py-2.5 text-sm transition-colors">
                 {changingPassword ? 'Updating...' : 'Update Password'}

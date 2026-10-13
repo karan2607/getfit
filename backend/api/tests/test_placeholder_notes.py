@@ -149,19 +149,31 @@ class PromptForbidsPlaceholdersTests(APITestCase):
             equipment='full gym', preferred_unit=unit)
         return system + '\n' + user
 
-    def test_generated_prompt_has_no_copyable_placeholder_example(self):
-        for unit in ('lb', 'kg'):
-            prompt = self.build(unit)
-            # The schema example the model mimics must show a real number.
-            self.assertIn('Start 135lb. Add 5lb when all sets clean.', prompt)
-            # And no "notes" example may contain a letter-plus-unit placeholder.
-            self.assertNotIn('"notes": "Start X', prompt)
-            self.assertNotIn('Add Ykg when all sets clean."}', prompt)
-
-    def test_prompt_explicitly_forbids_placeholders(self):
+    def test_notes_are_coaching_only_with_no_weights(self):
+        """
+        Weight guidance was removed from notes entirely. It duplicated
+        `recommended_weight` — which is computed from the user's own logged
+        history and so is strictly better than a plan-time guess — and a static
+        "Start 95lb" in notes went stale immediately.
+        """
         prompt = self.build()
-        self.assertIn('FORBIDDEN', prompt)
-        self.assertIn('REAL NUMBER', prompt)
+        self.assertIn('COACHING ONLY, NO WEIGHTS', prompt)
+        self.assertIn('Do NOT put a starting weight', prompt)
+        self.assertIn('form cue', prompt)
+
+    def test_schema_notes_example_is_a_form_cue_not_a_weight(self):
+        for unit in ('lb', 'kg'):
+            for line in self.build(unit).splitlines():
+                if '"notes":' not in line or 'warmup' in line:
+                    continue
+                self.assertNotIn('Start ', line,
+                                 msg='notes example prescribes a weight: %r' % line)
+
+    def test_warmup_notes_are_still_requested(self):
+        """Warmup drill lists are genuinely useful and must survive the change."""
+        prompt = self.build()
+        self.assertIn('stretches/drills', prompt)
+        self.assertIn('Arm circles', prompt)
 
     def test_no_notes_example_contains_a_placeholder(self):
         """

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
+import PasswordInput from '../components/PasswordInput'
 
 const schema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -45,9 +46,8 @@ export default function ResetPassword() {
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
-            <input
+            <PasswordInput
               {...register('password')}
-              type="password"
               autoFocus
               placeholder="••••••••"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -57,9 +57,8 @@ export default function ResetPassword() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
-            <input
+            <PasswordInput
               {...register('confirm')}
-              type="password"
               placeholder="••••••••"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
