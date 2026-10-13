@@ -133,11 +133,38 @@ def _step_3_strip_placeholder_weights(plan, stdout):
     return changed
 
 
+def _step_4_normalize_rep_schemes(plan, stdout):
+    """
+    Snap arbitrary rep counts in existing plans onto conventional schemes.
+
+    The AI was prescribing numbers like 11, 13, 14 and 17, which read as machine
+    output rather than programming. Snapping widens to the bracket that contains
+    the original (13 -> "12-15"), so the training stimulus is unchanged and the
+    prescription becomes idiomatic.
+
+    Durations, distances, existing ranges and "AMRAP" are left alone.
+    Idempotent: an already-conventional value is untouched.
+    """
+    changed = 0
+    for day in plan.days.all():
+        for exercise in day.exercises.all():
+            fixed = exercise_types.normalize_reps(exercise.reps)
+            if fixed == exercise.reps:
+                continue
+            stdout('    %s: reps %r -> %r' % (
+                exercise.name[:32], exercise.reps, fixed))
+            exercise.reps = fixed
+            exercise.save(update_fields=['reps'])
+            changed += 1
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
     2: ('enforce SetLog field contract', _step_2_fix_setlog_field_contract),
     3: ('strip placeholder weights from notes', _step_3_strip_placeholder_weights),
+    4: ('normalize rep schemes', _step_4_normalize_rep_schemes),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0

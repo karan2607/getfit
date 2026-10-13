@@ -752,6 +752,18 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '  "warmup"          → any Warmup & Mobility block\n'
         '  "bodyweight_reps" → push-ups, pull-ups, dips, chin-ups, inverted rows\n\n'
 
+        'REPS FIELD — USE CONVENTIONAL SCHEMES ONLY:\n'
+        'Real coaches prescribe reps in standard brackets, never arbitrary\n'
+        'numbers. "11", "13", "14", "17" are WRONG — they read as machine output.\n'
+        'Use ONLY these:\n'
+        '  Strength:    "3", "5", "6", "3-5", "5-8", "6-8"\n'
+        '  Hypertrophy: "8", "10", "12", "8-10", "8-12", "10-12", "12-15"\n'
+        '  Endurance:   "15", "20", "15-20", "20-25"\n'
+        '  Other:       "AMRAP", "to failure", "30 sec", "5-10 min"\n'
+        'Add a qualifier when the movement is unilateral: "10-12 per leg".\n'
+        'If your intended number is not in that list, widen it to the bracket\n'
+        'that contains it — 13 becomes "12-15", not "13".\n\n'
+
         'NOTES FIELD (mandatory for every exercise):\n'
         'CRITICAL: every weight must be a REAL NUMBER you have chosen. Never emit a\n'
         'placeholder. The strings "X", "Y", "[weight]", "[increment]", "Xkg" and\n'
@@ -941,7 +953,10 @@ def _create_exercise(day, ex_data: dict, order: int):
     that silently stamped the worst-case default on anything the AI omitted.
     """
     name = str(ex_data['name']).strip()
-    reps = str(ex_data.get('reps', '10'))
+    # Snap arbitrary rep counts onto conventional schemes (13 -> "12-15"). The
+    # model was emitting numbers like 11/13/17, which read as machine output
+    # rather than programming.
+    reps = exercise_types.normalize_reps(str(ex_data.get('reps', '10')))
     return Exercise.objects.create(
         day=day,
         name=name,

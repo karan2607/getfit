@@ -316,6 +316,87 @@ def normalize(raw, name, day_name=None, reps=None):
     return deterministic
 
 
+# ---------------------------------------------------------------------------
+# Rep-scheme conventions
+# ---------------------------------------------------------------------------
+#
+# Lifters prescribe reps in conventional brackets -- 8-12, 10-12, 15-20 -- or in
+# round singles for low-rep strength work. The AI was emitting arbitrary numbers
+# like 11, 13, 14, 17, which read as machine output rather than programming.
+#
+# Bare singles that are idiomatic on their own: low-rep strength work (1-6) and
+# the round numbers.
+_CONVENTIONAL_SINGLES = {1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30}
+
+# Ordered brackets. A non-conventional single snaps to the first bracket that
+# contains it, so 13 -> "12-15" (which still includes 13).
+_REP_BRACKETS = (
+    (1, 3, '1-3'),
+    (3, 5, '3-5'),
+    (6, 8, '6-8'),
+    (8, 10, '8-10'),
+    (10, 12, '10-12'),
+    (12, 15, '12-15'),
+    (15, 20, '15-20'),
+    (20, 25, '20-25'),
+    (25, 30, '25-30'),
+)
+
+# Units that mean the number is a duration or distance, not a rep count. These
+# must never be snapped -- "30 sec" is not 30 reps.
+_NON_REP_UNIT_RE = re.compile(
+    r'^\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|hr|hour|hours|'
+    r'yd|yard|yards|meter|meters|metre|metres|mile|miles|km|cal|cals|calorie|'
+    r'calories|breath|breaths)\b',
+    re.I,
+)
+
+
+def normalize_reps(raw):
+    """
+    Snap an arbitrary rep count onto a conventional scheme.
+
+    Only a leading bare integer is considered, and only when it is not already
+    conventional and not followed by a time/distance unit:
+
+        "13"           -> "12-15"
+        "11 per leg"   -> "10-12 per leg"
+        "8-12"         -> unchanged (already a bracket)
+        "10"           -> unchanged (conventional single)
+        "30 sec"       -> unchanged (a duration)
+        "AMRAP"        -> unchanged
+
+    Returns the input unchanged whenever there is nothing idiomatic to fix, so
+    this is safe to apply on every write.
+    """
+    if raw is None:
+        return raw
+    text = str(raw).strip()
+    if not text:
+        return text
+
+    match = re.match(r'^(\d+)(.*)$', text)
+    if not match:
+        return text                      # "AMRAP", "to failure", ...
+
+    number = int(match.group(1))
+    remainder = match.group(2)
+
+    # A range, a tempo, or anything with a separator is already deliberate.
+    if remainder[:1] in ('-', '–', '/', 'x', 'X', '.', ','):
+        return text
+    if _NON_REP_UNIT_RE.match(remainder):
+        return text
+    if number in _CONVENTIONAL_SINGLES:
+        return text
+
+    for low, high, label in _REP_BRACKETS:
+        if low <= number <= high:
+            return (label + remainder) if remainder else label
+
+    return text                          # outside the brackets: leave it alone
+
+
 def coerce_set_fields(measurement_type, values):
     """
     Apply FIELD_CONTRACT to a dict of incoming set values.
