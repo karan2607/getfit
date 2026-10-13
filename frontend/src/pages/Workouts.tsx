@@ -595,18 +595,6 @@ function PlanDetail({ planId }: { planId: string }) {
   const [editDayNumber, setEditDayNumber] = useState<number | null>(null)
   const [explicitChatOpen, setExplicitChatOpen] = useState(false)
   const [weeksExpanded, setWeeksExpanded] = useState(false)
-  // Day cards start collapsed so a 5-day week is scannable in one screen
-  // instead of a long scroll through every exercise.
-  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
-
-  function toggleDay(dayId: string) {
-    setExpandedDays((prev) => {
-      const next = new Set(prev)
-      if (next.has(dayId)) next.delete(dayId)
-      else next.add(dayId)
-      return next
-    })
-  }
 
   const chatOpen = explicitChatOpen || editDayId !== null
 
@@ -782,32 +770,15 @@ function PlanDetail({ planId }: { planId: string }) {
                     && (Date.now() - new Date(day.last_completed_at).getTime()) < 7 * 86_400_000
                   return (
                 <div className="flex items-center gap-3 mb-3">
-                  {/* Tapping the name area expands/collapses this day. */}
-                  <button
-                    onClick={() => toggleDay(day.id)}
-                    className="flex items-center gap-3 min-w-0 flex-1 text-left group"
-                  >
-                    <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
-                      {completedRecently ? '✓' : day.day_number}
-                    </span>
-                    <span className="font-semibold text-gray-900 text-sm truncate group-hover:text-brand-600 transition-colors">
-                      {day.name}
-                    </span>
-                    {day.focus && (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{day.focus}</span>
-                    )}
-                    {/* Collapsed summary, so you can still see the shape of the day. */}
-                    {!expandedDays.has(day.id) && !day.is_rest_day && (
-                      <span className="text-xs text-gray-400 flex-shrink-0">
-                        {day.exercises.length} exercise{day.exercises.length === 1 ? '' : 's'}
-                      </span>
-                    )}
-                    <span className="text-gray-400 text-xs flex-shrink-0">
-                      {expandedDays.has(day.id) ? '▾' : '▸'}
-                    </span>
-                  </button>
+                  <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
+                    {completedRecently ? '✓' : day.day_number}
+                  </span>
+                  <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
+                  {day.focus && (
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{day.focus}</span>
+                  )}
                   {!day.is_rest_day && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="ml-auto flex items-center gap-2">
                       <button
                         onClick={() => { setEditDayId(day.id); setEditDayNumber(day.day_number) }}
                         className="text-xs text-brand-500 border border-brand-300 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
@@ -851,8 +822,8 @@ function PlanDetail({ planId }: { planId: string }) {
                 </div>
                   )
                 })()}
-                {/* Exercises — only rendered when this day is expanded */}
-                {expandedDays.has(day.id) && (day.is_rest_day ? (
+                {/* Exercises */}
+                {day.is_rest_day ? (
                   <RestDayCard />
                 ) : (
                   <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
@@ -860,7 +831,7 @@ function PlanDetail({ planId }: { planId: string }) {
                       <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
                     ))}
                   </div>
-                ))}
+                )}
               </div>
             ))}
           </div>
@@ -996,7 +967,16 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [progressFor, setProgressFor] = useState<string | null>(null)
   const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
+  // Exercise cards collapse so a 7-exercise day is scannable. Only cards the
+  // user has actually tapped are recorded here; everything else falls back to
+  // the default (open the first unfinished exercise, collapse the rest), so
+  // finished work folds away on its own as you progress.
+  const [touchedCards, setTouchedCards] = useState<Record<string, boolean>>({})
   const storageKey = `workout_draft_${sessionId}`
+
+  function toggleCard(key: string, currentlyOpen: boolean) {
+    setTouchedCards((prev) => ({ ...prev, [key]: !currentlyOpen }))
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey)
@@ -1198,6 +1178,18 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
   const completedSets = mergedLogs.filter((l) => l.is_completed).length
   const totalSets = mergedLogs.length
+
+  // Default-open card: the first exercise that still has work left.
+  const firstUnfinishedKey = exerciseEntries.find(
+    (e) => !(e.logs.length > 0 && e.logs.every((l) => l.is_completed))
+  )?.key
+  const openCount = exerciseEntries.filter(
+    (e) => (e.key in touchedCards ? touchedCards[e.key] : e.key === firstUnfinishedKey)
+  ).length
+
+  function setAllCards(open: boolean) {
+    setTouchedCards(Object.fromEntries(exerciseEntries.map((e) => [e.key, open])))
+  }
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
   const isCompleted = session.is_completed && !editing
 
@@ -1301,27 +1293,55 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
           />
         )}
 
+        {exerciseEntries.length > 1 && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setAllCards(openCount <= 1)}
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              {openCount <= 1 ? 'Expand all' : 'Collapse all'}
+            </button>
+          </div>
+        )}
+
         <div className="space-y-4 mb-8">
           {exerciseEntries.map(({ key, name: exerciseName, planEx, logs }) => {
             const doneCount = logs.filter((l) => l.is_completed).length
             const allDone = doneCount === logs.length && logs.length > 0
             const mType = getMeasurementType(planEx, logs[0])
+            const isOpen = key in touchedCards
+              ? touchedCards[key]
+              : key === firstUnfinishedKey
 
             return (
               <div key={key} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
-                {/* Exercise header */}
-                <div className={`flex items-center justify-between px-4 py-3 ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}>
-                  <div className="min-w-0">
-                    <p className="font-bold text-gray-900 text-sm">{exerciseName}</p>
-                    {planEx && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {planEx.sets} sets · {planEx.reps}
-                        {planEx.rest_seconds ? ` · ${planEx.rest_seconds}s rest` : ''}
-                      </p>
-                    )}
+                {/* Exercise header — the whole row toggles the card. The action
+                    buttons stop propagation so they still work, which keeps the
+                    original layout intact (wrapping the name in a <button>
+                    broke the flex sizing and pushed the actions off-screen). */}
+                <div
+                  onClick={() => toggleCard(key, isOpen)}
+                  className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
+                >
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="text-gray-400 text-[10px] flex-shrink-0 w-2">
+                      {isOpen ? '▾' : '▸'}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">{exerciseName}</p>
+                      {planEx && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {planEx.sets} sets · {planEx.reps}
+                          {planEx.rest_seconds ? ` · ${planEx.rest_seconds}s rest` : ''}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                    {mType !== 'warmup' && (
+                  <div
+                    className="flex items-center gap-2 flex-shrink-0 ml-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {isOpen && mType !== 'warmup' && (
                       <button
                         onClick={() => setProgressFor(exerciseName)}
                         className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 font-medium hover:bg-gray-50 transition-colors"
@@ -1329,12 +1349,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         Progress
                       </button>
                     )}
-                    <button
-                      onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType })}
-                      className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
-                    >
-                      How to
-                    </button>
+                    {isOpen && (
+                      <button
+                        onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType })}
+                        className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
+                      >
+                        How to
+                      </button>
+                    )}
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       allDone
                         ? 'bg-emerald-100 text-emerald-700'
@@ -1349,7 +1371,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                 </div>
 
                 {/* Set rows, driven entirely by the measurement-type contract */}
-                {(() => {
+                {isOpen && (() => {
                   // Which inputs to show comes from the shared contract, so the
                   // frontend can never disagree with what the server accepts.
                   const fields = fieldsFor(mType)

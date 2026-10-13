@@ -5,6 +5,7 @@ import { toDisplayWeight, toStorageWeight, type WeightUnit } from '../lib/units'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
+import AdminResetCard from '../components/profile/AdminResetCard'
 
 // ── Personal Notes Card ───────────────────────────────────────────────────────
 
@@ -369,6 +370,13 @@ export default function Profile() {
               </button>
             </form>
           </section>
+        )}
+
+        {/* Superuser-only reset tooling. Renders nothing for everyone else. */}
+        {tab === 'password' && (
+          <div className="mt-6">
+            <AdminResetCard />
+          </div>
         )}
 
       </div>

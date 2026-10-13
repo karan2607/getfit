@@ -3248,3 +3248,118 @@ def mcp_endpoint(request):
         })
 
     return err(mcp.METHOD_NOT_FOUND, 'Unknown method %r.' % method)
+
+
+# ---------------------------------------------------------------------------
+# Admin: superuser-issued password resets
+# ---------------------------------------------------------------------------
+#
+# This project has no outbound email configured (RESEND_API_KEY is unset), so
+# the normal self-service reset flow cannot deliver its link. Rather than
+# dropping the verification step -- a page that sets a new password from just an
+# email address would let anyone who knows a user's address take over their
+# account -- the operator issues the link and delivers it out of band.
+#
+# The identity check moves from "can you read this inbox" to "the operator
+# vouches for you". Every issued link is logged with who issued it.
+
+# Admin-issued links are delivered by hand (WhatsApp, in person), so the 1-hour
+# default on the model is impractical. Still bounded, and single-use.
+ADMIN_RESET_DEFAULT_HOURS = 24
+ADMIN_RESET_MAX_HOURS = 72
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_users(request):
+    """List accounts so the operator can pick one. Superuser only."""
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    users = User.objects.all().order_by('email')
+    return Response([{
+        'id': str(u.id),
+        'email': u.email,
+        'name': u.name,
+        'is_superuser': u.is_superuser,
+        'is_active': u.is_active,
+        'last_login': u.last_login.isoformat() if u.last_login else None,
+        'created_at': u.created_at.isoformat(),
+    } for u in users])
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_issue_reset_link(request):
+    """
+    Mint a password-reset link for another account. Superuser only.
+
+    Returns the URL for the operator to pass to the user directly. The link is
+    single-use and expires; using it goes through the existing
+    password_reset_confirm endpoint, so the reset page needs no changes.
+
+    Note this deliberately does NOT reveal the user's existing password -- it
+    cannot, since passwords are stored only as hashes. It grants a one-time
+    opportunity to set a new one.
+    """
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    email = (request.data.get('email') or '').strip().lower()
+    if not email:
+        return Response({'detail': 'email is required.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        # Safe to be specific: the caller is already a trusted operator who can
+        # list every account anyway.
+        return Response({'detail': 'No account with that email.'},
+                        status=status.HTTP_404_NOT_FOUND)
+
+    # Absent or unparseable -> default. A supplied number is clamped, so an
+    # explicit 0 becomes 1 hour rather than silently becoming the default
+    # (`0 or DEFAULT` would evaluate to DEFAULT, which is surprising).
+    raw_hours = request.data.get('hours')
+    if raw_hours in (None, ''):
+        hours = ADMIN_RESET_DEFAULT_HOURS
+    else:
+        try:
+            hours = int(raw_hours)
+        except (TypeError, ValueError):
+            hours = ADMIN_RESET_DEFAULT_HOURS
+        hours = max(1, min(hours, ADMIN_RESET_MAX_HOURS))
+
+    from django.utils import timezone as _tz
+    from datetime import timedelta as _timedelta
+
+    # Invalidate any outstanding link so only one is ever live per user.
+    superseded = PasswordResetToken.objects.filter(
+        user=user, used_at__isnull=True, expires_at__gt=_tz.now()
+    ).update(used_at=_tz.now())
+
+    token = PasswordResetToken.objects.create(
+        user=user, expires_at=_tz.now() + _timedelta(hours=hours))
+
+    frontend_base = (request.data.get('frontend_base') or '').rstrip('/')
+    if not frontend_base:
+        frontend_base = request.build_absolute_uri('/').rstrip('/')
+    reset_url = '%s/reset-password/%s' % (frontend_base, token.token)
+
+    # Audit trail: one operator resetting another person's credentials is
+    # exactly the kind of action that should be reconstructable later.
+    logger.warning(
+        'ADMIN PASSWORD RESET issued by %s for %s (expires %s, superseded %d)',
+        request.user.email, user.email, token.expires_at.isoformat(), superseded,
+    )
+
+    return Response({
+        'email': user.email,
+        'name': user.name,
+        'reset_url': reset_url,
+        'expires_at': token.expires_at.isoformat(),
+        'expires_in_hours': hours,
+        'superseded_links': superseded,
+    }, status=status.HTTP_201_CREATED)

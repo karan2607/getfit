@@ -12,6 +12,9 @@ urlpatterns = [
     path('auth/password-change/', views.password_change, name='password-change'),
     path('auth/password-reset/', views.password_reset_request, name='password-reset-request'),
     path('auth/password-reset/confirm/', views.password_reset_confirm, name='password-reset-confirm'),
+    # Admin (superuser only — enforced in the views)
+    path('auth/admin/users/', views.admin_users, name='admin-users'),
+    path('auth/admin/reset-link/', views.admin_issue_reset_link, name='admin-reset-link'),
     # Profile
     path('profile/', views.profile, name='profile'),
     # Chat

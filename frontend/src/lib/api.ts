@@ -55,6 +55,27 @@ export interface DietDocument {
   saved_to_profile?: boolean
 }
 
+/** Account listing for superuser tooling. Never includes any password data. */
+export interface AdminUser {
+  id: string
+  email: string
+  name: string
+  is_superuser: boolean
+  is_active: boolean
+  last_login: string | null
+  created_at: string
+}
+
+export interface AdminResetLink {
+  email: string
+  name: string
+  /** Single-use URL to hand to the user. Expires. */
+  reset_url: string
+  expires_at: string
+  expires_in_hours: number
+  superseded_links: number
+}
+
 export type FeedbackStatus = 'new' | 'in_progress' | 'done' | 'failed' | 'skipped'
 
 export interface Feedback {
@@ -145,6 +166,22 @@ export const api = {
       request<{ token: string }>('/api/auth/password-change/', {
         method: 'POST',
         body: JSON.stringify({ current_password, new_password }),
+      }),
+
+    // Superuser-only. There is no outbound email configured, so the operator
+    // mints a reset link and hands it to the user directly. The server returns
+    // 403 for anyone who isn't a superuser.
+    adminListUsers: () =>
+      request<AdminUser[]>('/api/auth/admin/users/'),
+
+    adminIssueResetLink: (email: string, hours?: number) =>
+      request<AdminResetLink>('/api/auth/admin/reset-link/', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          hours,
+          frontend_base: window.location.origin,
+        }),
       }),
   },
 
