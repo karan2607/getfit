@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from django.contrib.auth import get_user_model, authenticate
 from django.db import transaction
 
@@ -752,8 +753,15 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '  "bodyweight_reps" → push-ups, pull-ups, dips, chin-ups, inverted rows\n\n'
 
         'NOTES FIELD (mandatory for every exercise):\n'
-        f'Format: "Start [weight]{preferred_unit}. Add [increment] when all sets completed with good form."\n'
-        f'Example: "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."\n'
+        'CRITICAL: every weight must be a REAL NUMBER you have chosen. Never emit a\n'
+        'placeholder. The strings "X", "Y", "[weight]", "[increment]", "Xkg" and\n'
+        f'"X{preferred_unit}" are FORBIDDEN in your output — a note reading\n'
+        f'"Start X{preferred_unit}" is useless to the user and is a bug.\n'
+        'If you are unsure, estimate a sensible starting load from the user\'s\n'
+        'experience level and body weight, and state that number.\n'
+        f'Good:  "Start 135{preferred_unit}. Add 5{preferred_unit} when all sets are clean."\n'
+        f'Good:  "Start 25{preferred_unit} per hand. Add 5{preferred_unit} once 3x12 is easy."\n'
+        f'BAD:   "Start X{preferred_unit}. Add Y{preferred_unit} when all sets clean."\n'
         'For Warmup & Mobility notes: list the specific stretches/drills, not weight progression.'
     )
 
@@ -830,7 +838,10 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '        "is_rest_day": false,',
         '        "exercises": [',
         '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "measurement_type": "warmup", "notes": "specific drills for today"},',
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "Start Xkg. Add Ykg when all sets clean."}',
+        # The notes example here MUST use a concrete number. It previously used
+        # single-letter placeholders, and the model copied them verbatim into
+        # real plans, so users saw a placeholder instead of a starting weight.
+        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "Start 135lb. Add 5lb when all sets clean."}',
         '        ]',
         '      }',
         '    ],',
@@ -891,6 +902,34 @@ def _validate_plan_json(data: dict) -> None:
                     raise ValueError(f'{label} is missing reps')
 
 
+# A placeholder weight the model emitted instead of choosing a number:
+# "Xlb", "Ykg", "[weight]", "[increment]".
+#
+# The letter is matched CASE-SENSITIVELY and only when glued to a unit. A
+# case-insensitive bare letter would match the "x" in "3 x 12" and silently
+# delete legitimate set notation.
+_PLACEHOLDER_TOKEN_RE = re.compile(
+    r'\b[XYZ](?i:kg|lbs?|kilos?|pounds?)\b'   # Xlb, Ykg, Zlbs
+    r'|\[[^\]]{1,24}\]'                        # [weight], [increment]
+)
+
+
+def _strip_placeholder_weights(text):
+    """
+    Drop whole sentences that contain a placeholder weight, keep the rest.
+
+    "Focus on form. Start Xlb. Add 5lb when clean." keeps the form cue and the
+    real increment, and loses only the useless placeholder sentence. Operating
+    per sentence rather than with one big pattern makes the behaviour
+    predictable and keeps genuine numbers intact.
+    """
+    if not text:
+        return text or ''
+    sentences = re.split(r'(?<=[.!?])\s+', str(text).strip())
+    kept = [s for s in sentences if not _PLACEHOLDER_TOKEN_RE.search(s)]
+    return re.sub(r'\s{2,}', ' ', ' '.join(kept)).strip()
+
+
 def _create_exercise(day, ex_data: dict, order: int):
     """
     Single creation path for Exercise rows.
@@ -909,7 +948,7 @@ def _create_exercise(day, ex_data: dict, order: int):
         sets=ex_data.get('sets', 3),
         reps=reps,
         rest_seconds=ex_data.get('rest_seconds'),
-        notes=ex_data.get('notes', ''),
+        notes=_strip_placeholder_weights(ex_data.get('notes', '')),
         order=order,
         measurement_type=exercise_types.normalize(
             ex_data.get('measurement_type'),
@@ -2070,6 +2109,28 @@ _KB_ALIASES = {
     'reverse pec deck': 'reverse machine flyes',
     'reverse fly machine': 'reverse machine flyes',
     'machine reverse fly': 'reverse machine flyes',
+    # A standing dumbbell lateral raise was matching "dumbbell lying rear
+    # lateral raise" -- the model picked a LYING rear-delt exercise to
+    # illustrate a standing side-delt one. "side lateral raise" is the right key.
+    'lateral raise': 'side lateral raise',
+    'lateral raises': 'side lateral raise',
+    'dumbbell lateral raise': 'side lateral raise',
+    'dumbbell lateral raises': 'side lateral raise',
+    'db lateral raise': 'side lateral raise',
+    'side lateral raise': 'side lateral raise',
+    'side lateral raises': 'side lateral raise',
+    'standing lateral raise': 'side lateral raise',
+    'shoulder lateral raise': 'side lateral raise',
+    'machine lateral raise': 'seated side lateral raise',
+    'lateral raise machine': 'seated side lateral raise',
+    'seated lateral raise': 'seated side lateral raise',
+    'cable lateral raise': 'cable seated lateral raise',
+    'cable lateral raises': 'cable seated lateral raise',
+    # ...but a REAR lateral raise genuinely is the lying/bent-over movement.
+    'rear lateral raise': 'dumbbell lying rear lateral raise',
+    'rear delt raise': 'dumbbell lying rear lateral raise',
+    'lying rear lateral raise': 'dumbbell lying rear lateral raise',
+    'bent over lateral raise': 'bent over low-pulley side lateral',
 }
 
 

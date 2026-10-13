@@ -31,14 +31,95 @@ is how the loop reports back.
 
 ## Running the loop
 
+[`scripts/feedback_loop.sh`](../scripts/feedback_loop.sh) owns the queue
+mechanics and hands each item to a fresh Claude Code session for the actual code
+change.
+
+### Prerequisites
+
+The runner shells out to the **Claude Code CLI**, which is separate from the IDE
+extension. If `command -v claude` prints nothing, install it first:
+
+```bash
+npm install -g @anthropic-ai/claude-code
 ```
-/loop Poll GET /api/feedback/?status=new. For each item:
-      1. PATCH status=in_progress
-      2. Implement the change
-      3. Run the build gate (below). If it fails, PATCH status=failed with the
-         error in result_notes and DO NOT push.
-      4. Commit, push, PATCH status=done with result_notes and commit_sha.
+
+`curl`, `jq` and `git` are also required (`brew install jq` if needed).
+
+### Setup (once)
+
+```bash
+export GETFIT_API=https://<your-backend>.onrender.com
+printf '%s' '<your-40-char-app-token>' > ~/.getfit-loop-token
+chmod 600 ~/.getfit-loop-token
 ```
+
+Get a token from `POST /api/auth/login/`. It must belong to a **superuser** —
+the queue endpoints 403 otherwise.
+
+### Run
+
+```bash
+bash scripts/feedback_loop.sh            # one pass over the queue
+bash scripts/feedback_loop.sh --watch    # poll every 5 min (GETFIT_POLL_SECONDS)
+```
+
+Logs to `~/getfit-loop.log`.
+
+### Durable scheduling
+
+A cron job created inside a Claude session is **session-only** — it stops when
+that session ends. For something that survives restarts, use `launchd`. Save as
+`~/Library/LaunchAgents/com.getfit.feedbackloop.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.getfit.feedbackloop</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/karan/Documents/projects/getfit/scripts/feedback_loop.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>GETFIT_API</key><string>https://YOUR-BACKEND.onrender.com</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartInterval</key><integer>900</integer>
+  <key>StandardOutPath</key><string>/tmp/getfit-loop.out</string>
+  <key>StandardErrorPath</key><string>/tmp/getfit-loop.err</string>
+</dict></plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.getfit.feedbackloop.plist
+launchctl list | grep getfit          # confirm it's registered
+launchctl unload ~/Library/LaunchAgents/com.getfit.feedbackloop.plist   # to stop
+```
+
+### What the runner guarantees
+
+- **Refuses to run on a dirty working tree** — it will not sweep up your
+  in-progress edits into an automated commit.
+- Starts each item from a freshly pulled `main`.
+- **Reverts everything** if the build gate fails, and records the error in
+  `result_notes` so you can read it in the Queue tab.
+- Marks `skipped` rather than guessing when the agent escalates (see below).
+- Only marks `done` after a push actually succeeds.
+
+### Escalation
+
+The agent is instructed to refuse two classes of change and emit `ESCALATE:`
+instead, which the runner records as `skipped`:
+
+1. **Data migrations that mutate existing rows.** The local database is empty, so
+   a backfill cannot be meaningfully verified before it runs against production.
+2. **Anything touching authentication or permissions**, or that widens access.
+
+Both land in your Queue tab for you to handle by hand.
 
 ## The build gate
 

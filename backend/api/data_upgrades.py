@@ -102,10 +102,42 @@ def _step_2_fix_setlog_field_contract(plan, stdout):
     return changed
 
 
+def _step_3_strip_placeholder_weights(plan, stdout):
+    """
+    Remove AI placeholder weights from existing exercise notes.
+
+    The plan-generation prompt's JSON schema example literally read
+    "Start Xkg. Add Ykg when all sets clean.", and the model copied that
+    placeholder straight into real plans with the unit swapped -- so users saw
+    "Start Xlb" in the How-to panel. The prompt and the write path are both
+    fixed now; this repairs the notes already stored.
+
+    Only the offending sentence is removed; genuine coaching in the same note
+    survives. Idempotent: a note with no placeholder is left untouched.
+    """
+    from .views import _strip_placeholder_weights
+
+    changed = 0
+    for day in plan.days.all():
+        for exercise in day.exercises.all():
+            if not exercise.notes:
+                continue
+            cleaned = _strip_placeholder_weights(exercise.notes)
+            if cleaned == exercise.notes:
+                continue
+            stdout('    %s: %r -> %r' % (
+                exercise.name[:28], exercise.notes[:60], cleaned[:60]))
+            exercise.notes = cleaned
+            exercise.save(update_fields=['notes'])
+            changed += 1
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
     2: ('enforce SetLog field contract', _step_2_fix_setlog_field_contract),
+    3: ('strip placeholder weights from notes', _step_3_strip_placeholder_weights),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0
