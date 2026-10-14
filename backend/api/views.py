@@ -752,6 +752,14 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '  "warmup"          → any Warmup & Mobility block\n'
         '  "bodyweight_reps" → push-ups, pull-ups, dips, chin-ups, inverted rows\n\n'
 
+        'LOADED CARRIES — PRESCRIBE TIME, NEVER DISTANCE:\n'
+        'A "weight_duration" exercise (Farmer\'s Carry, Suitcase Carry, Yoke Walk)\n'
+        'is logged by the user as WEIGHT + SECONDS. Its reps field must therefore\n'
+        'be a time, e.g. "40 sec" or "3 x 30 sec".\n'
+        'Never prescribe a carry in yards, feet or metres. "40 yards" cannot be\n'
+        'entered into a seconds field, so the user is left guessing which number\n'
+        'goes where.\n\n'
+
         'REPS FIELD — USE CONVENTIONAL SCHEMES ONLY:\n'
         'Real coaches prescribe reps in standard brackets, never arbitrary\n'
         'numbers. "11", "13", "14", "17" are WRONG — they read as machine output.\n'
@@ -1680,7 +1688,10 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     for log in logs:
         by_session.setdefault(_session_date(log['workout_session__started_at']), []).append(log)
 
-    sessions = sorted(by_session.items(), reverse=True)[:4]
+    # Look back 8 sessions, not 4. The most useful datum when someone has
+    # over-jumped is the weight they last hit the target at, which can easily be
+    # several sessions back.
+    sessions = sorted(by_session.items(), reverse=True)[:8]
     if len(sessions) < 2:
         return {'direction': None, 'summary': None}
 
@@ -1723,29 +1734,60 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
                 f"→ REBUILD CONSISTENCY")
         return {'direction': direction, 'last_value': recent['value'], 'summary': summary}
 
+    # The heaviest weight at which the target rep count was actually achieved,
+    # across all the history we were given. This is the single most useful fact
+    # for recovering from an over-ambitious jump, and it was previously ignored.
+    proven = [r['value'] for r in results if r['hit_all'] and r['value'] is not None]
+    best_at_target = max(proven) if proven else None
+
     if recent['hit_all'] and prev['hit_all'] and recent['value'] == prev['value']:
         return {
             'direction': 'increase',
             'last_value': recent['value'],
+            'best_at_target': best_at_target,
             'summary': (
                 f"Hit all {target}+ reps at {fmt(recent['value'])} for 2 sessions "
                 f"→ INCREASE WEIGHT"),
         }
 
+    recent_avg = sum(recent['reps']) / max(len([r for r in recent['reps'] if r]), 1)
+
+    # One badly-missed session is enough.
+    #
+    # This used to require BOTH of the last two sessions to have failed, so a
+    # jump from 50lb (20 reps) to 90lb (8 reps) fell through to "maintain" --
+    # recommending the user stay at a weight they had just failed at by half.
+    # Missing the target by >25% in the latest session is unambiguous on its own.
+    if not recent['hit_all'] and recent_avg < target * 0.75:
+        summary = (
+            f"Only {recent_avg:.0f} reps at {fmt(recent['value'])} last session "
+            f"(target {target}) → DECREASE WEIGHT")
+        if best_at_target is not None and best_at_target < recent['value']:
+            summary += (
+                f". Previously hit {target} reps at {fmt(best_at_target)} "
+                f"→ go back to about {fmt(best_at_target)}")
+        return {
+            'direction': 'decrease',
+            'last_value': recent['value'],
+            'best_at_target': best_at_target,
+            'summary': summary,
+        }
+
+    # Two consecutive mild misses also warrant backing off.
     if not recent['hit_all'] and not prev['hit_all']:
-        avg_reps = sum(recent['reps']) / max(len(recent['reps']), 1)
-        if avg_reps < target * 0.75:
-            return {
-                'direction': 'decrease',
-                'last_value': recent['value'],
-                'summary': (
-                    f"Averaging {avg_reps:.0f} reps (target {target}) at "
-                    f"{fmt(recent['value'])} for 2 sessions → DECREASE WEIGHT"),
-            }
+        return {
+            'direction': 'decrease',
+            'last_value': recent['value'],
+            'best_at_target': best_at_target,
+            'summary': (
+                f"Short of target {target} reps at {fmt(recent['value'])} for "
+                f"2 sessions → DECREASE WEIGHT"),
+        }
 
     return {
         'direction': 'maintain',
         'last_value': recent['value'] if recent.get('value') else None,
+        'best_at_target': best_at_target,
         'summary': (
             f"Consistent at {fmt(recent['value'])}, maintaining"
             if recent.get('value') else None),
@@ -1824,7 +1866,7 @@ def workout_plan_prepare_week(request, plan_id):
             .values(
                 'workout_session__started_at', 'set_number',
                 'weight_kg', 'reps_completed', 'duration_seconds',
-            )[:9]
+            )[:30]
         )
         if logs:
             history_ctx[ex_name] = logs
@@ -1868,9 +1910,16 @@ def workout_plan_prepare_week(request, plan_id):
         '    MUST be null for [warmup] exercises.'
     )
     prompt_lines.append('')
+    prompt_lines.append(
+        'The PROGRESSION hint is computed from the user\'s own logged sets and\n'
+        'OVERRIDES your own judgement. If it says DECREASE WEIGHT, your advice\n'
+        'must lower the weight — do not suggest maintaining or "working on reps"\n'
+        'at a load the user demonstrably could not complete the target reps at.\n'
+        'If it names a weight the target was previously hit at, recommend that.\n')
     prompt_lines.append('Exercises (the [tag] is authoritative — respect it):')
     for i, name in enumerate(exercise_names, 1):
         mtype = type_by_name[name]
+        prescribed = reps_by_name.get(name)
         hist = history_ctx.get(name)
         hist_str = ''
         if hist:
@@ -1883,7 +1932,7 @@ def workout_plan_prepare_week(request, plan_id):
             )
             progression = _analyze_progression(
                 hist,
-                target_reps=_target_reps_from(reps_by_name.get(name)),
+                target_reps=_target_reps_from(prescribed),
                 measurement_type=mtype,
                 unit=unit,
             )
@@ -1893,8 +1942,13 @@ def workout_plan_prepare_week(request, plan_id):
             hist_str += ']'
         candidates = _get_kb_candidates(name, top_n=10)
         cands_str = ', '.join(candidates[:5]) if candidates else 'none'
+        # The prescribed target is stated explicitly. Without it the model gave
+        # advice like "keep working on increasing that rep count" while the plan
+        # actually called for 15-20 and the user was managing 8.
+        target_str = f' TARGET: {prescribed}' if prescribed else ''
         prompt_lines.append(
-            f'{i}. {name} [{mtype}]{hist_str} | Image library candidates: {cands_str}')
+            f'{i}. {name} [{mtype}]{target_str}{hist_str} | '
+            f'Image library candidates: {cands_str}')
 
     prompt = '\n'.join(prompt_lines)
 

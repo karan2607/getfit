@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType } from '../lib/api'
 import {
   type SetField, type WeightUnit,
-  fieldsFor, fieldLabel, toDisplayField, toStorageField,
+  fieldsFor, fieldLabel, usesField, toDisplayField, toStorageField,
   chartSpecFor, chartLabel, formatChartValue, formatDuration,
 } from '../lib/units'
 import { getErrorMessage } from '../lib/errors'
@@ -1416,6 +1416,16 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
                   return (
                     <>
+                      {/* The plan sometimes prescribes a carry in yards while
+                          this exercise is logged in seconds. Say so rather than
+                          leaving the user to guess which number goes where. */}
+                      {usesField(mType, 'duration_seconds')
+                        && /\b(yard|yards|yd|feet|ft|metre|meter|metres|meters|m|mile|miles)\b/i.test(planEx?.reps ?? '') && (
+                        <div className="mx-4 mb-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                          Plan says <span className="font-semibold">{planEx?.reps}</span> —
+                          log the <span className="font-semibold">time</span> it took you, in seconds.
+                        </div>
+                      )}
                       <div className={`grid ${gridCols} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
                         <span>#</span>
                         {fields.map((f) => (
