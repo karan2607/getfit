@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
-import { api, type HealthDailySummary, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion } from '../lib/api'
+import { api, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
-import {
-  BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from 'recharts'
+import HealthTrends from '../components/health/HealthTrends'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -28,63 +25,6 @@ function fmtDistance(m: number | null) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`
 }
 
-function fillLast7(summaries: HealthDailySummary[]): HealthDailySummary[] {
-  // Sort ascending by date and take up to the last 7 records that actually have data.
-  // Avoids the case where data is old (> 7 days ago) and a calendar-based window returns all nulls.
-  const sorted = [...summaries].sort((a, b) => a.date.localeCompare(b.date))
-  const withData = sorted.filter((s) =>
-    s.steps != null || s.active_calories != null || s.resting_calories != null || s.resting_heart_rate != null
-  )
-  const records = withData.length > 0 ? withData.slice(-7) : sorted.slice(-7)
-  return records
-}
-
-const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }
-
-// ── Metric Card ───────────────────────────────────────────────────────────────
-
-function MetricCard({ title, unit, color, data, dataKey, chartType }: {
-  title: string; unit: string; color: string
-  data: HealthDailySummary[]
-  dataKey: keyof Omit<HealthDailySummary, 'date'>; chartType: 'bar' | 'line'
-}) {
-  const latest = [...data].reverse().find((d) => d[dataKey] != null)
-  const displayVal = latest ? (latest[dataKey] as number | null) : null
-  const chartData = data.map((d) => ({ ...d, label: fmtDate(d.date) }))
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{title}</p>
-        {displayVal != null && (
-          <p className="text-sm font-bold text-gray-800">
-            {(displayVal as number).toLocaleString('en-US', { maximumFractionDigits: 1 })}
-            <span className="text-xs font-normal text-gray-400 ml-1">{unit}</span>
-          </p>
-        )}
-      </div>
-      <ResponsiveContainer width="100%" height={80}>
-        {chartType === 'bar' ? (
-          <BarChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v != null ? Number(v).toLocaleString() : '—', title]} />
-            <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} maxBarSize={24} />
-          </BarChart>
-        ) : (
-          <LineChart data={chartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v != null ? Number(v).toLocaleString() : '—', title]} />
-            <Line dataKey={dataKey} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color }} connectNulls />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
-    </div>
-  )
-}
 
 // ── Workout Row ───────────────────────────────────────────────────────────────
 
@@ -424,7 +364,6 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
   provider: string | null; connectedAt: string | null; lastSyncAt: string | null; latestSummaryDate: string | null; onDisconnected: () => void
 }) {
   const { showToast } = useToast()
-  const [summaries, setSummaries] = useState<HealthDailySummary[]>([])
   const [workouts, setWorkouts] = useState<HealthWorkout[]>([])
   const [recovery, setRecovery] = useState<HealthRecovery | null>(null)
   const [balance, setBalance] = useState<HealthCalorieBalance | null>(null)
@@ -435,14 +374,13 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
   const [syncing, setSyncing] = useState(false)
 
   async function fetchAll() {
-    const [s, w, r, b, a] = await Promise.all([
-      api.health.getSummary(),
+    const [w, r, b, a] = await Promise.all([
       api.health.getWorkouts(),
       api.health.getRecovery(),
       api.health.getCalorieBalance(),
       api.health.getActivitySuggestion(),
     ])
-    setSummaries(s); setWorkouts(w); setRecovery(r); setBalance(b); setSuggestion(a)
+    setWorkouts(w); setRecovery(r); setBalance(b); setSuggestion(a)
   }
 
   useEffect(() => {
@@ -475,7 +413,6 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
     }
   }
 
-  const chartData = fillLast7(summaries)
   const providerLabel = provider ? provider.charAt(0) + provider.slice(1).toLowerCase() : 'Health'
 
   return (
@@ -526,11 +463,10 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
           <RecoveryCard recovery={recovery} />
           <CalorieBalanceCard balance={balance} />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <MetricCard title="Steps" unit="steps" color="#3b82f6" data={chartData} dataKey="steps" chartType="bar" />
-            <MetricCard title="Active Calories" unit="kcal" color="#f59e0b" data={chartData} dataKey="active_calories" chartType="bar" />
-            <MetricCard title="Resting Calories" unit="kcal" color="#10b981" data={chartData} dataKey="resting_calories" chartType="bar" />
-            <MetricCard title="Resting Heart Rate" unit="bpm" color="#ef4444" data={chartData} dataKey="resting_heart_rate" chartType="line" />
+          {/* Replaces four fixed 80px sparklines of "the last 7 records that
+              happen to have data" with real charts over a chosen range. */}
+          <div className="mb-6">
+            <HealthTrends latestSummaryDate={latestSummaryDate} />
           </div>
 
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">

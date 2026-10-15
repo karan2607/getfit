@@ -3164,6 +3164,27 @@ def health_summary(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def health_series(request):
+    """
+    Time-bucketed health metrics for the charts.
+
+    ?range=daily|weekly|monthly  (14 days / 12 weeks / 6 months)
+
+    Bucketing lives in api/health_series.py so this endpoint, the UI and the
+    MCP tool all agree on what a range means.
+    """
+    from .health_series import build_series, RANGES, DEFAULT_RANGE
+
+    range_key = (request.GET.get('range') or DEFAULT_RANGE).lower()
+    if range_key not in RANGES:
+        return Response(
+            {'detail': 'range must be one of %s' % sorted(RANGES)},
+            status=status.HTTP_400_BAD_REQUEST)
+    return Response(build_series(request.user, range_key))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def health_workouts(request):
     workouts = HealthWorkout.objects.filter(user=request.user).order_by('-start_time')[:20]
     data = [

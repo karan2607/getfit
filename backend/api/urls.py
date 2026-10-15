@@ -56,6 +56,7 @@ urlpatterns = [
     path('health/connect/rotate/', views.health_connect_rotate, name='health-connect-rotate'),
     path('health/status/', views.health_status, name='health-status'),
     path('health/summary/', views.health_summary, name='health-summary'),
+    path('health/series/', views.health_series, name='health-series'),
     path('health/workouts/', views.health_workouts, name='health-workouts'),
     path('health/shortcuts/sync/', views.health_shortcuts_sync, name='health-shortcuts-sync'),
     path('health/recovery/', views.health_recovery, name='health-recovery'),

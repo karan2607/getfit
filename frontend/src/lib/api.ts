@@ -416,10 +416,19 @@ export const api = {
       request<{ token: string }>('/api/health/connect/'),
 
     getStatus: () =>
-      request<{ connected: boolean; provider: string | null; connected_at: string | null; last_sync_at: string | null; latest_summary_date: string | null }>('/api/health/status/'),
+      request<{ connected: boolean; provider: string | null; connected_at: string | null; last_sync_at: string | null; has_data?: boolean; latest_summary_date: string | null }>('/api/health/status/'),
 
     getSummary: () =>
       request<HealthDailySummary[]>('/api/health/summary/'),
+
+    /** Bucketed trends. Server-side aggregation, shared with the MCP tool. */
+    getSeries: (range: HealthRange) =>
+      request<HealthSeries>(`/api/health/series/?range=${range}`),
+
+    rotateSyncToken: () =>
+      request<{ token: string; detail: string }>('/api/health/connect/rotate/', {
+        method: 'POST',
+      }),
 
     getWorkouts: () =>
       request<HealthWorkout[]>('/api/health/workouts/'),
@@ -697,6 +706,40 @@ export interface FoodScanResult {
   fiber_g: number | null
   notes: string
   created_at: string
+}
+
+export type HealthRange = 'daily' | 'weekly' | 'monthly'
+
+/** One time bucket. Metrics are PER-DAY AVERAGES within the bucket. */
+export interface HealthBucket {
+  start: string
+  end: string
+  label: string
+  /** How many days in this bucket actually had data — a partial week is not a slump. */
+  days_with_data: number
+  steps: number | null
+  active_calories: number | null
+  resting_calories: number | null
+  resting_heart_rate: number | null
+  sleep_hours: number | null
+}
+
+export interface HealthMetricSummary {
+  latest: number | null
+  previous: number | null
+  change: number | null
+  change_pct: number | null
+  points?: number
+}
+
+export interface HealthSeries {
+  range: HealthRange
+  bucket: 'day' | 'week' | 'month'
+  from: string
+  to: string
+  buckets: HealthBucket[]
+  summary: Record<string, HealthMetricSummary>
+  has_data: boolean
 }
 
 export interface HealthDailySummary {

@@ -578,6 +578,19 @@ def _tool_get_todays_workout(user, args):
     }
 
 
+def _tool_get_health_series(user, args):
+    """
+    Bucketed health trends. Shares build_series with the UI charts, so an agent
+    and the chart always report the same numbers for the same range.
+    """
+    from .health_series import build_series, RANGES, DEFAULT_RANGE
+
+    range_key = str(args.get('range') or DEFAULT_RANGE).lower()
+    if range_key not in RANGES:
+        raise McpError('range must be one of %s' % sorted(RANGES))
+    return build_series(user, range_key)
+
+
 def _tool_get_health_summary(user, args):
     limit = min(int(args.get('days') or 7), 60)
     rows = HealthDailySummary.objects.filter(user=user)[:limit]
@@ -669,6 +682,18 @@ TOOLS = {
                        'heart rate and sleep.',
         'schema': _obj({'days': _INT}),
         'handler': _tool_get_health_summary,
+        'writes': False,
+    },
+    'get_health_series': {
+        'description': 'Health metrics bucketed over time, for trends. '
+                       'range=daily (14 days), weekly (12 weeks) or monthly '
+                       '(6 months). Every metric is a PER-DAY AVERAGE within '
+                       'its bucket, so values stay comparable across ranges; '
+                       '`days_with_data` tells you how complete each bucket is. '
+                       'Also returns latest/previous/change per metric.',
+        'schema': _obj({'range': {'type': 'string',
+                                  'enum': ['daily', 'weekly', 'monthly']}}),
+        'handler': _tool_get_health_series,
         'writes': False,
     },
     'get_meal_logs': {
