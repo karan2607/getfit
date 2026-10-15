@@ -396,10 +396,13 @@ def _tool_log_health_day(user, args):
     Upsert one day of health metrics. Only supplied fields are written, so a
     partial sync never nulls out values recorded earlier the same day.
     """
-    from .views import _coerce_health_fields
+    from .views import _coerce_health_fields, _stale_date_warning
 
     day = _mcp_date(args)
     stored, problems = _coerce_health_fields(args)
+    stale = _stale_date_warning(args.get('date'), day)
+    if stale:
+        problems = problems + [stale]
     if not stored:
         raise McpError(
             'no valid metrics supplied. Accepts steps, active_calories, '

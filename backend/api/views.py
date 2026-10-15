@@ -3251,6 +3251,12 @@ def _parse_health_payload(body):
     return data, None
 
 
+# A sync client sending a date this far back is almost certainly sending a
+# STATIC date rather than today's. Not an error -- backfilling old days is
+# legitimate -- but it must be visible.
+HEALTH_STALE_DATE_DAYS = 7
+
+
 def _parse_health_date(value):
     """
     Validate the summary date. Returns (date, error_message).
@@ -3271,6 +3277,29 @@ def _parse_health_date(value):
     if parsed < today - timedelta(days=3650):
         return None, 'date %s is implausibly old' % parsed.isoformat()
     return parsed, None
+
+
+def _stale_date_warning(supplied, resolved):
+    """
+    Warn when a client keeps writing to a long-past date.
+
+    A real Apple Shortcut was built with the date captured as a STATIC value, so
+    for five months every sync overwrote one row dated the day before setup.
+    Nothing was ever filed under today, yet the endpoint reported success each
+    time and the app showed a row that kept updating. Silence made that
+    invisible; this makes it loud.
+    """
+    from django.utils import timezone as _tz
+    if supplied in (None, '') or resolved is None:
+        return None
+    age = (_tz.now().date() - resolved).days
+    if age < HEALTH_STALE_DATE_DAYS:
+        return None
+    return (
+        'date %s is %d days old — if your client is meant to be syncing TODAY, '
+        'it is sending a static date. Omit the date field entirely and the '
+        'server will use today.' % (resolved.isoformat(), age)
+    )
 
 
 def _coerce_health_fields(payload):
@@ -3379,6 +3408,7 @@ def health_shortcuts_sync(request):
                         status=status.HTTP_400_BAD_REQUEST)
 
     stored_fields, field_errors = _coerce_health_fields(parsed)
+    stale_warning = _stale_date_warning(parsed.get('date'), summary_date)
 
     created_summary = False
     if stored_fields:
@@ -3392,6 +3422,8 @@ def health_shortcuts_sync(request):
     conn.save(update_fields=['last_sync_at'])
 
     problems = field_errors + workout_errors
+    if stale_warning:
+        problems.append(stale_warning)
     if problems:
         logger.warning('health sync for %s completed with %d problem(s): %s',
                        sync_user.email, len(problems), problems[:5])

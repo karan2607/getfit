@@ -17,6 +17,7 @@ Review findings this covers:
 """
 
 import json
+from datetime import timedelta
 
 from django.urls import reverse
 from django.utils import timezone
@@ -338,3 +339,59 @@ class HealthStatusTests(APITestCase):
         self.assertTrue(res.data['connected'])
         self.assertTrue(res.data['has_data'])
         self.assertIsNotNone(res.data['latest_summary_date'])
+
+
+class StaleDateWarningTests(APITestCase):
+    """
+    A client sending a STATIC date is invisible without a warning.
+
+    Real case: an Apple Shortcut built on 2026-05-05 captured the date as a
+    fixed value, so for five months every sync overwrote one row dated
+    2026-05-04. Nothing was ever filed under today, the endpoint reported
+    success each time, and the app showed a row that kept updating -- so there
+    was no symptom until someone compared the stored date to the clock.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='stale@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.conn = HealthConnection.objects.create(user=self.user)
+        self.url = reverse('health-shortcuts-sync')
+
+    def post(self, payload):
+        return self.client.post(
+            self.url, json.dumps(payload), content_type='application/json',
+            HTTP_AUTHORIZATION='Sync ' + self.conn.sync_token)
+
+    def _old_date(self, days):
+        return (timezone.now().date() - timedelta(days=days)).isoformat()
+
+    def test_a_months_old_date_is_flagged(self):
+        res = self.post({'date': self._old_date(160), 'steps': 6340})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertTrue(any('static date' in p for p in res.data['problems']),
+                        msg=res.data['problems'])
+
+    def test_the_warning_is_not_fatal(self):
+        """Backfilling an old day is legitimate, so still store the data."""
+        day = self._old_date(160)
+        res = self.post({'date': day, 'steps': 6340})
+        self.assertEqual(res.data['date'], day)
+        self.assertEqual(
+            HealthDailySummary.objects.get(user=self.user).steps, 6340)
+
+    def test_recent_dates_are_not_flagged(self):
+        for days in (0, 1, 3, 6):
+            res = self.post({'date': self._old_date(days), 'steps': 100})
+            self.assertEqual(res.data['problems'], [],
+                             msg='%d days old should not warn' % days)
+
+    def test_omitting_the_date_never_warns(self):
+        res = self.post({'steps': 100})
+        self.assertEqual(res.data['problems'], [])
+        self.assertEqual(res.data['date'], timezone.now().date().isoformat())
+
+    def test_warning_names_the_fix(self):
+        res = self.post({'date': self._old_date(160), 'steps': 1})
+        warning = [p for p in res.data['problems'] if 'static date' in p][0]
+        self.assertIn('Omit the date field', warning)
