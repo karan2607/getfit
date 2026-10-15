@@ -1556,7 +1556,7 @@ def _bg_cache_plan_guides(plan_id):
             if not isinstance(guide, dict):
                 continue
             kb_key = guide.pop('kb_key', None)
-            guide['images'] = kb[kb_key][:2] if kb_key and kb_key in kb else _lookup_exercise_images(name)
+            guide['images'] = _images_for_exercise(name, kb_key)
             # These rows are GENERIC (user=None) and shared by every user, so they
             # must never carry personalised advice. Per-user weight/coaching
             # recommendations are written only by workout_plan_prepare_week
@@ -1972,10 +1972,7 @@ def workout_plan_prepare_week(request, plan_id):
             continue
         mtype = type_by_name.get(name, exercise_types.DEFAULT_TYPE)
         kb_key = guide.pop('kb_key', None)
-        if kb_key and kb_key in kb:
-            guide['images'] = kb[kb_key][:2]
-        else:
-            guide['images'] = _lookup_exercise_images(name)
+        guide['images'] = _images_for_exercise(name, kb_key)
 
         # Belt-and-braces: strip advice the contract forbids, in case the model
         # ignored the instruction above.
@@ -2104,53 +2101,212 @@ def _load_exercise_kb() -> dict:
 _MOVEMENT_WORDS = {'curl', 'press', 'row', 'pull', 'push', 'squat', 'deadlift', 'lunge', 'raise',
                    'extension', 'fly', 'flye', 'dip', 'shrug', 'thrust', 'swing', 'clean', 'snatch'}
 
+# Modifiers that change WHICH MUSCLE the exercise trains. If one of these appears
+# on only one side of a comparison, the two exercises are different movements no
+# matter how many tokens they share -- a "lateral raise" is not a "lying REAR
+# lateral raise", and a chest-supported row is not a LYING row.
+#
+# Token overlap alone could not catch this: the extra word only cost a little
+# precision, so "dumbbell lying rear lateral raise" still outscored the correct
+# "side lateral raise" for a plain dumbbell lateral raise.
+_FLIPPING_MODIFIERS = {
+    'reverse', 'rear', 'lying', 'incline', 'decline', 'behind', 'front',
+}
+
+# Implements. A key naming different equipment to the query is a different
+# exercise: "sled overhead triceps extension" must not illustrate a DUMBBELL
+# overhead triceps extension. Both score 0.90 on token overlap alone, so without
+# this the winner was decided by JSON key order.
+_EQUIPMENT_WORDS = {
+    'dumbbell', 'barbell', 'cable', 'machine', 'sled', 'kettlebell', 'smith',
+    'band', 'bands', 'lever', 'sledgehammer',
+}
+
+_KB_STOP = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or',
+            'for', 'from', 'at', 'by'}
+
+
+def _kb_stem(word: str) -> str:
+    """
+    Crude suffix stemmer shared by every KB comparison.
+
+    The previous version tried suffixes in the order ing/ed/es/s and stripped the
+    first that matched, which silently broke three common forms:
+
+        'press'   -> 'pres'   but 'presses' -> 'press'   (never matched)
+        'raises'  -> 'rais'   but 'raise'   -> 'raise'   (never matched)
+        'lunges'  -> 'lung'   but 'lunge'   -> 'lunge'   (never matched)
+
+    'press' also fell out of _MOVEMENT_WORDS, denying every press exercise the
+    specificity bonus.
+
+    Now 'es' is only stripped after a sibilant or 'y' ("presses", "crunches",
+    "flyes"); every other plural loses just the 's'. Short words are left alone
+    so 'swing' and 'lying' survive intact -- 'lying' in particular must stay
+    whole, since it is a muscle-flipping modifier.
+    """
+    if word.endswith('ing') and len(word) > 5:
+        return word[:-3]
+    if word.endswith('ed') and len(word) > 4:
+        return word[:-2]
+    # Strip 'es' only when the remaining stem genuinely requires it -- i.e. it
+    # ends in a sibilant or 'y'. Testing the WORD's ending instead of the STEM's
+    # is what broke 'raises': it ends 'ses', so 'es' was stripped to give 'rais',
+    # while 'raise' stayed whole and the two never matched.
+    if word.endswith('es') and len(word) > 4 and word[:-2].endswith(
+            ('ss', 'x', 'z', 'ch', 'sh', 'y')):
+        return word[:-2]
+    if word.endswith('s') and not word.endswith('ss') and len(word) > 3:
+        return word[:-1]
+    return word
+
+
+def _kb_tokenize(text: str) -> set:
+    words = re.sub(r'[^\w\s]', ' ', (text or '').lower()).split()
+    return {_kb_stem(w) for w in words if w not in _KB_STOP}
+
+
+# Stemmed once, so membership tests use the same form the tokenizer produces.
+_MOVEMENT_STEMS = {_kb_stem(w) for w in _MOVEMENT_WORDS}
+_FLIPPER_STEMS = {_kb_stem(w) for w in _FLIPPING_MODIFIERS}
+_EQUIPMENT_STEMS = {_kb_stem(w) for w in _EQUIPMENT_WORDS}
+
 
 def _kb_score(query_words: set, key_words: set) -> float:
-    """F1 score with a bonus when query and key share the same movement word."""
+    """
+    F1 over stemmed tokens, with a movement-word bonus.
+
+    Two disqualifiers return 0 outright, because a wrong illustration is worse
+    than no illustration:
+      - a muscle-flipping modifier on only one side (lying/rear/reverse/...)
+      - conflicting equipment (query says dumbbell, key says sled)
+    """
     overlap = len(query_words & key_words)
     if overlap == 0:
         return 0.0
+
+    if (query_words & _FLIPPER_STEMS) != (key_words & _FLIPPER_STEMS):
+        return 0.0
+
+    query_equip = query_words & _EQUIPMENT_STEMS
+    key_equip = key_words & _EQUIPMENT_STEMS
+    if query_equip and key_equip and not (query_equip & key_equip):
+        return 0.0
+
     recall = overlap / len(query_words)
     precision = overlap / len(key_words)
     f1 = 2 * recall * precision / (recall + precision)
     # Bonus: if both query and key contain the same movement type word, prefer specificity
-    shared_movement = bool((query_words & _MOVEMENT_WORDS) & key_words)
-    return f1 + (0.15 if shared_movement else 0.0)
+    shared_movement = bool((query_words & _MOVEMENT_STEMS) & key_words)
+    # Tie-break toward matching equipment, so "dumbbell ..." beats "sled ..."
+    # for a dumbbell exercise instead of JSON ordering deciding it.
+    equip_match = bool(query_equip & key_equip)
+    return f1 + (0.15 if shared_movement else 0.0) + (0.05 if equip_match else 0.0)
+
+
+KB_MATCH_THRESHOLD = 0.5
+
+
+def _alias_for(name: str):
+    """
+    Alias lookup that tolerates how the AI actually writes exercise names.
+
+    Tries, in order: the name as written; with any parenthetical qualifier
+    removed; with a leading "Label: " prefix removed; with both removed.
+
+    Each pass earns its place. Without paren-stripping, "Lateral Raises
+    (Dumbbell)" missed the "lateral raises" alias. Without prefix-stripping,
+    every "Metabolic Finisher: X" name diluted its own token overlap enough to
+    fall below the match threshold and show no image at all.
+    """
+    text = re.sub(r'\s+', ' ', (name or '').lower()).strip()
+    no_parens = re.sub(r'\s*\([^)]*\)', '', text).strip()
+    # Only strip a short leading label, so "squat: low bar" style names survive.
+    no_prefix = re.sub(r'^[a-z][a-z\s&-]{0,24}:\s*', '', text).strip()
+    no_both = re.sub(r'^[a-z][a-z\s&-]{0,24}:\s*', '', no_parens).strip()
+
+    for candidate in (text, no_parens, no_prefix, no_both):
+        if candidate and candidate in _KB_ALIASES:
+            return _KB_ALIASES[candidate]
+    return None
+
+
+def _resolve_kb_key(name: str):
+    """
+    THE single entry point for turning an exercise name into a KB key.
+
+    Alias table first, then best scored match above the threshold.
+
+    Previously the alias table was consulted only by _get_kb_candidates, which
+    merely builds the shortlist shown to the AI. The image lookup ran its own
+    unaliased copy of the scoring loop, so whenever the AI returned
+    `kb_key: null` -- or on the generic-guide path -- every alias was bypassed.
+    That is why "Pec Deck Fly Machine" still resolved to "reverse machine flyes"
+    after the alias was added: the fix only ever covered half the paths.
+
+    Returns (key, score) with key=None on a miss.
+    """
+    kb = _load_exercise_kb()
+
+    alias = _alias_for(name)
+    if alias and alias in kb:
+        return alias, 1.0
+
+    query_words = _kb_tokenize(name)
+    if not query_words:
+        return None, 0.0
+
+    best_key, best_score = None, 0.0
+    for key in kb:
+        score = _kb_score(query_words, _kb_tokenize(key))
+        if score > best_score:
+            best_key, best_score = key, score
+
+    if best_key and best_score >= KB_MATCH_THRESHOLD:
+        return best_key, best_score
+    return None, best_score
+
+
+def _kb_key_is_consistent(name: str, key: str) -> bool:
+    """
+    Guard for a kb_key the AI chose.
+
+    Even with a correct shortlist the model can pick a key whose
+    muscle-flipping modifiers contradict the exercise, so re-apply the same
+    rule _kb_score uses.
+    """
+    if not key:
+        return False
+    alias = _alias_for(name)
+    if alias:
+        return key == alias
+    return (_kb_tokenize(name) & _FLIPPER_STEMS) == (_kb_tokenize(key) & _FLIPPER_STEMS)
 
 
 def _lookup_exercise_images(name: str) -> list:
-    import re as _re
     kb = _load_exercise_kb()
-
-    _stop = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or', 'for', 'from', 'at', 'by'}
-
-    def _stem(w):
-        for suffix in ('ing', 'ed', 'es', 's'):
-            if w.endswith(suffix) and len(w) > len(suffix) + 2:
-                return w[:-len(suffix)]
-        return w
-
-    def _tokenize(s):
-        words = _re.sub(r'[^\w\s]', ' ', s.lower()).split()
-        return {_stem(w) for w in words if w not in _stop}
-
-    query_words = _tokenize(name)
-    if not query_words:
-        return []
-
-    best_key, best_score = None, -1
-    for key, urls in kb.items():
-        score = _kb_score(query_words, _tokenize(key))
-        if score > best_score:
-            best_score = score
-            best_key = key
-
-    if best_key and best_score >= 0.5:
-        logger.info('exercise_kb hit for %r via key %r (score=%.2f)', name, best_key, best_score)
-        return kb[best_key][:2]
-
-    logger.info('exercise_kb miss for %r (best score=%.2f)', name, best_score)
+    key, score = _resolve_kb_key(name)
+    if key:
+        logger.info('exercise_kb hit for %r via key %r (score=%.2f)', name, key, score)
+        return kb[key][:2]
+    logger.info('exercise_kb miss for %r (best score=%.2f)', name, score)
     return []
+
+
+def _images_for_exercise(name: str, kb_key=None) -> list:
+    """
+    Images for one exercise, preferring an AI-chosen key but validating it.
+
+    Replaces the `kb[kb_key][:2] if kb_key and kb_key in kb else
+    _lookup_exercise_images(name)` expression that was duplicated across the
+    guide-generating paths and performed no sanity check on kb_key.
+    """
+    kb = _load_exercise_kb()
+    if kb_key and kb_key in kb and _kb_key_is_consistent(name, kb_key):
+        return kb[kb_key][:2]
+    if kb_key:
+        logger.info('exercise_kb rejected AI key %r for %r', kb_key, name)
+    return _lookup_exercise_images(name)
 
 
 _KB_ALIASES = {
@@ -2206,37 +2362,43 @@ _KB_ALIASES = {
     'rear delt raise': 'dumbbell lying rear lateral raise',
     'lying rear lateral raise': 'dumbbell lying rear lateral raise',
     'bent over lateral raise': 'bent over low-pulley side lateral',
+    # Conditioning blocks. These arrive as "Metabolic Finisher: X" — the prefix
+    # is stripped by _alias_for before lookup. The KB spells several of these
+    # differently enough that token scoring never reaches the threshold.
+    'battle ropes': 'battling ropes',
+    'battle rope': 'battling ropes',
+    'treadmill hiit': 'running, treadmill',
+    'treadmill sprints': 'running, treadmill',
+    'treadmill run': 'running, treadmill',
+    'treadmill walk': 'walking, treadmill',
+    'incline treadmill walk': 'walking, treadmill',
+    'treadmill': 'walking, treadmill',
+    'elliptical': 'elliptical trainer',
+    'stationary bike': 'bicycling, stationary',
+    'rowing machine': 'rowing, stationary',
 }
 
 
 def _get_kb_candidates(name: str, top_n: int = 20) -> list:
-    """Return the top N KB keys by score for Gemini to choose from."""
-    import re as _re
+    """
+    Shortlist of KB keys for Gemini to choose from.
+
+    Shares the tokenizer, stemmer and scoring rules with _resolve_kb_key, so the
+    shortlist can never disagree with what the image lookup would pick.
+    """
     kb = _load_exercise_kb()
 
-    alias = _KB_ALIASES.get(name.lower().strip())
+    alias = _alias_for(name)
     if alias and alias in kb:
         return [alias]
 
-    _stop = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or', 'for', 'from', 'at', 'by'}
-
-    def _stem(w):
-        for suffix in ('ing', 'ed', 'es', 's'):
-            if w.endswith(suffix) and len(w) > len(suffix) + 2:
-                return w[:-len(suffix)]
-        return w
-
-    def _tokenize(s):
-        words = _re.sub(r'[^\w\s]', ' ', s.lower()).split()
-        return {_stem(w) for w in words if w not in _stop}
-
-    query_words = _tokenize(name)
+    query_words = _kb_tokenize(name)
     if not query_words:
         return []
 
     scored = []
     for key in kb:
-        score = _kb_score(query_words, _tokenize(key))
+        score = _kb_score(query_words, _kb_tokenize(key))
         if score > 0:
             scored.append((score, key))
 
@@ -2290,11 +2452,7 @@ Return only valid JSON, no extra text."""
         )
         kb_key = guide.pop('kb_key', None)
         kb = _load_exercise_kb()
-        if kb_key and kb_key in kb:
-            guide['images'] = kb[kb_key][:2]
-            logger.info('exercise_kb gemini pick for %r: %r', name, kb_key)
-        else:
-            guide['images'] = _lookup_exercise_images(name)
+        guide['images'] = _images_for_exercise(name, kb_key)
         # Generic row: no personalised advice, shared across users.
         ExerciseGuide.objects.update_or_create(
             user=None, name=name, defaults={'data': guide})
