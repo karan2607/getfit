@@ -395,3 +395,126 @@ class StaleDateWarningTests(APITestCase):
         res = self.post({'date': self._old_date(160), 'steps': 1})
         warning = [p for p in res.data['problems'] if 'static date' in p][0]
         self.assertIn('Omit the date field', warning)
+
+
+class DualSourceWriteTests(APITestCase):
+    """
+    The Shortcut and an MCP agent both writing health data for the same day.
+
+    Two different auth paths (Sync token vs app Token) hitting the same
+    HealthDailySummary row. Both use update_or_create with only the fields they
+    supplied, so they MERGE per field rather than one wiping the other -- but a
+    field sent by both is last-write-wins, which is worth knowing before you
+    point two sources at the same metric.
+    """
+
+    def setUp(self):
+        from rest_framework.authtoken.models import Token
+        self.user = User.objects.create_user(email='dual@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.conn = HealthConnection.objects.create(user=self.user)
+        self.app_token, _ = Token.objects.get_or_create(user=self.user)
+        self.today = timezone.now().date().isoformat()
+
+    def shortcut_sync(self, payload):
+        """The Apple Shortcut path: Authorization: Sync <token>."""
+        return self.client.post(
+            reverse('health-shortcuts-sync'), json.dumps(payload),
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Sync ' + self.conn.sync_token)
+
+    def agent_mcp(self, arguments):
+        """The agent path: MCP log_health_day with an app token."""
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.app_token.key)
+        res = self.client.post(reverse('mcp'), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+            'params': {'name': 'log_health_day', 'arguments': arguments},
+        }, format='json')
+        self.client.credentials()
+        return res
+
+    def summary(self):
+        return HealthDailySummary.objects.get(user=self.user)
+
+    def test_both_paths_write_to_the_same_row(self):
+        self.shortcut_sync({'date': self.today, 'steps': 8000})
+        self.agent_mcp({'date': self.today, 'sleep_hours': 7.5})
+        self.assertEqual(HealthDailySummary.objects.count(), 1)
+
+    def test_distinct_fields_merge_rather_than_overwrite(self):
+        """The useful case: Shortcut owns steps, agent owns sleep."""
+        self.shortcut_sync({'date': self.today, 'steps': 8000,
+                            'active_calories': 400})
+        self.agent_mcp({'date': self.today, 'sleep_hours': 7.5,
+                        'resting_heart_rate': 55})
+        s = self.summary()
+        self.assertEqual(s.steps, 8000)
+        self.assertEqual(s.active_calories, 400)
+        self.assertEqual(s.sleep_hours, 7.5)
+        self.assertEqual(s.resting_heart_rate, 55)
+
+    def test_order_does_not_matter(self):
+        self.agent_mcp({'date': self.today, 'sleep_hours': 7.5})
+        self.shortcut_sync({'date': self.today, 'steps': 8000})
+        s = self.summary()
+        self.assertEqual(s.steps, 8000)
+        self.assertEqual(s.sleep_hours, 7.5)
+
+    def test_the_same_field_from_both_sources_is_last_write_wins(self):
+        """
+        Documented, not prevented: if both sources send `steps`, the later call
+        wins. Point one source at each metric to avoid ping-pong.
+        """
+        self.shortcut_sync({'date': self.today, 'steps': 8000})
+        self.agent_mcp({'date': self.today, 'steps': 12000})
+        self.assertEqual(self.summary().steps, 12000)
+
+        self.shortcut_sync({'date': self.today, 'steps': 8000})
+        self.assertEqual(self.summary().steps, 8000)
+
+    def test_a_stale_dated_shortcut_does_not_touch_todays_row(self):
+        """
+        The live situation: the Shortcut writes to a fixed old date while the
+        agent writes to today. They land on separate rows and do not interfere.
+        """
+        stale = (timezone.now().date() - timedelta(days=160)).isoformat()
+        self.shortcut_sync({'date': stale, 'steps': 6340})
+        self.agent_mcp({'date': self.today, 'steps': 11000})
+
+        self.assertEqual(HealthDailySummary.objects.count(), 2)
+        self.assertEqual(
+            HealthDailySummary.objects.get(date=stale).steps, 6340)
+        self.assertEqual(
+            HealthDailySummary.objects.get(date=self.today).steps, 11000)
+
+    def test_workouts_from_both_paths_coexist(self):
+        self.shortcut_sync({'workouts': [{
+            'id': 'shortcut-1', 'activity_type': 'Walk',
+            'start_time': '2026-10-14T07:00:00Z'}]})
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.app_token.key)
+        self.client.post(reverse('mcp'), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+            'params': {'name': 'log_health_workout', 'arguments': {
+                'external_id': 'agent-1', 'activity_type': 'Run',
+                'start_time': '2026-10-14T18:00:00Z'}},
+        }, format='json')
+        self.client.credentials()
+
+        self.assertEqual(HealthWorkout.objects.filter(user=self.user).count(), 2)
+
+    def test_same_workout_id_from_both_paths_updates_one_row(self):
+        """Dedupe is by (user, external_id), so the source does not matter."""
+        self.shortcut_sync({'workouts': [{
+            'id': 'shared', 'activity_type': 'Walk',
+            'start_time': '2026-10-14T07:00:00Z', 'calories': 100}]})
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.app_token.key)
+        self.client.post(reverse('mcp'), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+            'params': {'name': 'log_health_workout', 'arguments': {
+                'external_id': 'shared', 'activity_type': 'Walk',
+                'start_time': '2026-10-14T07:00:00Z', 'calories': 250}},
+        }, format='json')
+        self.client.credentials()
+
+        self.assertEqual(HealthWorkout.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(HealthWorkout.objects.get(user=self.user).calories, 250)
