@@ -47,26 +47,53 @@ Get a token by logging in (`POST /api/auth/login/`) — tokens don't expire.
 
 ## Tools
 
-Read-only:
+`tools/list` is generated from the registry, so it is always authoritative.
+The table below is for orientation.
 
-| Tool | Purpose |
-|---|---|
-| `get_profile` | Body stats, goal, experience, dietary preference, personal notes |
-| `list_workout_plans` | All plans, newest first |
-| `get_workout_plan` | One plan with days and exercises (defaults to the active one) |
-| `list_workout_sessions` | Training logs |
-| `get_workout_session` | One session with all set logs |
-| `get_exercise_history` | Full history for one exercise by name |
-| `list_diet_plans` / `get_diet_plan` | Diet plans with meals and macros |
-| `get_health_summary` | Recent steps, calories, resting HR, sleep |
+### Read-only
 
-Writes:
+| Tool | Params | Purpose |
+|---|---|---|
+| `get_profile` | — | Body stats, goal, experience, dietary preference, notes |
+| `list_workout_plans` | `active_only` | All plans, newest first |
+| `get_workout_plan` | `plan_id`, `week_number` | One plan with days and exercises (defaults to active) |
+| `list_workout_sessions` | `completed_only`, `limit` | Training logs |
+| `get_workout_session` | **`session_id`** | One session with all set logs |
+| `get_exercise_history` | **`exercise_name`**, `limit` | Full history for one exercise |
+| `get_todays_workout` | — | Next scheduled day + loggable fields + open session id |
+| `list_diet_plans` | `active_only` | Diet plans |
+| `get_diet_plan` | `plan_id` | One plan with meals and macro targets |
+| `get_health_summary` | `days` | Recent steps, calories, resting HR, sleep |
+| `get_meal_logs` | `date`, `days` | Meals logged, with macro totals |
 
-| Tool | Purpose |
-|---|---|
-| `log_set` | Record a set result in an active session |
-| `update_exercise_notes` | Replace one exercise's coaching notes |
-| `update_personal_notes` | Replace the user's remembered context |
+### Writes
+
+| Tool | Params | Purpose |
+|---|---|---|
+| `log_set` | **`session_id`**, **`exercise_id`**, **`set_number`**, `weight`, `reps_completed`, `duration_seconds`, `is_completed` | Record a set result |
+| `log_health_day` | `date`, `steps`, `active_calories`, `resting_calories`, `resting_heart_rate`, `sleep_hours` | Upsert one day of health metrics |
+| `log_health_workout` | **`start_time`**, `external_id`, `activity_type`, `duration_seconds`, `calories`, `avg_heart_rate`, `distance_meters` | Upsert a workout from an external source |
+| `log_meal` | **`meal_type`**, **`food_name`**, `date`, `calories`, `protein_g`, `carbs_g`, `fat_g`, `notes` | Record something eaten |
+| `set_body_weight` | **`weight`**, `unit` | Record body weight |
+| `update_exercise_notes` | **`exercise_id`**, **`notes`** | Replace one exercise's coaching notes |
+| `update_personal_notes` | **`notes`** | Replace the user's remembered context |
+
+**Bold** = required. Dates are ISO `YYYY-MM-DD` and default to today;
+`start_time` is ISO 8601. There are deliberately **no plan-editing tools** — an
+agent can record what happened but cannot restructure the training programme.
+
+### Notes for a daily-sync agent
+
+- `log_health_day` is an **upsert that merges**. Calling it twice in a day with
+  different fields keeps both; it never nulls a value you set earlier. So you can
+  post steps in the morning and sleep at night.
+- Values outside plausible ranges (e.g. 5,000,000 steps) are **rejected**, not
+  stored, and listed in the response's `problems` array. Read it — a successful
+  call can still have skipped a field.
+- `log_health_workout` keys on `external_id` per user, so re-sending the same
+  workout updates it rather than duplicating. Omit it and one is derived from the
+  start time.
+- A malformed date is an error, not a silent default. Check for `isError`.
 
 ## Two things an agent must understand
 

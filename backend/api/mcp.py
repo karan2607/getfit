@@ -23,12 +23,16 @@ Capacity: gunicorn runs 1 worker / 4 threads, so agent traffic contends with
 real app requests. Raise the thread count before pointing anything chatty at it.
 """
 
+from datetime import timedelta
+
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
 from . import exercise_types
 from .models import (
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
-    DietPlan, UserProfile, HealthDailySummary,
+    DietPlan, UserProfile, HealthDailySummary, HealthWorkout, MealLog,
 )
 
 PROTOCOL_VERSION = '2024-11-05'
@@ -368,6 +372,209 @@ def _tool_get_diet_plan(user, args):
     }
 
 
+def _mcp_date(args, key='date'):
+    """
+    Parse an ISO date argument, defaulting to today.
+
+    Validated here rather than handed to a DateField lookup, which is how the
+    Shortcuts sync endpoint used to turn a typo into a 500.
+    """
+    raw = args.get(key)
+    if raw in (None, ''):
+        return timezone.now().date()
+    parsed = parse_date(str(raw).strip())
+    if parsed is None:
+        raise McpError('%s must be ISO format (YYYY-MM-DD), got %r' % (key, raw))
+    today = timezone.now().date()
+    if parsed > today + timedelta(days=1):
+        raise McpError('%s %s is in the future' % (key, parsed.isoformat()))
+    return parsed
+
+
+def _tool_log_health_day(user, args):
+    """
+    Upsert one day of health metrics. Only supplied fields are written, so a
+    partial sync never nulls out values recorded earlier the same day.
+    """
+    from .views import _coerce_health_fields
+
+    day = _mcp_date(args)
+    stored, problems = _coerce_health_fields(args)
+    if not stored:
+        raise McpError(
+            'no valid metrics supplied. Accepts steps, active_calories, '
+            'resting_calories, resting_heart_rate, sleep_hours.'
+            + (' Problems: %s' % '; '.join(problems) if problems else ''))
+
+    HealthDailySummary.objects.update_or_create(
+        user=user, date=day, defaults=stored)
+    return {'date': day.isoformat(), 'stored': stored, 'problems': problems}
+
+
+def _tool_log_health_workout(user, args):
+    """
+    Upsert one workout from an external source (watch, phone, another agent).
+
+    Scoped to the calling user: `external_id` is unique per user, so reusing an
+    id another account happens to have cannot touch their row.
+    """
+    from .views import _HEALTH_WORKOUT_FIELDS, _clean_number
+
+    start_raw = args.get('start_time')
+    start_time = parse_datetime(str(start_raw)) if start_raw else None
+    if not start_time:
+        raise McpError('start_time is required and must be ISO 8601, '
+                       'e.g. 2026-10-14T07:30:00Z')
+    if timezone.is_naive(start_time):
+        start_time = timezone.make_aware(start_time)
+
+    external_id = str(args.get('external_id') or '').strip()
+    if not external_id:
+        external_id = '%s-%s' % (user.id, start_time.isoformat())
+
+    defaults = {
+        'activity_type': str(args.get('activity_type') or 'Workout')[:128],
+        'start_time': start_time,
+    }
+    problems = []
+    for key, cast in _HEALTH_WORKOUT_FIELDS:
+        if args.get(key) is None:
+            continue
+        try:
+            defaults[key] = cast(_clean_number(args[key]))
+        except (TypeError, ValueError):
+            problems.append('%s: %r is not a number' % (key, args[key]))
+
+    obj, created = HealthWorkout.objects.update_or_create(
+        user=user, terra_workout_id=external_id, defaults=defaults)
+    return {
+        'external_id': external_id,
+        'created': created,
+        'activity_type': obj.activity_type,
+        'start_time': obj.start_time.isoformat(),
+        'problems': problems,
+    }
+
+
+def _tool_log_meal(user, args):
+    """Record something the user ate."""
+    meal_type = str(args.get('meal_type') or '').strip().lower()
+    valid = [choice for choice, _label in MealLog.MEAL_CHOICES]
+    if meal_type not in valid:
+        raise McpError('meal_type must be one of %s' % valid)
+
+    food_name = str(args.get('food_name') or '').strip()
+    if not food_name:
+        raise McpError('food_name is required')
+
+    def num(key, cast=float):
+        raw = args.get(key)
+        if raw in (None, ''):
+            return 0
+        try:
+            return max(0, cast(raw))
+        except (TypeError, ValueError):
+            raise McpError('%s must be a number, got %r' % (key, raw))
+
+    log = MealLog.objects.create(
+        user=user,
+        date=_mcp_date(args),
+        meal_type=meal_type,
+        food_name=food_name[:200],
+        calories=int(num('calories', float)),
+        protein_g=num('protein_g'),
+        carbs_g=num('carbs_g'),
+        fat_g=num('fat_g'),
+        notes=str(args.get('notes') or '')[:2000],
+    )
+    return {
+        'id': str(log.id), 'date': log.date.isoformat(),
+        'meal_type': log.meal_type, 'food_name': log.food_name,
+        'calories': log.calories, 'protein_g': log.protein_g,
+        'carbs_g': log.carbs_g, 'fat_g': log.fat_g,
+    }
+
+
+def _tool_get_meal_logs(user, args):
+    """Meals logged on a date, or across a trailing window."""
+    end = _mcp_date(args)
+    days = max(1, min(int(args.get('days') or 1), 60))
+    start = end - timedelta(days=days - 1)
+
+    rows = MealLog.objects.filter(user=user, date__gte=start, date__lte=end)
+    totals = {'calories': 0, 'protein_g': 0.0, 'carbs_g': 0.0, 'fat_g': 0.0}
+    meals = []
+    for m in rows:
+        meals.append({
+            'id': str(m.id), 'date': m.date.isoformat(),
+            'meal_type': m.meal_type, 'food_name': m.food_name,
+            'calories': m.calories, 'protein_g': m.protein_g,
+            'carbs_g': m.carbs_g, 'fat_g': m.fat_g, 'notes': m.notes,
+        })
+        totals['calories'] += m.calories or 0
+        totals['protein_g'] += m.protein_g or 0
+        totals['carbs_g'] += m.carbs_g or 0
+        totals['fat_g'] += m.fat_g or 0
+    return {'from': start.isoformat(), 'to': end.isoformat(),
+            'meals': meals, 'totals': totals}
+
+
+def _tool_set_body_weight(user, args):
+    """
+    Record body weight. Accepts the user's unit and stores kilograms, matching
+    how every other weight in this API behaves.
+    """
+    raw = args.get('weight')
+    if raw in (None, ''):
+        raise McpError('weight is required')
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise McpError('weight must be a number, got %r' % (raw,))
+
+    unit = str(args.get('unit') or _unit(user)).lower()
+    if unit not in ('kg', 'lb'):
+        raise McpError("unit must be 'kg' or 'lb'")
+
+    kg = _weight_in(value, unit)
+    if not (20 <= kg <= 350):
+        raise McpError('weight %s%s is outside a plausible range' % (value, unit))
+
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.weight_kg = kg
+    profile.save(update_fields=['weight_kg'])
+    return {'weight': round(value, 1), 'unit': unit,
+            'stored_kg': round(kg, 2)}
+
+
+def _tool_get_todays_workout(user, args):
+    """
+    The day scheduled next in the active plan, with each exercise's loggable
+    fields -- enough for an agent to drive a session without guessing.
+    """
+    plan = WorkoutPlan.objects.filter(user=user, is_active=True).first()
+    if plan is None:
+        raise McpError('No active plan.')
+
+    week_days = list(
+        WorkoutDay.objects.filter(plan=plan, week_number=plan.current_week)
+        .order_by('day_number'))
+    if not week_days:
+        raise McpError('Active plan has no days for the current week.')
+
+    index = min(plan.current_day_order or 0, len(week_days) - 1)
+    day = week_days[index]
+    open_session = (WorkoutSession.objects
+                    .filter(user=user, exercise_day=day, is_completed=False)
+                    .first())
+    return {
+        'plan': {'id': str(plan.id), 'title': plan.title,
+                 'current_week': plan.current_week},
+        'day': _day_out(day),
+        'open_session_id': str(open_session.id) if open_session else None,
+    }
+
+
 def _tool_get_health_summary(user, args):
     limit = min(int(args.get('days') or 7), 60)
     rows = HealthDailySummary.objects.filter(user=user)[:limit]
@@ -460,6 +667,84 @@ TOOLS = {
         'schema': _obj({'days': _INT}),
         'handler': _tool_get_health_summary,
         'writes': False,
+    },
+    'get_meal_logs': {
+        'description': 'Meals logged on a date (default today), or across a '
+                       'trailing window via `days`. Includes macro totals.',
+        'schema': _obj({'date': _STR, 'days': _INT}),
+        'handler': _tool_get_meal_logs,
+        'writes': False,
+    },
+    'get_todays_workout': {
+        'description': 'The next scheduled day in the active plan, with each '
+                       'exercise\'s measurement_type and loggable_fields, plus '
+                       'the id of an already-open session if there is one. Use '
+                       'this before log_set.',
+        'schema': _obj({}),
+        'handler': _tool_get_todays_workout,
+        'writes': False,
+    },
+
+    # -- writes ------------------------------------------------------------
+    'log_health_day': {
+        'description': 'Upsert one day of health metrics. Every field is '
+                       'optional and only the ones supplied are written, so a '
+                       'partial sync will not erase values recorded earlier the '
+                       'same day. Values outside plausible ranges are rejected '
+                       'and reported in `problems`.',
+        'schema': _obj({
+            'date': _STR,
+            'steps': _INT,
+            'active_calories': _NUM,
+            'resting_calories': _NUM,
+            'resting_heart_rate': _NUM,
+            'sleep_hours': _NUM,
+        }),
+        'handler': _tool_log_health_day,
+        'writes': True,
+    },
+    'log_health_workout': {
+        'description': 'Upsert one workout from an external source. Re-sending '
+                       'the same external_id updates that workout rather than '
+                       'duplicating it. Scoped to the calling user.',
+        'schema': _obj({
+            'external_id': _STR,
+            'activity_type': _STR,
+            'start_time': _STR,
+            'duration_seconds': _INT,
+            'calories': _NUM,
+            'avg_heart_rate': _NUM,
+            'distance_meters': _NUM,
+        }, ['start_time']),
+        'handler': _tool_log_health_workout,
+        'writes': True,
+    },
+    'log_meal': {
+        'description': 'Record something the user ate. Macros default to 0 if '
+                       'not supplied.',
+        'schema': _obj({
+            'date': _STR,
+            'meal_type': {'type': 'string',
+                          'enum': ['breakfast', 'lunch', 'dinner', 'snack']},
+            'food_name': _STR,
+            'calories': _INT,
+            'protein_g': _NUM,
+            'carbs_g': _NUM,
+            'fat_g': _NUM,
+            'notes': _STR,
+        }, ['meal_type', 'food_name']),
+        'handler': _tool_log_meal,
+        'writes': True,
+    },
+    'set_body_weight': {
+        'description': 'Record body weight in the user\'s unit (or pass `unit` '
+                       'explicitly). Stored as kilograms internally.',
+        'schema': _obj({
+            'weight': _NUM,
+            'unit': {'type': 'string', 'enum': ['kg', 'lb']},
+        }, ['weight']),
+        'handler': _tool_set_body_weight,
+        'writes': True,
     },
 
     # -- writes ------------------------------------------------------------

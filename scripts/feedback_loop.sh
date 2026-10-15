@@ -213,8 +213,20 @@ run_pass() {
   items="$(api GET '/api/feedback/?status=new' || true)"
 
   if ! printf '%s' "$items" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    # Call out an auth failure explicitly. Changing your app password
+    # regenerates the API token, which silently 401s every pass from then on --
+    # it cost several days of the loop doing nothing before anyone noticed.
+    if printf '%s' "$items" | grep -qi 'invalid token\|not authenticated\|credentials'; then
+      log "AUTH FAILED: the token in $TOKEN_FILE is no longer valid."
+      log "  Changing your password regenerates it. Refresh with:"
+      log "    curl -s -X POST $API/api/auth/login/ -H 'Content-Type: application/json' \\"
+      log "      -d '{\"email\":\"YOUR_EMAIL\",\"password\":\"YOUR_PASSWORD\"}' \\"
+      log "      | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])' \\"
+      log "      > $TOKEN_FILE && chmod 600 $TOKEN_FILE"
+      return 1
+    fi
     log "queue fetch failed: $(printf '%s' "$items" | head -c 200)"
-    return
+    return 1
   fi
 
   local count

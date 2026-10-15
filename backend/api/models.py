@@ -427,14 +427,33 @@ class MealGuide(models.Model):
 class HealthConnection(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='health_connection')
     provider = models.CharField(max_length=64, default='APPLE')
+    # A write credential: whoever holds it can post health data to this account.
     sync_token = models.CharField(max_length=64, unique=True, blank=True)
     connected_at = models.DateTimeField(auto_now_add=True)
     last_sync_at = models.DateTimeField(null=True, blank=True)
 
+    @staticmethod
+    def new_sync_token():
+        """
+        Unguessable sync token, matching how PasswordResetToken mints its own.
+
+        This was previously md5(user_id + "getFit"), which is three separate
+        problems: the derivation and its salt are readable in a PUBLIC repo, the
+        value is therefore computable by anyone who learns the account's UUID,
+        and because save() only filled a blank field there was no way to rotate
+        it short of DELETE -- which wipes all of the user's health data.
+        """
+        return secrets.token_urlsafe(32)
+
+    def rotate_sync_token(self):
+        """Issue a fresh token, invalidating the previous one immediately."""
+        self.sync_token = self.new_sync_token()
+        self.save(update_fields=['sync_token'])
+        return self.sync_token
+
     def save(self, *args, **kwargs):
         if not self.sync_token:
-            import hashlib
-            self.sync_token = hashlib.md5(f"{self.user_id}getFit".encode()).hexdigest()
+            self.sync_token = self.new_sync_token()
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -460,7 +479,14 @@ class HealthDailySummary(models.Model):
 
 class HealthWorkout(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='health_workouts')
-    terra_workout_id = models.CharField(max_length=255, unique=True)
+    # The client's own id for this workout. Named terra_workout_id for historical
+    # reasons -- the Terra integration it was added for has been removed.
+    #
+    # Uniqueness is scoped to the user. It used to be globally unique, and the
+    # sync did update_or_create(terra_workout_id=...) WITHOUT filtering by user,
+    # so a client sending an id another account had already used would silently
+    # reassign that account's workout row to itself.
+    terra_workout_id = models.CharField(max_length=255)
     activity_type = models.CharField(max_length=128)
     start_time = models.DateTimeField()
     duration_seconds = models.IntegerField(null=True, blank=True)
@@ -470,6 +496,7 @@ class HealthWorkout(models.Model):
 
     class Meta:
         ordering = ['-start_time']
+        unique_together = ('user', 'terra_workout_id')
 
     def __str__(self):
         return f'{self.activity_type} at {self.start_time} ({self.user.email})'

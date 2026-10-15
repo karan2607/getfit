@@ -53,6 +53,7 @@ urlpatterns = [
     path('diet/meal-logs/<uuid:log_id>/', views.meal_log_detail, name='meal-log-detail'),
     # Health Sync (Apple Shortcuts)
     path('health/connect/', views.health_connect, name='health-connect'),
+    path('health/connect/rotate/', views.health_connect_rotate, name='health-connect-rotate'),
     path('health/status/', views.health_status, name='health-status'),
     path('health/summary/', views.health_summary, name='health-summary'),
     path('health/workouts/', views.health_workouts, name='health-workouts'),

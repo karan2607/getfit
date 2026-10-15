@@ -1,12 +1,14 @@
 import json
 import logging
 import re
+from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse, Http404
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -3084,12 +3086,32 @@ def health_connect(request):
         HealthWorkout.objects.filter(user=request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    conn, _ = HealthConnection.objects.get_or_create(user=request.user, defaults={'provider': 'APPLE'})
-    if not conn.sync_token:
-        import hashlib
-        conn.sync_token = hashlib.md5(f"{conn.user_id}getFit".encode()).hexdigest()
-        conn.save(update_fields=['sync_token'])
+    # The model mints the token on save; no derivation here. This used to
+    # duplicate the md5 scheme, so fixing the model alone would not have been
+    # enough.
+    conn, _ = HealthConnection.objects.get_or_create(
+        user=request.user, defaults={'provider': 'APPLE'})
     return Response({'token': conn.sync_token})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def health_connect_rotate(request):
+    """
+    Issue a fresh sync token, invalidating the old one.
+
+    Previously impossible: both save() and health_connect only filled a blank
+    field, so a leaked token could only be dealt with by DELETE -- which wipes
+    every health record the user has. Rotating keeps the data.
+    """
+    conn, _ = HealthConnection.objects.get_or_create(
+        user=request.user, defaults={'provider': 'APPLE'})
+    token = conn.rotate_sync_token()
+    logger.warning('health sync token rotated for %s', request.user.email)
+    return Response({
+        'token': token,
+        'detail': 'Previous token is now invalid. Update your Shortcut.',
+    })
 
 
 @api_view(['GET'])
@@ -3097,20 +3119,29 @@ def health_connect(request):
 def health_status(request):
     try:
         conn = request.user.health_connection
-        has_data = (
-            HealthDailySummary.objects.filter(user=request.user).exists() or
-            HealthWorkout.objects.filter(user=request.user).exists()
-        )
-        latest = HealthDailySummary.objects.filter(user=request.user).order_by('-date').first()
-        return Response({
-            'connected': has_data,
-            'provider': conn.provider if has_data else None,
-            'connected_at': conn.connected_at.isoformat() if has_data else None,
-            'last_sync_at': conn.last_sync_at.isoformat() if conn.last_sync_at else None,
-            'latest_summary_date': latest.date.isoformat() if latest else None,
-        })
     except HealthConnection.DoesNotExist:
-        return Response({'connected': False, 'provider': None, 'connected_at': None})
+        return Response({'connected': False, 'provider': None,
+                         'connected_at': None, 'last_sync_at': None,
+                         'has_data': False, 'latest_summary_date': None})
+
+    has_data = (
+        HealthDailySummary.objects.filter(user=request.user).exists() or
+        HealthWorkout.objects.filter(user=request.user).exists()
+    )
+    latest = (HealthDailySummary.objects
+              .filter(user=request.user).order_by('-date').first())
+    # `connected` now means "a connection exists", not "data has arrived".
+    # Conflating them made a freshly connected user look disconnected until
+    # their first successful sync, which is exactly when they need to see that
+    # the connection is live.
+    return Response({
+        'connected': True,
+        'provider': conn.provider,
+        'connected_at': conn.connected_at.isoformat(),
+        'last_sync_at': conn.last_sync_at.isoformat() if conn.last_sync_at else None,
+        'has_data': has_data,
+        'latest_summary_date': latest.date.isoformat() if latest else None,
+    })
 
 
 @api_view(['GET'])
@@ -3150,13 +3181,173 @@ def health_workouts(request):
     return Response(data)
 
 
+# One spec instead of five near-identical try/except blocks. (key, caster)
+_HEALTH_DAILY_FIELDS = (
+    ('steps', lambda v: int(float(v))),
+    ('active_calories', float),
+    ('resting_calories', float),
+    ('resting_heart_rate', float),
+    ('sleep_hours', float),
+)
+
+_HEALTH_WORKOUT_FIELDS = (
+    ('duration_seconds', lambda v: int(float(v))),
+    ('calories', float),
+    ('avg_heart_rate', float),
+    ('distance_meters', float),
+)
+
+# Sanity bounds. A sync client sending nonsense is more likely than a human
+# genuinely walking four million steps, and a bad value poisons the AI prompts
+# and the calorie maths downstream.
+_HEALTH_LIMITS = {
+    'steps': (0, 200000),
+    'active_calories': (0, 20000),
+    'resting_calories': (0, 10000),
+    'resting_heart_rate': (20, 220),
+    'sleep_hours': (0, 24),
+}
+
+
+def _clean_number(value):
+    """Shortcuts sends thousands separators and stray whitespace."""
+    return str(value).replace(',', '').strip()
+
+
+def _parse_health_payload(body):
+    """
+    Parse a sync payload, tolerating the one malformation Shortcuts produces.
+
+    Apple Shortcuts substitutes an empty string when a HealthKit query returns
+    no samples, yielding `"steps": ,` -- invalid JSON. The previous code patched
+    that with regex over the RAW BODY, which would also corrupt any string value
+    containing ": " before a comma or brace (an activity_type of
+    "Run: morning, easy" became mangled).
+
+    Strict parse first; only fall back to the narrow repair if that fails, and
+    report an error rather than silently returning {}.
+
+    Returns (data, error_message).
+    """
+    try:
+        raw = body.decode('utf-8')
+    except (UnicodeDecodeError, AttributeError) as exc:
+        return {}, 'body is not valid UTF-8 (%s)' % exc
+
+    if not raw.strip():
+        return {}, 'body is empty'
+
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        repaired = re.sub(r':\s*(?=[,}])', ': null', raw)
+        try:
+            data = json.loads(repaired)
+        except ValueError as exc:
+            return {}, 'invalid JSON (%s)' % exc
+
+    if not isinstance(data, dict):
+        return {}, 'payload must be a JSON object'
+    return data, None
+
+
+def _parse_health_date(value):
+    """
+    Validate the summary date. Returns (date, error_message).
+
+    The raw string used to go straight into a DateField lookup, so a malformed
+    value was a 500 and a typo'd year silently created a summary in 2206.
+    """
+    from django.utils import timezone as _tz
+    today = _tz.now().date()
+    if value in (None, ''):
+        return today, None
+
+    parsed = parse_date(str(value).strip())
+    if parsed is None:
+        return None, 'date must be ISO format (YYYY-MM-DD), got %r' % (value,)
+    if parsed > today + timedelta(days=1):
+        return None, 'date %s is in the future' % parsed.isoformat()
+    if parsed < today - timedelta(days=3650):
+        return None, 'date %s is implausibly old' % parsed.isoformat()
+    return parsed, None
+
+
+def _coerce_health_fields(payload):
+    """
+    Cast and range-check the daily summary fields.
+
+    Returns (stored, problems). Only keys actually present and valid are
+    returned, so a partial payload never nulls out previously-synced values.
+    """
+    stored, problems = {}, []
+    for key, cast in _HEALTH_DAILY_FIELDS:
+        if payload.get(key) is None:
+            continue
+        try:
+            value = cast(_clean_number(payload[key]))
+        except (TypeError, ValueError):
+            problems.append('%s: %r is not a number' % (key, payload[key]))
+            continue
+        low, high = _HEALTH_LIMITS.get(key, (None, None))
+        if low is not None and not (low <= value <= high):
+            problems.append('%s: %s outside %s-%s' % (key, value, low, high))
+            continue
+        stored[key] = value
+    return stored, problems
+
+
+def _store_health_workouts(user, workouts):
+    """
+    Upsert workouts, scoped to the owning user.
+
+    Returns (count_stored, problems). The lookup is filtered by user: with
+    global uniqueness and an unscoped update_or_create, a client reusing another
+    account's workout id reassigned that account's row to itself.
+    """
+    stored, problems = 0, []
+    if not isinstance(workouts, list):
+        return 0, ['workouts must be a list']
+
+    for index, entry in enumerate(workouts):
+        if not isinstance(entry, dict):
+            problems.append('workouts[%d] is not an object' % index)
+            continue
+        start_raw = entry.get('start_time') or ''
+        start_time = parse_datetime(str(start_raw)) if start_raw else None
+        if not start_time:
+            problems.append(
+                'workouts[%d]: start_time missing or unparseable (%r)'
+                % (index, start_raw))
+            continue
+
+        external_id = str(entry.get('id') or '%s-%s' % (user.id, start_raw))
+        defaults = {
+            'activity_type': str(entry.get('activity_type') or 'Workout')[:128],
+            'start_time': start_time,
+        }
+        for key, cast in _HEALTH_WORKOUT_FIELDS:
+            if entry.get(key) is None:
+                continue
+            try:
+                defaults[key] = cast(_clean_number(entry[key]))
+            except (TypeError, ValueError):
+                problems.append('workouts[%d].%s: %r is not a number'
+                                % (index, key, entry[key]))
+
+        HealthWorkout.objects.update_or_create(
+            user=user, terra_workout_id=external_id, defaults=defaults)
+        stored += 1
+
+    return stored, problems
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def health_shortcuts_sync(request):
     """GET: validates the sync token — Shortcut calls this first to confirm connection.
     POST: receives the health data payload.
     Both authenticated via permanent sync token (Authorization: Sync <token>)."""
-    from django.utils.dateparse import parse_datetime
     from django.utils import timezone as _tz
 
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
@@ -3173,83 +3364,48 @@ def health_shortcuts_sync(request):
     if request.method == 'GET':
         return Response({'status': 'ready', 'user': sync_user.email})
 
-    import json as _json, re as _re
-    try:
-        raw = request.body.decode('utf-8')
-        # Shortcuts sends empty string when a HealthKit query has no results,
-        # producing malformed JSON like  "steps": ,  — replace with null.
-        raw = _re.sub(r':\s*,', ': null,', raw)
-        raw = _re.sub(r':\s*\}', ': null}', raw)
-        data = _json.loads(raw)
-    except Exception:
-        data = {}
+    parsed, parse_error = _parse_health_payload(request.body)
+    if parse_error:
+        # Previously this swallowed every exception and returned 200 with
+        # nothing stored, so an agent syncing daily could fail silently forever.
+        logger.warning('health sync: unparseable payload for %s: %s',
+                       sync_user.email, parse_error)
+        return Response({'detail': 'Could not parse payload: %s' % parse_error},
+                        status=status.HTTP_400_BAD_REQUEST)
 
-    # Upsert today's daily summary
-    date_str = data.get('date') or _tz.now().date().isoformat()
-    defaults = {}
-    def _clean(val):
-        return str(val).replace(',', '').strip()
+    summary_date, date_error = _parse_health_date(parsed.get('date'))
+    if date_error:
+        return Response({'detail': date_error},
+                        status=status.HTTP_400_BAD_REQUEST)
 
-    if data.get('steps') is not None:
-        try:
-            defaults['steps'] = int(float(_clean(data['steps'])))
-        except (TypeError, ValueError):
-            pass
-    if data.get('active_calories') is not None:
-        try:
-            defaults['active_calories'] = float(_clean(data['active_calories']))
-        except (TypeError, ValueError):
-            pass
-    if data.get('resting_calories') is not None:
-        try:
-            defaults['resting_calories'] = float(_clean(data['resting_calories']))
-        except (TypeError, ValueError):
-            pass
-    if data.get('resting_heart_rate') is not None:
-        try:
-            defaults['resting_heart_rate'] = float(_clean(data['resting_heart_rate']))
-        except (TypeError, ValueError):
-            pass
-    if data.get('sleep_hours') is not None:
-        try:
-            defaults['sleep_hours'] = float(_clean(data['sleep_hours']))
-        except (TypeError, ValueError):
-            pass
-    if defaults:
-        HealthDailySummary.objects.update_or_create(
-            user=sync_user,
-            date=date_str,
-            defaults=defaults,
-        )
+    stored_fields, field_errors = _coerce_health_fields(parsed)
 
-    # Upsert workouts
-    for w in data.get('workouts', []):
-        start_str = w.get('start_time', '')
-        start_time = parse_datetime(start_str) if start_str else None
-        if not start_time:
-            continue
-        workout_id = w.get('id') or f"{sync_user.id}-{start_str}"
-        w_defaults = {
-            'user': sync_user,
-            'activity_type': str(w.get('activity_type') or 'Workout'),
-            'start_time': start_time,
-        }
-        for field in ('duration_seconds', 'calories', 'avg_heart_rate', 'distance_meters'):
-            if w.get(field) is not None:
-                try:
-                    w_defaults[field] = float(w[field])
-                except (TypeError, ValueError):
-                    pass
-        HealthWorkout.objects.update_or_create(
-            terra_workout_id=str(workout_id),
-            defaults=w_defaults,
-        )
+    created_summary = False
+    if stored_fields:
+        _obj, created_summary = HealthDailySummary.objects.update_or_create(
+            user=sync_user, date=summary_date, defaults=stored_fields)
+
+    stored_workouts, workout_errors = _store_health_workouts(
+        sync_user, parsed.get('workouts') or [])
 
     conn.last_sync_at = _tz.now()
     conn.save(update_fields=['last_sync_at'])
 
-    summary_count = HealthDailySummary.objects.filter(user=sync_user).count()
-    return Response({'status': 'ok', 'summaries_stored': summary_count, 'fields_stored': list(defaults.keys())})
+    problems = field_errors + workout_errors
+    if problems:
+        logger.warning('health sync for %s completed with %d problem(s): %s',
+                       sync_user.email, len(problems), problems[:5])
+
+    # Report what THIS call did. The old response returned the all-time summary
+    # row count, which told a syncing agent nothing about whether it worked.
+    return Response({
+        'status': 'ok',
+        'date': summary_date.isoformat(),
+        'summary_created': created_summary,
+        'fields_stored': sorted(stored_fields.keys()),
+        'workouts_stored': stored_workouts,
+        'problems': problems,
+    })
 
 
 @api_view(['GET'])
