@@ -173,34 +173,35 @@ class PrepareWeekTests(APITestCase):
 
     # -- contract enforcement on stored guides -----------------------------
 
-    def test_weighted_exercise_keeps_weight_advice_only(self):
+    def test_no_advice_is_cached_for_any_exercise_type(self):
+        """
+        Advice used to be baked into these rows, which is how every guide ended
+        up repeating stale recommendations days after the logic was fixed. It is
+        now computed per request; see test_advice_freshness for the per-type
+        correctness of the computed values.
+        """
         self.seed_history()
         self.call()
-        guide = ExerciseGuide.objects.get(user=self.user, name='Barbell Bench Press')
-        self.assertEqual(guide.data['recommended_weight'], 'Start 135lb')
-        self.assertIsNone(guide.data['recommended_target'])
+        for name in ('Barbell Bench Press', 'Plank', 'Push-ups',
+                     'Hamstring Stretch'):
+            guide = ExerciseGuide.objects.get(user=self.user, name=name)
+            for field in ('recommended_weight', 'recommended_target',
+                          'coaching_note'):
+                self.assertNotIn(field, guide.data,
+                                 msg='%s cached %s' % (name, field))
 
-    def test_duration_exercise_never_gets_weight_advice(self):
-        """This is the "HOW TO shows start Xlb" complaint, at the source."""
+    def test_cached_rows_are_version_stamped(self):
         self.seed_history()
         self.call()
         guide = ExerciseGuide.objects.get(user=self.user, name='Plank')
-        self.assertIsNone(guide.data['recommended_weight'])
-        self.assertEqual(guide.data['recommended_target'], 'Hold 75 sec')
+        self.assertEqual(guide.data['advice_version'], views.ADVICE_VERSION)
 
-    def test_bodyweight_exercise_never_gets_weight_advice(self):
+    def test_stable_content_is_cached(self):
         self.seed_history()
         self.call()
-        guide = ExerciseGuide.objects.get(user=self.user, name='Push-ups')
-        self.assertIsNone(guide.data['recommended_weight'])
-
-    def test_warmup_gets_no_advice_of_any_kind(self):
-        self.seed_history()
-        self.call()
-        guide = ExerciseGuide.objects.get(user=self.user, name='Hamstring Stretch')
-        self.assertIsNone(guide.data['recommended_weight'])
-        self.assertIsNone(guide.data['recommended_target'])
-        self.assertIsNone(guide.data['coaching_note'])
+        guide = ExerciseGuide.objects.get(user=self.user, name='Plank')
+        self.assertEqual(guide.data['steps'], ['a', 'b', 'c', 'd'])
+        self.assertEqual(guide.data['measurement_type'], et.DURATION)
 
     # -- per-user isolation -------------------------------------------------
 
@@ -221,12 +222,16 @@ class PrepareWeekTests(APITestCase):
     def test_guide_endpoint_prefers_personal_then_falls_back_to_generic(self):
         self.seed_history()
         self.call()
-        ExerciseGuide.objects.create(user=None, name='Plank',
-                                     data={'steps': ['generic'], 'images': []})
+        ExerciseGuide.objects.create(
+            user=None, name='Plank',
+            data={'steps': ['generic'], 'images': [],
+                  'advice_version': views.ADVICE_VERSION})
 
         res = self.client.get(reverse('exercise-guide'), {'name': 'Plank'})
-        self.assertEqual(res.data.get('recommended_target'), 'Hold 75 sec',
-                         'owner must get their personalised guide')
+        # The owner's personal row wins for the cached STABLE content. Advice is
+        # no longer cached, so it is not what distinguishes the two rows.
+        self.assertEqual(res.data.get('steps'), ['a', 'b', 'c', 'd'],
+                         'owner must get their own cached guide')
 
         other = User.objects.create_user(email='pw4@test.local', password='x')
         UserProfile.objects.create(user=other, preferred_unit='kg')
@@ -315,6 +320,7 @@ class AnalyzeProgressionTests(APITestCase):
         self.assertEqual(views._session_date(None), '')
 
     def test_target_reps_parsing(self):
+        """The legacy helper still reports the high end of the range."""
         self.assertEqual(views._target_reps_from('8-12'), 12)
         self.assertEqual(views._target_reps_from('15'), 15)
         self.assertIsNone(views._target_reps_from('30 sec'))

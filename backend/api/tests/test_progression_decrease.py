@@ -47,7 +47,7 @@ class OverJumpDecreaseTests(APITestCase):
     def analyze(self, logs, target='15-20'):
         return views._analyze_progression(
             logs,
-            target_reps=views._target_reps_from(target),
+            target_reps=views._target_rep_range(target),
             measurement_type=et.WEIGHT_REPS,
             unit='lb',
         )
@@ -75,7 +75,7 @@ class OverJumpDecreaseTests(APITestCase):
 
     def test_summary_states_the_actual_target(self):
         res = self.analyze(self.real_history())
-        self.assertIn('target 20', res['summary'])
+        self.assertIn('target 15-20', res['summary'])
 
     def test_summary_is_in_the_users_unit(self):
         res = self.analyze(self.real_history())
@@ -89,11 +89,23 @@ class OverJumpDecreaseTests(APITestCase):
         self.assertEqual(res['direction'], 'decrease')
         self.assertIn('kg', res['summary'])
 
-    def test_two_mild_misses_still_decrease(self):
-        logs = (session(7, 80, [18, 17, 17])    # close but short
-                + session(1, 80, [18, 18, 17]))
+    def test_two_sessions_below_the_range_decrease(self):
+        logs = (session(7, 80, [13, 12, 12])    # below the 15-20 range
+                + session(1, 80, [13, 13, 12]))
         res = self.analyze(logs)
         self.assertEqual(res['direction'], 'decrease')
+
+    def test_reps_inside_the_range_hold_rather_than_back_off(self):
+        """
+        17-18 reps against a prescribed 15-20 is INSIDE the range. The old
+        max()-only logic called this a failure; holding the weight and chasing
+        reps is the correct verdict.
+        """
+        logs = (session(7, 80, [18, 17, 17])
+                + session(1, 80, [18, 18, 17]))
+        res = self.analyze(logs)
+        self.assertEqual(res['direction'], 'maintain')
+        self.assertIn('ADD REPS', res['summary'])
 
     def test_hitting_target_twice_at_same_weight_increases(self):
         logs = session(7, 50, [20, 20, 20]) + session(1, 50, [20, 20, 20])
@@ -231,8 +243,10 @@ class PromptCarriesTargetTests(APITestCase):
     def test_prompt_carries_the_decrease_signal_and_the_proven_weight(self):
         prompt = self.captured_prompt()
         self.assertIn('DECREASE WEIGHT', prompt)
-        self.assertIn('Only 8 reps at 90.0lb last session (target 20)', prompt)
-        self.assertIn('Previously hit 20 reps at 50.0lb', prompt)
+        # The summary now names the full prescribed range rather than only its
+        # maximum, since reaching the bottom of a range is not a failure.
+        self.assertIn('Only 8 reps at 90.0lb last session (target 15-20)', prompt)
+        self.assertIn('Previously hit 15+ reps at 50.0lb', prompt)
         self.assertIn('go back to about 50.0lb', prompt)
         self.assertNotIn('kg', prompt)
 
@@ -249,10 +263,14 @@ class LoadedCarryPrescriptionTests(APITestCase):
     """
 
     def test_prompt_forbids_distance_prescriptions_for_carries(self):
+        """
+        The carry-specific rule was generalised into one rule covering every
+        measurement type, after the same class of bug appeared for burpees.
+        """
         system, _user = views._workout_generate_prompt(
             None, days_per_week=4, duration_weeks=8, preferred_unit='lb')
-        self.assertIn('PRESCRIBE TIME, NEVER DISTANCE', system)
-        self.assertIn('Never prescribe a carry in yards', system)
+        self.assertIn('THE REPS FIELD MUST MATCH THE MEASUREMENT TYPE', system)
+        self.assertIn('Never prescribe a loaded carry in yards', system)
 
     def test_weight_duration_contract_is_weight_plus_seconds(self):
         self.assertEqual(

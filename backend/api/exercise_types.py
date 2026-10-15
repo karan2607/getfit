@@ -397,6 +397,55 @@ def normalize_reps(raw):
     return text                          # outside the brackets: leave it alone
 
 
+def prescription_matches_type(measurement_type, reps):
+    """
+    Is the free-text `reps` prescription consistent with the measurement type?
+
+    Returns (ok, expected_kind) where expected_kind is 'reps', 'time' or None.
+
+    A rep-typed exercise prescribed in minutes, or a timed one prescribed in
+    yards, leaves the user guessing which number goes in which box:
+
+        Burpees [bodyweight_reps] reps="10 min"       -> card says minutes,
+                                                         input asks for reps
+        Farmer's Carry [weight_duration] reps="40 yards" -> input asks seconds
+
+    Both shipped. The prompt now forbids the mismatch and the UI surfaces any
+    that slip through; nothing rewrites the prescription, because a rep count
+    cannot be inferred from "10 min" without inventing programming.
+
+    Unparseable prescriptions ("AMRAP", "to failure") are accepted for any type.
+    """
+    if measurement_type == WARMUP or not reps:
+        return True, None
+
+    text = str(reps)
+    has_time = bool(re.search(
+        r'\b\d+\s*(s|sec|secs|second|seconds|min|mins|minute|minutes|hour|hours)\b'
+        r'|\b(sec|secs|second|seconds|min|mins|minute|minutes|hour|hours)\b',
+        text, re.I,
+    ))
+    has_distance = bool(re.search(
+        r'\b(yard|yards|yd|feet|ft|metre|metres|meter|meters|mile|miles|km)\b',
+        text, re.I,
+    ))
+    has_reps = bool(re.search(r'\d', text)) and not (has_time or has_distance)
+
+    if measurement_type in (WEIGHT_REPS, BODYWEIGHT_REPS):
+        # Must be a rep count. A time or distance is the contradiction.
+        return (not (has_time or has_distance)), 'reps'
+
+    if measurement_type in (DURATION, WEIGHT_DURATION):
+        # Must be a time. A distance, or a bare rep count, is the contradiction.
+        if has_distance:
+            return False, 'time'
+        if has_reps:
+            return False, 'time'
+        return True, 'time'
+
+    return True, None
+
+
 def coerce_set_fields(measurement_type, values):
     """
     Apply FIELD_CONTRACT to a dict of incoming set values.

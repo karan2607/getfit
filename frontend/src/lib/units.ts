@@ -136,6 +136,36 @@ export function chartSpecFor(measurementType: MeasurementType): ChartSpec {
   return CHART_CONTRACT[measurementType] ?? CHART_CONTRACT.weight_reps
 }
 
+/**
+ * Is the plan's free-text prescription enterable given the measurement type?
+ *
+ * Mirrors exercise_types.prescription_matches_type. A rep-typed exercise
+ * prescribed in minutes ("Burpees: 10 min"), or a timed one prescribed in yards
+ * ("Farmer's Carry: 40 yards"), cannot be entered into the fields on screen —
+ * so say so rather than leaving the user to guess which box takes which number.
+ *
+ * Returns null when consistent, or the unit the inputs actually expect.
+ */
+export function prescriptionMismatch(
+  measurementType: MeasurementType,
+  reps: string | null | undefined,
+): 'reps' | 'time' | null {
+  if (!reps || measurementType === 'warmup') return null
+  const hasTime = /\b(sec|secs|second|seconds|min|mins|minute|minutes|hour|hours)\b/i.test(reps)
+  const hasDistance = /\b(yard|yards|yd|feet|ft|metre|metres|meter|meters|mile|miles|km)\b/i.test(reps)
+  const hasNumber = /\d/.test(reps)
+
+  if (measurementType === 'weight_reps' || measurementType === 'bodyweight_reps') {
+    return hasTime || hasDistance ? 'reps' : null
+  }
+  if (measurementType === 'duration' || measurementType === 'weight_duration') {
+    if (hasDistance) return 'time'
+    if (hasNumber && !hasTime) return 'time'
+    return null
+  }
+  return null
+}
+
 /** Axis/heading label for a progress chart, e.g. "Max weight per session (lb)". */
 export function chartLabel(measurementType: MeasurementType, unit: WeightUnit): string {
   const spec = chartSpecFor(measurementType)

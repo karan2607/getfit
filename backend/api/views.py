@@ -752,13 +752,18 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '  "warmup"          → any Warmup & Mobility block\n'
         '  "bodyweight_reps" → push-ups, pull-ups, dips, chin-ups, inverted rows\n\n'
 
-        'LOADED CARRIES — PRESCRIBE TIME, NEVER DISTANCE:\n'
-        'A "weight_duration" exercise (Farmer\'s Carry, Suitcase Carry, Yoke Walk)\n'
-        'is logged by the user as WEIGHT + SECONDS. Its reps field must therefore\n'
-        'be a time, e.g. "40 sec" or "3 x 30 sec".\n'
-        'Never prescribe a carry in yards, feet or metres. "40 yards" cannot be\n'
-        'entered into a seconds field, so the user is left guessing which number\n'
-        'goes where.\n\n'
+        'THE REPS FIELD MUST MATCH THE MEASUREMENT TYPE:\n'
+        'The user logs each exercise using the fields its measurement_type\n'
+        'allows, so a prescription in the wrong unit cannot be entered at all --\n'
+        'they are left guessing which number goes in which box.\n'
+        '  [weight_reps], [bodyweight_reps] -> reps.  "8-12", "15", "AMRAP"\n'
+        '  [duration], [weight_duration]    -> time.  "40 sec", "5-10 min"\n'
+        'Specifically:\n'
+        '  - Never prescribe a loaded carry in yards, feet or metres. A carry is\n'
+        '    logged as WEIGHT + SECONDS, so "40 yards" is unenterable.\n'
+        '  - Never prescribe a rep-based exercise as a duration. "Burpees: 10 min"\n'
+        '    is wrong — the user logs burpees as REPS. Write "10-15" instead.\n'
+        '  - Never prescribe a hold or cardio block as a rep count.\n\n'
 
         'REPS FIELD — USE CONVENTIONAL SCHEMES ONLY:\n'
         'Real coaches prescribe reps in standard brackets, never arbitrary\n'
@@ -926,6 +931,19 @@ def _validate_plan_json(data: dict) -> None:
                 reps = ex_data.get('reps', '10')
                 if reps is None or not str(reps).strip():
                     raise ValueError(f'{label} is missing reps')
+                # A prescription in the wrong unit for the exercise's
+                # measurement type is unenterable by the user. Log it rather
+                # than reject the whole plan -- and never rewrite it, since reps
+                # cannot be inferred from "10 min" without inventing
+                # programming. The UI surfaces the mismatch instead.
+                mtype = exercise_types.normalize(
+                    ex_data.get('measurement_type'), name,
+                    day_name=day.get('name'), reps=reps)
+                ok, expected = exercise_types.prescription_matches_type(mtype, reps)
+                if not ok:
+                    logger.warning(
+                        'plan prescription mismatch: %s [%s] reps=%r (expected %s)',
+                        name, mtype, str(reps), expected)
 
 
 # A placeholder weight the model emitted instead of choosing a number:
@@ -1604,17 +1622,42 @@ def _target_reps_from(reps):
 
     Returns None when the field is a time prescription or otherwise unparseable,
     which tells _analyze_progression to use its default.
+
+    Kept as a thin wrapper over _target_rep_range for readability; callers that
+    need to reason about hitting the range should use the range directly.
+    """
+    low, high = _target_rep_range(reps)
+    return high
+
+
+def _target_rep_range(reps):
+    """
+    Pull the (low, high) rep target out of the free-text `reps` field.
+
+        "10-12"  -> (10, 12)
+        "15"     -> (15, 15)
+        "30 sec" -> (None, None)
+
+    A range has TWO thresholds and the old code collapsed it to max(): hitting
+    10 reps on a prescribed "10-12" was scored as a failure even though 10 is
+    inside the range. That is why the advice could not tell "needs to back off"
+    from "working within the range":
+
+        >= high  -> topped the range, add weight
+        >= low   -> in the range, add reps
+        <  low   -> below the range, reduce weight
     """
     if not reps:
-        return None
-    import re as _re
-    nums = [int(n) for n in _re.findall(r'\d+', str(reps))]
+        return None, None
+    text = str(reps)
+    if re.search(r'\b(sec|secs|second|seconds|min|mins|minute|minutes|'
+                 r'hour|hours|yard|yards|meter|meters|mile|miles|km)\b',
+                 text, re.I):
+        return None, None
+    nums = [int(n) for n in re.findall(r'\d+', text)]
     if not nums:
-        return None
-    if _re.search(r'\b(sec|secs|second|seconds|min|mins|minute|minutes)\b',
-                  str(reps), _re.I):
-        return None
-    return max(nums)
+        return None, None
+    return min(nums), max(nums)
 
 
 def _format_set_for_prompt(log, measurement_type, unit):
@@ -1695,7 +1738,17 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     if len(sessions) < 2:
         return {'direction': None, 'summary': None}
 
-    target = target_reps or 10
+    # A prescribed range has two thresholds. `low` is "did they reach the
+    # range at all", `high` is "did they top it and earn more weight".
+    # target_reps may be a bare int (legacy callers) or a (low, high) tuple.
+    if isinstance(target_reps, (tuple, list)):
+        target_low, target_high = target_reps
+    else:
+        target_low = target_high = target_reps
+    target_high = target_high or 10
+    target_low = target_low or target_high
+    target = target_high          # retained for the summary strings
+
     results = []
     for _date, sets in sessions:
         values = [s[metric_field] for s in sets if s.get(metric_field)]
@@ -1705,11 +1758,16 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
         best = max(values)
         if metric_field == 'weight_kg':
             best = _to_display_weight(best, unit)
-            hit_all = all(r >= target for r in reps if r > 0)
+            worked = [r for r in reps if r > 0]
+            # Reached the range -> not a failure, even if the top wasn't hit.
+            hit_all = bool(worked) and all(r >= target_low for r in worked)
+            # Topped the range -> eligible for more weight.
+            topped = bool(worked) and all(r >= target_high for r in worked)
         else:
             # For time/rep-driven work the metric IS the target.
-            hit_all = True
-        results.append({'value': best, 'hit_all': hit_all, 'reps': reps})
+            hit_all = topped = True
+        results.append({'value': best, 'hit_all': hit_all, 'topped': topped,
+                        'reps': reps})
 
     if len(results) < 2:
         return {'direction': None, 'summary': None}
@@ -1740,13 +1798,17 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     proven = [r['value'] for r in results if r['hit_all'] and r['value'] is not None]
     best_at_target = max(proven) if proven else None
 
-    if recent['hit_all'] and prev['hit_all'] and recent['value'] == prev['value']:
+    target_str = (f'{target_low}-{target_high}'
+                  if target_low != target_high else str(target_high))
+
+    # Adding weight requires TOPPING the range, not merely reaching it.
+    if recent['topped'] and prev['topped'] and recent['value'] == prev['value']:
         return {
             'direction': 'increase',
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': (
-                f"Hit all {target}+ reps at {fmt(recent['value'])} for 2 sessions "
+                f"Hit {target_high}+ reps at {fmt(recent['value'])} for 2 sessions "
                 f"→ INCREASE WEIGHT"),
         }
 
@@ -1757,20 +1819,33 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     # This used to require BOTH of the last two sessions to have failed, so a
     # jump from 50lb (20 reps) to 90lb (8 reps) fell through to "maintain" --
     # recommending the user stay at a weight they had just failed at by half.
-    # Missing the target by >25% in the latest session is unambiguous on its own.
-    if not recent['hit_all'] and recent_avg < target * 0.75:
+    # Falling >25% short of the BOTTOM of the range is unambiguous on its own.
+    if not recent['hit_all'] and recent_avg < target_low * 0.75:
         summary = (
             f"Only {recent_avg:.0f} reps at {fmt(recent['value'])} last session "
-            f"(target {target}) → DECREASE WEIGHT")
+            f"(target {target_str}) → DECREASE WEIGHT")
         if best_at_target is not None and best_at_target < recent['value']:
             summary += (
-                f". Previously hit {target} reps at {fmt(best_at_target)} "
+                f". Previously hit {target_low}+ reps at {fmt(best_at_target)} "
                 f"→ go back to about {fmt(best_at_target)}")
         return {
             'direction': 'decrease',
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': summary,
+        }
+
+    # Inside the range but not topping it: hold the weight and chase reps. This
+    # is the case that used to be misreported as a failure.
+    if recent['hit_all'] and not recent['topped']:
+        return {
+            'direction': 'maintain',
+            'last_value': recent['value'],
+            'best_at_target': best_at_target,
+            'summary': (
+                f"{recent_avg:.0f} reps at {fmt(recent['value'])} — inside the "
+                f"{target_str} range → HOLD WEIGHT, ADD REPS until "
+                f"{target_high}"),
         }
 
     # Two consecutive mild misses also warrant backing off.
@@ -1780,7 +1855,7 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': (
-                f"Short of target {target} reps at {fmt(recent['value'])} for "
+                f"Short of the {target_str} range at {fmt(recent['value'])} for "
                 f"2 sessions → DECREASE WEIGHT"),
         }
 
@@ -1792,6 +1867,135 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
             f"Consistent at {fmt(recent['value'])}, maintaining"
             if recent.get('value') else None),
     }
+
+
+# Bumped when the cached, AI-generated portion of a guide (steps/muscles/tips)
+# should be regenerated because the prompt changed. The volatile advice fields
+# are NOT cached at all, so they need no version.
+ADVICE_VERSION = 2
+
+
+def _exercise_history(user, exercise_name, measurement_type, limit=30):
+    """
+    Recent completed sets for one exercise, filtered on the field that matters
+    for its measurement type. Shared by prepare_week and the guide endpoint so
+    they can never disagree about what the history is.
+    """
+    metric = exercise_types.CHART_CONTRACT.get(
+        measurement_type,
+        exercise_types.CHART_CONTRACT[exercise_types.DEFAULT_TYPE],
+    )['metric']
+    if not metric:
+        return [], None
+    logs = list(
+        SetLog.objects
+        .filter(
+            workout_session__user=user,
+            exercise_name__iexact=exercise_name,
+            is_completed=True,
+            **{'%s__isnull' % metric: False}
+        )
+        .order_by('-workout_session__started_at')
+        .values(
+            'workout_session__started_at', 'set_number',
+            'weight_kg', 'reps_completed', 'duration_seconds',
+        )[:limit]
+    )
+    return logs, metric
+
+
+def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
+    """
+    Progression advice for one exercise, computed from logged history.
+
+    Deliberately deterministic and uncached. The advice used to be AI prose
+    baked into the ExerciseGuide row by prepare_week, which meant it was wrong
+    the moment a new set was logged and stayed wrong until the next week was
+    prepared -- all 31 production guides were still repeating "Maintain 90.0lb"
+    days after the logic that produced it had been fixed.
+
+    Computing it per request costs one query and no AI call, and cannot go
+    stale. The cached guide keeps only the stable content (steps, muscles, tips,
+    images), which genuinely does not change between sessions.
+
+    Returns the three advice fields, any of which may be None.
+    """
+    blank = {'recommended_weight': None, 'recommended_target': None,
+             'coaching_note': None}
+    if measurement_type == exercise_types.WARMUP:
+        return blank
+
+    logs, metric = _exercise_history(user, exercise_name, measurement_type)
+    if not logs:
+        return blank
+
+    low, high = _target_rep_range(reps)
+    prog = _analyze_progression(
+        logs, target_reps=(low, high), measurement_type=measurement_type,
+        unit=unit,
+    )
+    direction = prog.get('direction')
+    last = prog.get('last_value')
+    proven = prog.get('best_at_target')
+    if not direction or last is None:
+        return blank
+
+    out = dict(blank)
+    out['coaching_note'] = prog.get('summary')
+
+    if measurement_type in (exercise_types.WEIGHT_REPS,
+                            exercise_types.WEIGHT_DURATION):
+        body = 'lower' if re.search(
+            r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
+            exercise_name, re.I) else 'upper'
+        step = _increment_for(unit, body)
+        if direction == 'increase':
+            out['recommended_weight'] = (
+                f'Go up to {round(last + step, 1)}{unit} — you topped the range '
+                f'at {last}{unit} twice.')
+        elif direction == 'decrease':
+            if proven is not None and proven < last:
+                out['recommended_weight'] = (
+                    f'Drop to about {proven}{unit} — that is where you last hit '
+                    f'the target reps. {last}{unit} was too heavy last session.')
+            else:
+                out['recommended_weight'] = (
+                    f'Drop below {last}{unit} — you could not complete the '
+                    f'target reps at it last session.')
+        else:
+            target_hint = f' Build to {high} reps before adding load.' if high else ''
+            out['recommended_weight'] = f'Stay at {last}{unit}.{target_hint}'
+
+    elif measurement_type == exercise_types.DURATION:
+        if direction == 'increase':
+            out['recommended_target'] = (
+                f'Aim for {int(last) + 15} sec — you held {int(last)} sec.')
+        else:
+            out['recommended_target'] = (
+                f'Rebuild to {int(last)} sec with clean form.')
+
+    elif measurement_type == exercise_types.BODYWEIGHT_REPS:
+        if direction == 'increase':
+            out['recommended_target'] = (
+                f'Go for {int(last) + 2} reps — you hit {int(last)}.')
+        else:
+            out['recommended_target'] = (
+                f'Rebuild to {int(last)} clean reps.')
+
+    return out
+
+
+def _exercise_prescription(user, exercise_name):
+    """The measurement type and prescribed reps for one of the user's exercises."""
+    row = (
+        Exercise.objects
+        .filter(day__plan__user=user, name__iexact=exercise_name)
+        .values_list('measurement_type', 'reps')
+        .first()
+    )
+    if row:
+        return row[0] or exercise_types.classify(exercise_name), row[1]
+    return exercise_types.classify(exercise_name), None
 
 
 @api_view(['POST'])
@@ -1848,26 +2052,8 @@ def workout_plan_prepare_week(request, plan_id):
     # bodyweight and duration work from the analysis.
     history_ctx = {}
     for ex_name in exercise_names:
-        mtype = type_by_name[ex_name]
-        metric = exercise_types.CHART_CONTRACT.get(
-            mtype, exercise_types.CHART_CONTRACT[exercise_types.DEFAULT_TYPE]
-        )['metric']
-        if not metric:
-            continue
-        logs = list(
-            SetLog.objects
-            .filter(
-                workout_session__user=request.user,
-                exercise_name__iexact=ex_name,
-                is_completed=True,
-                **{'%s__isnull' % metric: False}
-            )
-            .order_by('-workout_session__started_at')
-            .values(
-                'workout_session__started_at', 'set_number',
-                'weight_kg', 'reps_completed', 'duration_seconds',
-            )[:30]
-        )
+        logs, _metric = _exercise_history(
+            request.user, ex_name, type_by_name[ex_name])
         if logs:
             history_ctx[ex_name] = logs
 
@@ -1886,29 +2072,6 @@ def workout_plan_prepare_week(request, plan_id):
         f'any other unit, and never convert. Write every number as "{unit}".'
     )
     prompt_lines.append('')
-    prompt_lines.append(
-        '  recommended_weight: ONLY for exercises tagged [weight_reps] or [weight_duration].\n'
-        f'    Use the PROGRESSION hint. All values in {unit}.\n'
-        '    If hint says INCREASE WEIGHT: suggest the increased weight '
-        f'(upper body +{_increment_for(unit, "upper")}{unit}, lower body +{_increment_for(unit, "lower")}{unit}).\n'
-        f'    Example: "Increase to 95{unit} — you nailed 3x12 at 90{unit} twice in a row."\n'
-        '    If hint says DECREASE WEIGHT: suggest a lower weight for form/recovery.\n'
-        '    If hint says maintaining: confirm current weight.\n'
-        '    If no history: suggest a sensible starting weight from general knowledge.\n'
-        '    MUST be null for [duration], [bodyweight_reps] and [warmup] exercises.'
-    )
-    prompt_lines.append(
-        '  recommended_target: ONLY for exercises tagged [duration] or [bodyweight_reps].\n'
-        '    For [duration]: the time to aim for next session, e.g. "Hold 75 sec — up from 60 sec."\n'
-        '    For [bodyweight_reps]: the rep target, e.g. "Go for 18 reps — you hit 15 clean twice."\n'
-        '    MUST be null for weighted and warmup exercises.'
-    )
-    prompt_lines.append(
-        '  coaching_note: 1-2 sentence personalised coaching note for this session based on the history.\n'
-        '    Reference the actual numbers from the history and the correct unit.\n'
-        '    Be direct, specific, and motivating. No generic phrases like "keep progressing".\n'
-        '    MUST be null for [warmup] exercises.'
-    )
     prompt_lines.append('')
     prompt_lines.append(
         'The PROGRESSION hint is computed from the user\'s own logged sets and\n'
@@ -1932,7 +2095,7 @@ def workout_plan_prepare_week(request, plan_id):
             )
             progression = _analyze_progression(
                 hist,
-                target_reps=_target_reps_from(prescribed),
+                target_reps=_target_rep_range(prescribed),
                 measurement_type=mtype,
                 unit=unit,
             )
@@ -1973,18 +2136,15 @@ def workout_plan_prepare_week(request, plan_id):
         mtype = type_by_name.get(name, exercise_types.DEFAULT_TYPE)
         kb_key = guide.pop('kb_key', None)
         guide['images'] = _images_for_exercise(name, kb_key)
-
-        # Belt-and-braces: strip advice the contract forbids, in case the model
-        # ignored the instruction above.
-        if not exercise_types.uses_field(mtype, 'weight_kg'):
-            guide['recommended_weight'] = None
-        if mtype in (exercise_types.WEIGHT_REPS, exercise_types.WEIGHT_DURATION,
-                     exercise_types.WARMUP):
-            guide['recommended_target'] = None
-        if mtype == exercise_types.WARMUP:
-            guide['coaching_note'] = None
         guide['measurement_type'] = mtype
-        guide['unit'] = unit
+        guide['advice_version'] = ADVICE_VERSION
+
+        # Advice is NOT cached. Strip anything advice-shaped the model volunteered
+        # so a stale recommendation can never be served again; the guide endpoint
+        # computes these fresh from logged history on every request.
+        for volatile in ('recommended_weight', 'recommended_target',
+                         'coaching_note'):
+            guide.pop(volatile, None)
 
         # Personalised guides are per-user. update_or_create is safe now that
         # uniqueness is (user, name) -- the old code read with name__iexact but
@@ -2413,21 +2573,38 @@ def exercise_guide(request):
     if not name:
         return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # DB cache — survives server restarts.
-    # Prefer this user's personalised guide (carries their weight/coaching advice)
-    # and fall back to the shared generic row. `.filter().first()` rather than
-    # `.get()` because name uniqueness is now scoped per-user, so a case variant
-    # can legitimately match more than one row.
+    unit = _user_unit(request.user)
+    measurement_type, prescribed = _exercise_prescription(request.user, name)
+
+    # Progression advice is computed fresh on EVERY request, never served from
+    # the cache. It is derived from logged history, so a cached copy is wrong the
+    # moment a set is logged -- which is exactly how 31 guides ended up still
+    # repeating "Maintain 90.0lb" days after that logic was fixed.
+    advice = _build_exercise_advice(
+        request.user, name, measurement_type, prescribed, unit)
+
+    # The cache holds only stable content: steps, muscles, tips, images.
+    # Prefer this user's row, fall back to the shared generic one. `.filter()
+    # .first()` rather than `.get()` because name uniqueness is scoped per-user,
+    # so a case variant can legitimately match more than one row.
     cached = (
         ExerciseGuide.objects
         .filter(user=request.user, name__iexact=name)
         .first()
         or ExerciseGuide.objects.filter(user=None, name__iexact=name).first()
     )
-    if cached is not None:
-        logger.info('exercise_guide: DB hit for %r (personalised=%s)',
-                    name, cached.user_id is not None)
-        return Response(cached.data)
+    if cached is not None and isinstance(cached.data, dict):
+        stale = (cached.data.get('advice_version') or 0) < ADVICE_VERSION
+        if not stale:
+            logger.info('exercise_guide: DB hit for %r (personalised=%s)',
+                        name, cached.user_id is not None)
+            payload = dict(cached.data)
+            payload.update(advice)
+            payload['measurement_type'] = measurement_type
+            payload['unit'] = unit
+            return Response(payload)
+        logger.info('exercise_guide: stale cache for %r (v%s < v%s), regenerating',
+                    name, cached.data.get('advice_version'), ADVICE_VERSION)
 
     # Get top KB candidates via F1 matching for Gemini to choose from
     kb_candidates = _get_kb_candidates(name, top_n=20)
@@ -2451,12 +2628,20 @@ Return only valid JSON, no extra text."""
             user_prompt=prompt,
         )
         kb_key = guide.pop('kb_key', None)
-        kb = _load_exercise_kb()
         guide['images'] = _images_for_exercise(name, kb_key)
-        # Generic row: no personalised advice, shared across users.
+        guide['advice_version'] = ADVICE_VERSION
+        # Generic row: stable content only, shared across users. Advice is never
+        # written here -- it is computed per request from the caller's history.
+        for volatile in ('recommended_weight', 'recommended_target',
+                         'coaching_note'):
+            guide.pop(volatile, None)
         ExerciseGuide.objects.update_or_create(
             user=None, name=name, defaults={'data': guide})
-        return Response(guide)
+        payload = dict(guide)
+        payload.update(advice)
+        payload['measurement_type'] = measurement_type
+        payload['unit'] = unit
+        return Response(payload)
     except Exception as exc:
         logger.error('exercise_guide failed for %r: %s', name, exc, exc_info=True)
         return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
