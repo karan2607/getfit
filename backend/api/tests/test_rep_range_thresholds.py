@@ -74,6 +74,20 @@ class RangeVerdictTests(APITestCase):
         res = self.analyze(logs)
         self.assertEqual(res['direction'], 'increase')
         self.assertIn('INCREASE WEIGHT', res['summary'])
+        self.assertIn('for 2 sessions', res['summary'])
+
+    def test_topping_the_range_once_also_adds_weight(self):
+        """
+        Double progression: completing every set at the top of the range earns
+        the increase. Requiring TWO consecutive such sessions left a real user
+        stuck at 100lb since July, repeatedly hitting 4x12 on an 8-12 target and
+        never once being told to add load, because a single 10-rep session in
+        between reset the streak.
+        """
+        logs = session(15, 100, [12, 12, 12, 12]) + session(8, 100, [10, 10, 10, 10])
+        res = self.analyze(logs)
+        self.assertEqual(res['direction'], 'increase')
+        self.assertNotIn('for 2 sessions', res['summary'])
 
     def test_inside_the_range_is_not_a_failure(self):
         """

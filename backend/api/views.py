@@ -1801,15 +1801,25 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     target_str = (f'{target_low}-{target_high}'
                   if target_low != target_high else str(target_high))
 
-    # Adding weight requires TOPPING the range, not merely reaching it.
-    if recent['topped'] and prev['topped'] and recent['value'] == prev['value']:
+    # Double progression: completing EVERY set at the top of the range earns a
+    # weight increase next session. One such session is the standard trigger.
+    #
+    # This previously required two CONSECUTIVE top-of-range sessions at the same
+    # weight, which is unusually conservative and gave visibly wrong advice: a
+    # user hitting 4x12 at 100lb on an 8-12 target was told to "maintain" because
+    # the session before that had been 10 reps -- and had been stuck at the same
+    # weight since July, repeatedly topping the range, never once told to add
+    # load.
+    if recent['topped']:
+        streak = ' for 2 sessions' if (
+            prev['topped'] and recent['value'] == prev['value']) else ''
         return {
             'direction': 'increase',
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': (
-                f"Hit {target_high}+ reps at {fmt(recent['value'])} for 2 sessions "
-                f"→ INCREASE WEIGHT"),
+                f"Completed all sets at {target_high}+ reps with "
+                f"{fmt(recent['value'])}{streak} → INCREASE WEIGHT"),
         }
 
     recent_avg = sum(recent['reps']) / max(len([r for r in recent['reps'] if r]), 1)
@@ -1950,9 +1960,13 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
             exercise_name, re.I) else 'upper'
         step = _increment_for(unit, body)
         if direction == 'increase':
+            # Don't claim a session count here -- the streak is only known to
+            # _analyze_progression, and asserting "twice" was wrong whenever a
+            # single top-of-range session triggered the increase.
+            top = f' ({high} reps)' if high else ''
             out['recommended_weight'] = (
-                f'Go up to {round(last + step, 1)}{unit} — you topped the range '
-                f'at {last}{unit} twice.')
+                f'Go up to {round(last + step, 1)}{unit} — you completed every '
+                f'set at the top of the range{top} with {last}{unit}.')
         elif direction == 'decrease':
             if proven is not None and proven < last:
                 out['recommended_weight'] = (
