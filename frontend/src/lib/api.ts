@@ -337,9 +337,15 @@ export const api = {
     getExerciseHistory: (exerciseName: string) =>
       request<ExerciseHistory>(`/api/workouts/exercises/${encodeURIComponent(exerciseName)}/history/`),
 
-    getExerciseGuide: (exerciseName: string) =>
+    /**
+     * `exerciseId` pins the advice to the exact prescription on the card. One
+     * name carries different rep targets across weeks and plans, so without it
+     * the server has to guess which row to coach against.
+     */
+    getExerciseGuide: (exerciseName: string, exerciseId?: string) =>
       request<{ steps: string[]; muscles: string[]; tips: string[]; category: string; images: string[] }>(
         `/api/workouts/exercises/guide/?name=${encodeURIComponent(exerciseName)}`
+        + (exerciseId ? `&exercise_id=${encodeURIComponent(exerciseId)}` : '')
       ),
   },
 

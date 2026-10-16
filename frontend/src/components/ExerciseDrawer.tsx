@@ -36,11 +36,11 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
     if (!exercise) { setGuide(null); return }
     setGuide(null)
     setGuideLoading(true)
-    api.workouts.getExerciseGuide(exercise.name)
+    api.workouts.getExerciseGuide(exercise.name, exercise.id)
       .then(setGuide)
       .catch(() => {})
       .finally(() => setGuideLoading(false))
-  }, [exercise?.name])
+  }, [exercise?.name, exercise?.id])
 
   if (!exercise) return null
 

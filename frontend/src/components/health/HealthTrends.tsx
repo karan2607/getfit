@@ -49,6 +49,24 @@ const TOOLTIP_STYLE = {
   boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
 }
 
+/**
+ * Y-axis tick labels.
+ *
+ * The axis only gets the width reserved by `YAXIS_WIDTH`, and at fontSize 10 a
+ * label like "11,000" is ~33px — wider than is worth spending on a 132px-tall
+ * chart on a phone. Abbreviate thousands so every tick fits inside the reserved
+ * strip instead of being drawn past the edge of the SVG.
+ */
+function compactTick(value: number) {
+  const abs = Math.abs(value)
+  if (abs >= 10_000) return `${Math.round(value / 1000)}k`
+  if (abs >= 1_000) return `${Number((value / 1000).toFixed(1))}k`
+  return String(Number(value.toFixed(1)))
+}
+
+/** Enough for "20k", "1.5k", "160" and "7.5" at fontSize 10. */
+const YAXIS_WIDTH = 34
+
 function fmt(value: number | null, decimals: number) {
   if (value === null || value === undefined) return '—'
   return value.toLocaleString('en-US', {
@@ -125,12 +143,12 @@ function MetricChart({ metric, series }: {
       ) : (
         <ResponsiveContainer width="100%" height={132}>
           {metric.chart === 'bar' ? (
-            <BarChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }}
                      axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false}
-                     tickLine={false} width={44} />
+                     tickLine={false} width={YAXIS_WIDTH} tickFormatter={compactTick} />
               <Tooltip contentStyle={TOOLTIP_STYLE}
                        formatter={(v) => [fmt(v as number, metric.decimals) + (metric.unit ? ` ${metric.unit}` : ''), metric.title]}
                        labelFormatter={(l, p) => {
@@ -144,12 +162,12 @@ function MetricChart({ metric, series }: {
               <Bar dataKey="value" fill={metric.color} radius={[3, 3, 0, 0]} maxBarSize={28} />
             </BarChart>
           ) : (
-            <LineChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+            <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }}
                      axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false}
-                     tickLine={false} width={44}
+                     tickLine={false} width={YAXIS_WIDTH} tickFormatter={compactTick}
                      domain={['dataMin - 2', 'dataMax + 2']} />
               <Tooltip contentStyle={TOOLTIP_STYLE}
                        formatter={(v) => [fmt(v as number, metric.decimals) + (metric.unit ? ` ${metric.unit}` : ''), metric.title]}

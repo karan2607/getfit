@@ -3,7 +3,9 @@ import logging
 import re
 from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
+from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Case, F, IntegerField, Value, When
 
 logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse, Http404
@@ -1618,6 +1620,20 @@ def _increment_for(unit, body_part):
     return 2.5 if body_part == 'upper' else 5
 
 
+def _duration_increment(seconds):
+    """
+    How much time to add to a hold that is ready to progress.
+
+    Proportional, not flat. A flat +15 sec is a 29% jump on a 52-second plank --
+    which is what the advice used to recommend, and is far more than anyone adds
+    between sessions. 10% rounded to the nearest 5 seconds keeps the jump
+    proportionate, with a 5-second floor so short holds still move and a
+    15-second ceiling so a 3-minute hold does not get a 20-second demand.
+    """
+    step = round(seconds * 0.10 / 5) * 5
+    return max(5, min(15, int(step)))
+
+
 def _target_reps_from(reps):
     """
     Pull a numeric rep target out of the free-text `reps` field ("8-12" -> 12).
@@ -1984,8 +2000,9 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
 
     elif measurement_type == exercise_types.DURATION:
         if direction == 'increase':
+            step = _duration_increment(int(last))
             out['recommended_target'] = (
-                f'Aim for {int(last) + 15} sec — you held {int(last)} sec.')
+                f'Aim for {int(last) + step} sec — you held {int(last)} sec.')
         else:
             out['recommended_target'] = (
                 f'Rebuild to {int(last)} sec with clean form.')
@@ -2001,11 +2018,47 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
     return out
 
 
-def _exercise_prescription(user, exercise_name):
-    """The measurement type and prescribed reps for one of the user's exercises."""
+def _exercise_prescription(user, exercise_name, exercise_id=None):
+    """
+    The measurement type and prescribed reps for one of the user's exercises.
+
+    `exercise_id` identifies the exact row the user is looking at and is the only
+    unambiguous answer, because one name legitimately carries DIFFERENT
+    prescriptions across weeks and plans. Leg Press, for this user, exists 14
+    times at 10, 10-12, 12, 8-10 and 10-15 reps.
+
+    Without an id this used to be an unordered `.first()`, so the advice was
+    computed against an arbitrary one of those rows: the guide told the user
+    "inside the 10-15 range" off a plan abandoned in June while the card in front
+    of them said 10-12. The fallback ordering below is therefore deliberate --
+    active plan first, then the week the plan is actually on, then the newest
+    plan -- so that even the nameless lookup lands on the row the UI is showing.
+    """
+    qs = Exercise.objects.filter(day__plan__user=user)
+
+    if exercise_id:
+        try:
+            # Still scoped to the user: an id from another account must not
+            # resolve. A junk id is a 500 from the UUID field, so swallow it and
+            # fall through rather than failing the whole guide request.
+            row = (qs.filter(pk=exercise_id)
+                     .values_list('measurement_type', 'reps')
+                     .first())
+        except (ValidationError, ValueError, TypeError):
+            row = None
+        if row:
+            return row[0] or exercise_types.classify(exercise_name), row[1]
+        # Fall through: a stale id (deleted plan) should degrade, not 404.
+
     row = (
-        Exercise.objects
-        .filter(day__plan__user=user, name__iexact=exercise_name)
+        qs.filter(name__iexact=exercise_name)
+        .annotate(on_current_week=Case(
+            When(day__week_number=F('day__plan__current_week'), then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        ))
+        .order_by('-day__plan__is_active', '-on_current_week',
+                  '-day__plan__created_at', 'day__week_number', 'day__day_number')
         .values_list('measurement_type', 'reps')
         .first()
     )
@@ -2590,7 +2643,10 @@ def exercise_guide(request):
         return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
 
     unit = _user_unit(request.user)
-    measurement_type, prescribed = _exercise_prescription(request.user, name)
+    # The caller passes the id of the exact exercise row on the card, so the
+    # advice is computed against the same prescription the user is reading.
+    measurement_type, prescribed = _exercise_prescription(
+        request.user, name, exercise_id=request.GET.get('exercise_id') or None)
 
     # Progression advice is computed fresh on EVERY request, never served from
     # the cache. It is derived from logged history, so a cached copy is wrong the
