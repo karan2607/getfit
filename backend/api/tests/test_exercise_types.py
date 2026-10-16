@@ -51,7 +51,7 @@ class ClassifyNameTests(SimpleTestCase):
             ('Stationary Bike', et.DURATION),
             ('Jump Rope', et.DURATION),
             ('Battle Ropes', et.DURATION),
-            ('Sled Push', et.DURATION),
+            ('Bear Crawl', et.DURATION),
             ('Stairmaster', et.DURATION),
             ('Isometric Chest Squeeze', et.DURATION),
         ])
@@ -63,6 +63,48 @@ class ClassifyNameTests(SimpleTestCase):
             ('Yoke Walk', et.WEIGHT_DURATION),
             ('Suitcase Carry', et.WEIGHT_DURATION),
             ('Rickshaw Carry', et.WEIGHT_DURATION),
+        ])
+
+    def test_sled_and_prowler_work_is_weight_duration(self):
+        """
+        Reported: "Sled push should also ask for weight right?" — yes. A sled is
+        loaded with plates exactly as a trap bar is loaded for a carry, so
+        seconds alone is half the log. These used to classify as DURATION.
+        """
+        self.assert_classify([
+            ('Sled Push', et.WEIGHT_DURATION),
+            ('Metabolic Finisher: Sled Push', et.WEIGHT_DURATION),
+            ('Metabolic Finisher: Sled Push (Light)', et.WEIGHT_DURATION),
+            ('Sled Drag', et.WEIGHT_DURATION),
+            ('Sled Pull', et.WEIGHT_DURATION),
+            ('Backward Sled Drag', et.WEIGHT_DURATION),
+            ('Sled Overhead Backward Walk', et.WEIGHT_DURATION),
+            ('Prowler Push', et.WEIGHT_DURATION),
+            ('Prowler', et.WEIGHT_DURATION),
+            # Plurals: a plan can legitimately say "Sled Pushes".
+            ('Sled Pushes', et.WEIGHT_DURATION),
+            ('Sled Drags', et.WEIGHT_DURATION),
+        ])
+
+    def test_farmers_hold_is_weight_duration_like_the_walk(self):
+        """A farmer's hold is a farmer's walk standing still — still loaded."""
+        self.assert_classify([
+            ("Farmer's Hold", et.WEIGHT_DURATION),
+            ('Farmers Hold', et.WEIGHT_DURATION),
+            ('Suitcase Hold', et.WEIGHT_DURATION),
+        ])
+
+    def test_the_sled_machine_is_not_a_sled_push(self):
+        """
+        The guard on the fix above. In the exercise library "sled" also names the
+        plate-loaded 45-degree machine, so a bare \\bsled\\b rule would have
+        reclassified ordinary rep work as a loaded carry.
+        """
+        self.assert_classify([
+            ('Sled Hack Squat', et.WEIGHT_REPS),
+            ('Sled 45 Degree Leg Press', et.WEIGHT_REPS),
+            ('Sled Overhead Triceps Extension', et.WEIGHT_REPS),
+            ('Sled Closer Hand Press', et.WEIGHT_REPS),
         ])
 
     def test_bodyweight_reps(self):

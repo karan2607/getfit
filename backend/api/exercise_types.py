@@ -99,15 +99,29 @@ _LOADED = (
 _RULES = [
     (WARMUP, _WARMUP_PATTERNS, []),
 
-    # Loaded carries: weight is held for a distance/time, not for reps.
+    # Loaded carries, pushes and holds: an external load is moved or held for a
+    # distance/time rather than for reps, so the log needs BOTH weight and time.
+    #
+    # Sled and prowler work used to sit in the DURATION rule below, which asked
+    # only for seconds -- reported as "Sled push should also ask for weight
+    # right?". It does: you load plates on a sled exactly as you load a trap bar
+    # for a carry, and `_LOADED` already treats "sled" as a loaded implement.
+    # A farmer's HOLD is the same movement as a farmer's walk standing still.
     (WEIGHT_DURATION, [
-        r"\bfarmer'?s?\s+(walk|carry)",
-        r'\bsuitcase\s+(walk|carry)',
+        r"\bfarmer'?s?\s+(walk|carry|hold)",
+        r"\bfarmer\s?-?\s?s? hold\b",
+        r'\bsuitcase\s+(walk|carry|hold)',
         r'\brickshaw\s+carry',
         r'\byoke\s+(walk|carry)',
         r'\bwaiter\s+walk',
         r'\b(overhead|loaded|trap bar)\s+carry',
-        r'\bsled\s+(overhead\s+)?(backward\s+)?walk',
+        # Only the conditioning movements. A bare \bsled\b would be wrong: in
+        # the exercise library "sled" also names the plate-loaded 45-degree
+        # machine ("sled hack squat", "sled overhead triceps extension"), which
+        # is ordinary weight_reps work.
+        r'\bsled\s+(overhead\s+)?(backward\s+)?'
+        r'(push|pull|drag|walk|sprint)(e?s)?\b',
+        r'\bprowler\b',          # only ever the sled; there is no machine
     ], []),
 
     # Bodyweight rep work. Excludes the loaded/machine variants.
@@ -160,10 +174,10 @@ _RULES = [
         r'\bjump\s?-?\s?rope\b',
         r'\bskipping\b',
         r'\bbattle ropes?\b',
-        r'\bsled (push|drag)\b',
-        r'\bprowler\b',
+        # Sled, prowler and farmer's holds moved to WEIGHT_DURATION above --
+        # they are loaded, so seconds alone is only half the log. Bear crawl
+        # stays: it is genuinely bodyweight.
         r'\bbear crawl\b',
-        r'\bfarmer\s?-?\s?s? hold\b',
         r'\brunning\b',
         r'\bjogging\b',
         r'\bsprints?\b',
