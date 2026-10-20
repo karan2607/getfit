@@ -8,7 +8,13 @@ from typing import Generator
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash'
+
+API_ROOT = 'https://generativelanguage.googleapis.com/v1beta/models'
+DEFAULT_MODEL = 'gemini-2.5-flash'
+
+# Kept so existing imports and log greps keep working; the model used per call
+# now comes from _model() so it can be overridden without editing this file.
+BASE_URL = '%s/%s' % (API_ROOT, DEFAULT_MODEL)
 
 
 class GeminiError(Exception):
@@ -22,15 +28,47 @@ def _api_key() -> str:
     return key
 
 
-def call_gemini_json(*, system_prompt: str, user_prompt: str) -> dict:
+def _model(override: str = None) -> str:
+    """
+    Which model to call.
+
+    Resolved per call rather than at import, so GEMINI_MODEL can be set in the
+    environment (or overridden per call by the eval harness) without a reload.
+    The model used to be baked into the URL path, which meant comparing two
+    models required editing this module -- so "do we need a better model?" was
+    unanswerable by construction.
+    """
+    return override or os.getenv('GEMINI_MODEL') or DEFAULT_MODEL
+
+
+def _endpoint(action: str, model: str = None) -> str:
+    return '%s/%s:%s?key=%s' % (API_ROOT, _model(model), action, _api_key())
+
+
+def _generation_config(temperature: float = None, json_output: bool = True) -> dict:
+    config = {}
+    if json_output:
+        config['response_mime_type'] = 'application/json'
+    if temperature is not None:
+        config['temperature'] = temperature
+    return config
+
+
+def call_gemini_json(*, system_prompt: str, user_prompt: str,
+                     model: str = None, temperature: float = None) -> dict:
+    """
+    `model` and `temperature` are for the eval harness sweeping candidates.
+    Both default to the configured behaviour, so every existing caller is
+    unaffected and no request shape changes unless a value is passed.
+    """
     import time
     payload = json.dumps({
         'system_instruction': {'parts': [{'text': system_prompt}]},
         'contents': [{'role': 'user', 'parts': [{'text': user_prompt}]}],
-        'generationConfig': {'response_mime_type': 'application/json'},
+        'generationConfig': _generation_config(temperature),
     }).encode()
 
-    url = f'{BASE_URL}:generateContent?key={_api_key()}'
+    url = _endpoint('generateContent', model)
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
 
     last_exc = None
@@ -58,7 +96,8 @@ def call_gemini_json(*, system_prompt: str, user_prompt: str) -> dict:
     raise GeminiError('AI service unavailable, please try again') from last_exc
 
 
-def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes: bytes, mime_type: str) -> str:
+def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes: bytes,
+                            mime_type: str, model: str = None) -> str:
     """Like call_gemini_vision_json but returns raw text instead of parsed JSON."""
     import base64
     b64 = base64.b64encode(image_bytes).decode()
@@ -69,7 +108,7 @@ def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes
             {'text': user_prompt},
         ]}],
     }).encode()
-    url = f'{BASE_URL}:generateContent?key={_api_key()}'
+    url = _endpoint('generateContent', model)
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(req) as resp:
@@ -79,7 +118,9 @@ def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes
         raise GeminiError('AI request failed') from exc
 
 
-def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes: bytes, mime_type: str) -> dict:
+def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes: bytes,
+                            mime_type: str, model: str = None,
+                            temperature: float = None) -> dict:
     import base64
     b64 = base64.b64encode(image_bytes).decode()
 
@@ -92,10 +133,10 @@ def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes
                 {'text': user_prompt},
             ],
         }],
-        'generationConfig': {'response_mime_type': 'application/json'},
+        'generationConfig': _generation_config(temperature),
     }).encode()
 
-    url = f'{BASE_URL}:generateContent?key={_api_key()}'
+    url = _endpoint('generateContent', model)
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
 
     try:
@@ -116,14 +157,16 @@ def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes
         raise GeminiError('AI request failed') from exc
 
 
-def stream_gemini_chat(*, system_prompt: str, history: list[dict]) -> Generator[str, None, None]:
+def stream_gemini_chat(*, system_prompt: str, history: list[dict],
+                       model: str = None,
+                       temperature: float = 0.7) -> Generator[str, None, None]:
     payload = json.dumps({
         'system_instruction': {'parts': [{'text': system_prompt}]},
         'contents': history,
-        'generationConfig': {'temperature': 0.7},
+        'generationConfig': {'temperature': temperature},
     }).encode()
 
-    url = f'{BASE_URL}:streamGenerateContent?alt=sse&key={_api_key()}'
+    url = _endpoint('streamGenerateContent', model) + '&alt=sse'
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
 
     try:
