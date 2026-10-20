@@ -1584,6 +1584,8 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
 
   const [history, setHistory] = useState<ExerciseHistory | null>(null)
   const [loading, setLoading] = useState(true)
+  // How many SESSIONS of detail to list. 0 means all.
+  const [sessionLimit, setSessionLimit] = useState(3)
 
   useEffect(() => {
     setLoading(true)
@@ -1619,6 +1621,35 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
         value: spec.unit === 'mass' ? (toDisplayField('weight_kg', stored, unit) ?? 0) : stored,
       }))
   })()
+
+  /**
+   * Logged sets grouped by session, NEWEST FIRST.
+   *
+   * The table used to render `logs.slice(0, 30)` straight off the response.
+   * The endpoint orders ascending by date, so that showed the OLDEST 30 sets
+   * and silently hid everything recent: with 42 sets of Dumbbell Lateral
+   * Raises across 14 sessions, the four most recent sessions were invisible.
+   * Reported as "I don't see full scroll for excercises in progress with a lot
+   * of sessions already done".
+   */
+  const sessions = (() => {
+    const byDate = new Map<string, typeof logs>()
+    for (const p of logs) {
+      const date = p.workout_session__started_at.split('T')[0]
+      const bucket = byDate.get(date)
+      if (bucket) bucket.push(p)
+      else byDate.set(date, [p])
+    }
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, rows]) => ({
+        date,
+        rows: [...rows].sort((x, y) => x.set_number - y.set_number),
+      }))
+  })()
+
+  const visibleSessions = sessionLimit === 0
+    ? sessions : sessions.slice(0, sessionLimit)
 
   // Personal best uses the metric for this type, not weight_kg unconditionally.
   const pb = metric
@@ -1664,12 +1695,29 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                 </p>
                 <LineChart points={chartPoints} formatValue={axisFormat} />
               </div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  Recent sessions
+                </p>
+                {/* Default to the last 3 so a long history is scannable, with
+                    a way to widen it. The chart and PB above always use the
+                    FULL history — only this detail list is filtered. */}
+                <select
+                  value={sessionLimit}
+                  onChange={(e) => setSessionLimit(Number(e.target.value))}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <option value={3}>Last 3</option>
+                  <option value={5}>Last 5</option>
+                  <option value={10}>Last 10</option>
+                  <option value={0}>All {sessions.length}</option>
+                </select>
+              </div>
               <div className="bg-gray-50 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400">Date</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Set</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400">Set</th>
                       {/* Columns follow the measurement type instead of always
                           showing Weight/Reps. */}
                       {fieldsFor(mType).map((f) => (
@@ -1679,30 +1727,53 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {logs.slice(0, 30).map((p, i) => (
-                      <tr key={i} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-2 text-gray-600 text-xs">{new Date(p.workout_session__started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
-                        <td className="px-4 py-2 text-right text-gray-500 text-xs">{p.set_number}</td>
-                        {fieldsFor(mType).map((f) => {
-                          const raw = p[f]
-                          return (
-                            <td key={f} className="px-4 py-2 text-right font-semibold text-gray-900">
-                              {raw === null || raw === undefined
-                                ? '—'
-                                : f === 'weight_kg'
-                                  ? `${toDisplayField(f, raw, unit)}${unit}`
-                                  : f === 'duration_seconds'
-                                    ? formatDuration(raw)
-                                    : raw}
-                            </td>
-                          )
-                        })}
+                  {visibleSessions.map((s) => (
+                    <tbody key={s.date}>
+                      {/* One date header per session, so the sets underneath
+                          read as a workout rather than an undifferentiated
+                          wall of rows. */}
+                      <tr className="bg-gray-100/80">
+                        <td colSpan={1 + fieldsFor(mType).length}
+                            className="px-4 py-1.5 text-[11px] font-semibold text-gray-500">
+                          {new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', {
+                            weekday: 'short', month: 'short', day: 'numeric',
+                          })}
+                          <span className="font-normal text-gray-400">
+                            {' · '}{s.rows.length} set{s.rows.length === 1 ? '' : 's'}
+                          </span>
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
+                      {s.rows.map((p, i) => (
+                        <tr key={i} className="border-b border-gray-100 last:border-0">
+                          <td className="px-4 py-2 text-gray-500 text-xs">{p.set_number}</td>
+                          {fieldsFor(mType).map((f) => {
+                            const raw = p[f]
+                            return (
+                              <td key={f} className="px-4 py-2 text-right font-semibold text-gray-900">
+                                {raw === null || raw === undefined
+                                  ? '—'
+                                  : f === 'weight_kg'
+                                    ? `${toDisplayField(f, raw, unit)}${unit}`
+                                    : f === 'duration_seconds'
+                                      ? formatDuration(raw)
+                                      : raw}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  ))}
                 </table>
               </div>
+              {sessionLimit !== 0 && sessions.length > visibleSessions.length && (
+                <button
+                  onClick={() => setSessionLimit(0)}
+                  className="mt-2 w-full text-xs font-semibold text-brand-500 hover:text-brand-600 py-2 transition-colors"
+                >
+                  Show all {sessions.length} sessions
+                </button>
+              )}
             </>
           )}
         </div>

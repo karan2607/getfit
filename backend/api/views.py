@@ -2330,9 +2330,10 @@ def _measurement_type_for_name(user, exercise_name):
     Prefer a live Exercise owned by this user; fall back to the deterministic
     classifier so an orphaned row is still typed correctly.
     """
+    qs = Exercise.objects.filter(day__plan__user=user)
     row = (
-        Exercise.objects
-        .filter(day__plan__user=user, name__iexact=exercise_name)
+        qs.filter(name__in=_matching_spellings(
+            qs.values_list('name', flat=True).distinct(), exercise_name))
         .values_list('measurement_type', flat=True)
         .first()
     )
@@ -2381,9 +2382,13 @@ def workout_exercise_history(request, exercise_name):
         measurement_type, exercise_types.CHART_CONTRACT[exercise_types.DEFAULT_TYPE]
     )['metric']
 
+    # Match every spelling of this movement. _exercise_history was switched to
+    # canonical matching when exercise_names landed; this endpoint was missed,
+    # so the progress view was still splitting a user's history by spelling
+    # while the coaching advice no longer did.
     qs = SetLog.objects.filter(
         workout_session__user=request.user,
-        exercise_name__iexact=exercise_name,
+        exercise_name__in=_logged_name_variants(request.user, exercise_name),
         is_completed=True,
     )
     # Only require a value in the field that actually matters for this type.
