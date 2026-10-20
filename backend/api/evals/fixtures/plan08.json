@@ -1,0 +1,1300 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan08",
+  "title": "Beginner Fat Loss Program - 4 Weeks",
+  "context": {
+    "duration_weeks": 4,
+    "goal": "lose_fat",
+    "level": "beginner",
+    "injuries": ""
+  },
+  "plan": {
+    "title": "Beginner Fat Loss Program - 4 Weeks",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Full Body A",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Barbell Back Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a proud chest and keep your core tight throughout the movement. Focus on depth."
+            },
+            {
+              "name": "Barbell Bench Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the bar with control to your chest, keeping elbows at a 45-degree angle. Drive through your feet."
+            },
+            {
+              "name": "Lat Pulldown",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Pull the bar down towards your upper chest, squeezing your shoulder blades together. Control the eccentric."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a slight bend in the knees, hinge at the hips, feeling the stretch in hamstrings. Keep your back straight."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep your body in a straight line from head to heels, engage your core. Avoid sagging hips or arching back."
+            },
+            {
+              "name": "Jump Squats",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Jump Squats, immediately followed by Push-ups, then Mountain Climbers. Rest 30s after Mountain Climbers. Repeat for 3 total rounds."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Keep your body in a straight line. Drop to knees if needed to maintain form."
+            },
+            {
+              "name": "Mountain Climbers",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Drive knees towards chest in a rapid motion. Keep core engaged."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a steady, comfortable pace. Incline walking maximizes calorie burn without high impact. Choose a challenging but sustainable incline."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Full Body B",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Hold the dumbbell close to your chest. Keep your elbows inside your knees at the bottom."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the dumbbells with control. Maintain a slight arch in your lower back. Focus on chest contraction."
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back straight, pull the handle towards your lower abdomen, squeezing your shoulder blades together."
+            },
+            {
+              "name": "Hyperextension (Back Extension)",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hinging at the hips, squeezing your glutes at the top. Avoid overextending your lower back."
+            },
+            {
+              "name": "Dumbbell Overhead Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Press the dumbbells straight overhead, avoiding excessive arching in your lower back. Control the descent."
+            },
+            {
+              "name": "Kettlebell Swings",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Kettlebell Swings, immediately followed by Burpees, then Bicycle Crunches. Rest 30s after Bicycle Crunches. Repeat for 3 total rounds."
+            },
+            {
+              "name": "Burpees",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Focus on a smooth, explosive movement. Modify with step-back if needed."
+            },
+            {
+              "name": "Bicycle Crunches",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Lie on your back, bring opposite elbow to opposite knee. Keep core engaged."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Elliptical Trainer",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Vary resistance and stride length to engage different muscle groups. Maintain a consistent effort level."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Full Body C",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back pressed against the pad. Lower the weight until your knees are at 90 degrees, then drive through your heels."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "AMRAP",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform as many reps as possible with good form. Keep your body straight from head to heels."
+            },
+            {
+              "name": "Assisted Pull-up Machine",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Choose an assistance level that allows you to complete reps with good form. Pull your chest towards the bar."
+            },
+            {
+              "name": "Barbell Glute Bridge",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Place the barbell across your hips. Drive through your heels, squeezing your glutes at the top. Maintain a neutral spine."
+            },
+            {
+              "name": "Renegade Row (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start in a plank position with hands on dumbbells. Row one dumbbell to your side, keeping your core stable and hips still."
+            },
+            {
+              "name": "Walking Lunges",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps per leg of Walking Lunges, immediately followed by Battle Ropes (30s), then Russian Twists. Rest 30s after Russian Twists. Repeat for 3 total rounds."
+            },
+            {
+              "name": "Battle Ropes",
+              "sets": 3,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Part of Metabolic Finisher Circuit. Create waves with your arms, engaging your entire body. Maintain a slight squat."
+            },
+            {
+              "name": "Russian Twists",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Twist your torso from side to side, keeping your core tight. Use a light weight if desired."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Stationary Bike",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on consistent RPM and steady effort. Adjust resistance as needed to maintain intensity."
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Full Body A",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Barbell Back Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a proud chest and keep your core tight throughout the movement. Focus on depth. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Bench Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the bar with control to your chest, keeping elbows at a 45-degree angle. Drive through your feet. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Lat Pulldown",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Pull the bar down towards your upper chest, squeezing your shoulder blades together. Control the eccentric. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a slight bend in the knees, hinge at the hips, feeling the stretch in hamstrings. Keep your back straight. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep your body in a straight line from head to heels, engage your core. Avoid sagging hips or arching back. Aim to increase hold time or add external load if possible."
+            },
+            {
+              "name": "Jump Squats",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Jump Squats, immediately followed by Push-ups, then Mountain Climbers. Rest 30s after Mountain Climbers. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Keep your body in a straight line. Drop to knees if needed to maintain form. Aim for more reps or cleaner form."
+            },
+            {
+              "name": "Mountain Climbers",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Drive knees towards chest in a rapid motion. Keep core engaged. Aim for more reps or faster pace."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a steady, comfortable pace. Incline walking maximizes calorie burn without high impact. Choose a challenging but sustainable incline. Aim to increase speed or incline."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Full Body B",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Hold the dumbbell close to your chest. Keep your elbows inside your knees at the bottom. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the dumbbells with control. Maintain a slight arch in your lower back. Focus on chest contraction. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back straight, pull the handle towards your lower abdomen, squeezing your shoulder blades together. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Hyperextension (Back Extension)",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hinging at the hips, squeezing your glutes at the top. Avoid overextending your lower back. Aim to add light weight if form is perfect."
+            },
+            {
+              "name": "Dumbbell Overhead Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Press the dumbbells straight overhead, avoiding excessive arching in your lower back. Control the descent. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Kettlebell Swings",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Kettlebell Swings, immediately followed by Burpees, then Bicycle Crunches. Rest 30s after Bicycle Crunches. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Burpees",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Focus on a smooth, explosive movement. Modify with step-back if needed. Aim for more reps or faster pace."
+            },
+            {
+              "name": "Bicycle Crunches",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Lie on your back, bring opposite elbow to opposite knee. Keep core engaged. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Elliptical Trainer",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Vary resistance and stride length to engage different muscle groups. Maintain a consistent effort level. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Full Body C",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back pressed against the pad. Lower the weight until your knees are at 90 degrees, then drive through your heels. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "AMRAP",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform as many reps as possible with good form. Keep your body straight from head to heels. Aim to increase total reps or reduce rest."
+            },
+            {
+              "name": "Assisted Pull-up Machine",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Choose an assistance level that allows you to complete reps with good form. Pull your chest towards the bar. Aim to decrease assistance if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Glute Bridge",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Place the barbell across your hips. Drive through your heels, squeezing your glutes at the top. Maintain a neutral spine. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Renegade Row (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start in a plank position with hands on dumbbells. Row one dumbbell to your side, keeping your core stable and hips still. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Walking Lunges",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps per leg of Walking Lunges, immediately followed by Battle Ropes (30s), then Russian Twists. Rest 30s after Russian Twists. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Battle Ropes",
+              "sets": 3,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Part of Metabolic Finisher Circuit. Create waves with your arms, engaging your entire body. Maintain a slight squat. Aim for longer duration or more intensity."
+            },
+            {
+              "name": "Russian Twists",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Twist your torso from side to side, keeping your core tight. Use a light weight if desired. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Stationary Bike",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on consistent RPM and steady effort. Adjust resistance as needed to maintain intensity. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Full Body A",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Barbell Back Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a proud chest and keep your core tight throughout the movement. Focus on depth. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Bench Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the bar with control to your chest, keeping elbows at a 45-degree angle. Drive through your feet. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Lat Pulldown",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Pull the bar down towards your upper chest, squeezing your shoulder blades together. Control the eccentric. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a slight bend in the knees, hinge at the hips, feeling the stretch in hamstrings. Keep your back straight. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep your body in a straight line from head to heels, engage your core. Avoid sagging hips or arching back. Aim to increase hold time or add external load if possible."
+            },
+            {
+              "name": "Jump Squats",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Jump Squats, immediately followed by Push-ups, then Mountain Climbers. Rest 30s after Mountain Climbers. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Keep your body in a straight line. Drop to knees if needed to maintain form. Aim for more reps or cleaner form."
+            },
+            {
+              "name": "Mountain Climbers",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Drive knees towards chest in a rapid motion. Keep core engaged. Aim for more reps or faster pace."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a steady, comfortable pace. Incline walking maximizes calorie burn without high impact. Choose a challenging but sustainable incline. Aim to increase speed or incline."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Full Body B",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Hold the dumbbell close to your chest. Keep your elbows inside your knees at the bottom. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the dumbbells with control. Maintain a slight arch in your lower back. Focus on chest contraction. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back straight, pull the handle towards your lower abdomen, squeezing your shoulder blades together. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Hyperextension (Back Extension)",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hinging at the hips, squeezing your glutes at the top. Avoid overextending your lower back. Aim to add light weight if form is perfect."
+            },
+            {
+              "name": "Dumbbell Overhead Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Press the dumbbells straight overhead, avoiding excessive arching in your lower back. Control the descent. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Kettlebell Swings",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Kettlebell Swings, immediately followed by Burpees, then Bicycle Crunches. Rest 30s after Bicycle Crunches. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Burpees",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Focus on a smooth, explosive movement. Modify with step-back if needed. Aim for more reps or faster pace."
+            },
+            {
+              "name": "Bicycle Crunches",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Lie on your back, bring opposite elbow to opposite knee. Keep core engaged. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Elliptical Trainer",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Vary resistance and stride length to engage different muscle groups. Maintain a consistent effort level. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Full Body C",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back pressed against the pad. Lower the weight until your knees are at 90 degrees, then drive through your heels. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "AMRAP",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform as many reps as possible with good form. Keep your body straight from head to heels. Aim to increase total reps or reduce rest."
+            },
+            {
+              "name": "Assisted Pull-up Machine",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Choose an assistance level that allows you to complete reps with good form. Pull your chest towards the bar. Aim to decrease assistance if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Glute Bridge",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Place the barbell across your hips. Drive through your heels, squeezing your glutes at the top. Maintain a neutral spine. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Renegade Row (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start in a plank position with hands on dumbbells. Row one dumbbell to your side, keeping your core stable and hips still. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Walking Lunges",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps per leg of Walking Lunges, immediately followed by Battle Ropes (30s), then Russian Twists. Rest 30s after Russian Twists. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Battle Ropes",
+              "sets": 3,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Part of Metabolic Finisher Circuit. Create waves with your arms, engaging your entire body. Maintain a slight squat. Aim for longer duration or more intensity."
+            },
+            {
+              "name": "Russian Twists",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Twist your torso from side to side, keeping your core tight. Use a light weight if desired. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Stationary Bike",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on consistent RPM and steady effort. Adjust resistance as needed to maintain intensity. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Full Body A",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Barbell Back Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a proud chest and keep your core tight throughout the movement. Focus on depth. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Bench Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the bar with control to your chest, keeping elbows at a 45-degree angle. Drive through your feet. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Lat Pulldown",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Pull the bar down towards your upper chest, squeezing your shoulder blades together. Control the eccentric. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a slight bend in the knees, hinge at the hips, feeling the stretch in hamstrings. Keep your back straight. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep your body in a straight line from head to heels, engage your core. Avoid sagging hips or arching back. Aim to increase hold time or add external load if possible."
+            },
+            {
+              "name": "Jump Squats",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Jump Squats, immediately followed by Push-ups, then Mountain Climbers. Rest 30s after Mountain Climbers. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Keep your body in a straight line. Drop to knees if needed to maintain form. Aim for more reps or cleaner form."
+            },
+            {
+              "name": "Mountain Climbers",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Drive knees towards chest in a rapid motion. Keep core engaged. Aim for more reps or faster pace."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a steady, comfortable pace. Incline walking maximizes calorie burn without high impact. Choose a challenging but sustainable incline. Aim to increase speed or incline."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Full Body B",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Hold the dumbbell close to your chest. Keep your elbows inside your knees at the bottom. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lower the dumbbells with control. Maintain a slight arch in your lower back. Focus on chest contraction. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back straight, pull the handle towards your lower abdomen, squeezing your shoulder blades together. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Hyperextension (Back Extension)",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hinging at the hips, squeezing your glutes at the top. Avoid overextending your lower back. Aim to add light weight if form is perfect."
+            },
+            {
+              "name": "Dumbbell Overhead Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Press the dumbbells straight overhead, avoiding excessive arching in your lower back. Control the descent. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Kettlebell Swings",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps of Kettlebell Swings, immediately followed by Burpees, then Bicycle Crunches. Rest 30s after Bicycle Crunches. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Burpees",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Focus on a smooth, explosive movement. Modify with step-back if needed. Aim for more reps or faster pace."
+            },
+            {
+              "name": "Bicycle Crunches",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Lie on your back, bring opposite elbow to opposite knee. Keep core engaged. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Elliptical Trainer",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Vary resistance and stride length to engage different muscle groups. Maintain a consistent effort level. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Full Body C",
+          "focus": "Full Body Strength & Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your back pressed against the pad. Lower the weight until your knees are at 90 degrees, then drive through your heels. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "AMRAP",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform as many reps as possible with good form. Keep your body straight from head to heels. Aim to increase total reps or reduce rest."
+            },
+            {
+              "name": "Assisted Pull-up Machine",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Choose an assistance level that allows you to complete reps with good form. Pull your chest towards the bar. Aim to decrease assistance if all reps were completed last week."
+            },
+            {
+              "name": "Barbell Glute Bridge",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Place the barbell across your hips. Drive through your heels, squeezing your glutes at the top. Maintain a neutral spine. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Renegade Row (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start in a plank position with hands on dumbbells. Row one dumbbell to your side, keeping your core stable and hips still. Aim to increase weight if all reps were completed last week."
+            },
+            {
+              "name": "Walking Lunges",
+              "sets": 3,
+              "reps": "15-20 per leg",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Metabolic Finisher Circuit (10-15 min total): Perform 15-20 reps per leg of Walking Lunges, immediately followed by Battle Ropes (30s), then Russian Twists. Rest 30s after Russian Twists. Repeat for 3 total rounds. Aim for more reps or shorter rest."
+            },
+            {
+              "name": "Battle Ropes",
+              "sets": 3,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Part of Metabolic Finisher Circuit. Create waves with your arms, engaging your entire body. Maintain a slight squat. Aim for longer duration or more intensity."
+            },
+            {
+              "name": "Russian Twists",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Part of Metabolic Finisher Circuit. Twist your torso from side to side, keeping your core tight. Use a light weight if desired. Aim for more reps or better control."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Active Recovery / Cardio",
+          "focus": "Cardiovascular Health",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Light cardio 5 min (e.g., dynamic walk/jog), leg swings 10x each, arm circles 20x."
+            },
+            {
+              "name": "Stationary Bike",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Focus on consistent RPM and steady effort. Adjust resistance as needed to maintain intensity. Aim to increase resistance or pace."
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

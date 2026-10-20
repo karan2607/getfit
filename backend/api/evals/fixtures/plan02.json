@@ -1,0 +1,287 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan02",
+  "title": "Advanced 8-Week Muscle Gain & Fat Loss Program",
+  "context": {
+    "duration_weeks": 8,
+    "goal": "build_muscle",
+    "level": "advanced",
+    "injuries": ""
+  },
+  "plan": {
+    "title": "Advanced 8-Week Muscle Gain & Fat Loss Program",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Day 1",
+          "focus": "Push (Chest, Shoulders, Triceps)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Barbell Bench Press",
+              "sets": 4,
+              "reps": "6-8 reps",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "As an advanced lifter, aim for working sets around 225-275 lb. Focus on controlled movement and progressive overload. Ensure full range of motion."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Select dumbbells that challenge you for 8-10 reps, likely 80-100 lb per hand. Maintain a strong chest contraction."
+            },
+            {
+              "name": "Barbell Overhead Press",
+              "sets": 4,
+              "reps": "6-8 reps",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Target working sets in the 135-185 lb range. Brace your core and drive the bar vertically. Use a spotter if needed."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "12-15 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on isolating the side deltoids. Use 25-40 lb dumbbells, lifting with your elbows and avoiding momentum."
+            },
+            {
+              "name": "Rope Triceps Pushdown",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Squeeze at the bottom of the movement. Use a cable weight that provides significant resistance, around 80-120 lb."
+            },
+            {
+              "name": "Close-Grip Bench Press",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Emphasize triceps activation. Aim for 185-225 lb. Keep elbows tucked in and control the eccentric phase."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Day 2",
+          "focus": "Legs (Quads, Hamstrings, Glutes, Calves)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Barbell Front Squat",
+              "sets": 4,
+              "reps": "6-8 reps",
+              "rest_seconds": 150,
+              "measurement_type": "weight_reps",
+              "notes": "Advanced lifters aim for working sets around 185-225 lb. Focus on keeping elbows high, chest up, and core tight throughout the movement."
+            },
+            {
+              "name": "Hack Squat Machine",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Push through your heels and control the descent, going as deep as comfortable without rounding your back. Aim for 360-450 lb."
+            },
+            {
+              "name": "Glute-Ham Raise (GHR)",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on a controlled eccentric (lowering) phase. If GHR is too easy, add a light plate. If no GHR machine, perform Nordic Hamstring Curls."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Squeeze at the top of the movement for a strong quad contraction. Use 120-160 lb on the machine."
+            },
+            {
+              "name": "Lying Leg Curl",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Concentrate on a strong hamstring contraction. Adjust machine weight to 120-160 lb for the target reps."
+            },
+            {
+              "name": "Dumbbell Step-Ups",
+              "sets": 3,
+              "reps": "8-10 reps per leg",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Use a sturdy bench or box. Hold 30-40 lb dumbbells in each hand. Focus on driving through the heel of the stepping leg."
+            },
+            {
+              "name": "Standing Calf Raises (Machine)",
+              "sets": 4,
+              "reps": "15-20 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maximize the stretch at the bottom and squeeze at the top. Use significant weight, e.g., 250-350 lb on a machine."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Day 3",
+          "focus": "Legs (Quads, Hamstrings, Glutes, Calves)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Barbell Back Squat",
+              "sets": 4,
+              "reps": "6-8 reps",
+              "rest_seconds": 150,
+              "measurement_type": "weight_reps",
+              "notes": "Target working sets in the 275-325 lb range. Prioritize depth, knee tracking, and bracing. Warm up with multiple light sets."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Load the leg press heavily, aiming for 450-600 lb. Ensure full range of motion without rounding your lower back at the bottom."
+            },
+            {
+              "name": "Romanian Deadlifts (Barbell)",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on the hamstring stretch. Use 205-255 lb, keeping a slight bend in your knees and a neutral spine."
+            },
+            {
+              "name": "Leg Curls (Seated or Lying)",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Concentrate on a strong hamstring contraction. Adjust machine weight to 120-160 lb for the target reps."
+            },
+            {
+              "name": "Walking Lunges (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 reps per leg",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Hold 40-50 lb dumbbells in each hand. Take long strides and focus on stability and glute activation."
+            },
+            {
+              "name": "Standing Calf Raises",
+              "sets": 4,
+              "reps": "10-15 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maximize the stretch at the bottom and squeeze at the top. Use significant weight, e.g., 250-350 lb on a machine."
+            },
+            {
+              "name": "Seated Calf Raises",
+              "sets": 3,
+              "reps": "12-15 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Target the soleus muscle. Use a challenging weight for 12-15 reps, focusing on slow and controlled movements."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Day 4",
+          "focus": "Upper Body (Strength & Hypertrophy)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Incline Barbell Press",
+              "sets": 4,
+              "reps": "6-8 reps",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Aim for 205-255 lb. Focus on driving the bar up and controlling the eccentric. Maintain a slight arch in the back."
+            },
+            {
+              "name": "Lat Pulldowns (Wide Grip)",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Pull the bar to your upper chest, squeezing your lats. Use a challenging weight like 180-220 lb on the machine."
+            },
+            {
+              "name": "Seated Dumbbell Shoulder Press",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Select dumbbells in the 70-90 lb range per hand. Press overhead, maintaining core stability. Avoid leaning back excessively."
+            },
+            {
+              "name": "T-Bar Rows (Chest Supported)",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Allows for excellent back isolation. Load with 180-220 lb, pulling towards your sternum and squeezing your shoulder blades."
+            },
+            {
+              "name": "Weighted Dips",
+              "sets": 3,
+              "reps": "8-10 reps",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Add 45-70 lb of external weight if bodyweight dips are easy. Lean slightly forward to emphasize chest, or stay upright for triceps."
+            },
+            {
+              "name": "Cable Bicep Curls",
+              "sets": 3,
+              "reps": "10-12 reps",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Provides constant tension. Use a straight bar or EZ bar attachment with 80-100 lb on the cable machine. Focus on the peak contraction."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "60s hold",
+              "rest_seconds": 60,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels, bracing your core. Focus on core stability and endurance."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Day 5",
+          "focus": "Rest",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 6,
+          "name": "Day 6",
+          "focus": "Rest",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Day 7",
+          "focus": "Rest",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

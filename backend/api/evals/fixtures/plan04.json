@@ -1,0 +1,296 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan04",
+  "title": "8-Week Intermediate Muscle Gain & Fat Loss Plan (Back-Friendly)",
+  "context": {
+    "duration_weeks": 8,
+    "goal": "lose_fat",
+    "level": "intermediate",
+    "injuries": "I am dealing with some lower back and upper back issue. So have to avoid back heavy excercises like Deadlifts and excercises that strain upper back muscles like overhead press."
+  },
+  "plan": {
+    "title": "8-Week Intermediate Muscle Gain & Fat Loss Plan (Back-Friendly)",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Day 1",
+          "focus": "Upper Body: Chest & Triceps Focus",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Start with dumbbells you can control for 10-12 reps with good form (e.g., 20-30 lb per hand for male intermediate, 10-20 lb for female intermediate). Ensure shoulder blades are retracted and chest is leading the movement. Avoid arching your lower back excessively."
+            },
+            {
+              "name": "Flat Dumbbell Press",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Similar to incline, focus on controlling the weight down and pressing up. (e.g., 25-35 lb per hand for male, 12-22 lb for female). Keep feet flat on the floor for stability."
+            },
+            {
+              "name": "Cable Crossover (Low-to-Mid)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on a strong contraction in the inner and lower chest. Use a weight that allows full range of motion without straining. (e.g., 15-25 lb per side for male, 7.5-15 lb for female)."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep a slight bend in the elbows and lift the dumbbells to shoulder height, leading with the elbows. Avoid shrugging. (e.g., 10-15 lb for male, 5-10 lb for female)."
+            },
+            {
+              "name": "Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain elbows close to the body and extend fully, squeezing the triceps. (e.g., 40-60 lb for male, 20-35 lb for female)."
+            },
+            {
+              "name": "Machine Dips (Assisted if needed)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Adjust assistance as needed to perform 8-12 reps. Focus on a controlled descent and powerful push-up. If no machine, do Close-Grip Push-ups."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Day 2",
+          "focus": "Lower Body: Quads & Hamstrings",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Position feet hip-width apart, ensuring your lower back stays pressed against the pad throughout the movement. Avoid locking out knees at the top. (e.g., 150-250 lb for male, 80-150 lb for female)."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Control the movement, squeezing the quads at the top. Avoid swinging the weight. (e.g., 60-90 lb for male, 30-50 lb for female)."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on a strong contraction in the hamstrings, curling the weight towards your glutes. (e.g., 50-80 lb for male, 25-45 lb for female)."
+            },
+            {
+              "name": "Glute Kickback Machine",
+              "sets": 3,
+              "reps": "12-15 per leg",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on driving through the heel and squeezing the glute at the top of the movement. Maintain a stable core. (e.g., 30-50 lb for male, 15-30 lb for female)."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Go for a full stretch at the bottom and a strong squeeze at the top. (e.g., 80-120 lb for male, 40-70 lb for female)."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-60 seconds hold",
+              "rest_seconds": 45,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels, engaging your core and glutes. Avoid sagging your hips or arching your back."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Day 3",
+          "focus": "Upper Body: Back & Biceps Focus",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on pulling with your lats, driving your elbows down and back. Avoid leaning back excessively. (e.g., 80-120 lb for male, 40-70 lb for female)."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Keep your torso upright and pull the handle towards your lower abdomen, squeezing your shoulder blades together. (e.g., 70-110 lb for male, 35-65 lb for female)."
+            },
+            {
+              "name": "Chest-Supported T-Bar Row",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "This variation removes stress from the lower back. Focus on pulling with your upper back and squeezing. (e.g., 2-3 plates for male, 1-2 plates for female)."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Engage your rear delts and upper back, pulling the handles apart. Keep the movement controlled. (e.g., 30-50 lb for male, 15-30 lb for female)."
+            },
+            {
+              "name": "Dumbbell Bicep Curls",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Keep elbows tucked in and curl the dumbbells upwards, squeezing the bicep. Avoid swinging. (e.g., 17.5-25 lb per hand for male, 7.5-15 lb for female)."
+            },
+            {
+              "name": "Hammer Curls",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Perform with a neutral grip (palms facing each other) to target the brachialis and brachioradialis. (e.g., 15-22.5 lb per hand for male, 7.5-12.5 lb for female)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Day 4",
+          "focus": "Full Body / Accessory & Core",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Goblet Squat (Bodyweight or Light Dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Hold a light dumbbell or kettlebell against your chest. Focus on depth and keeping your chest up, distributing weight evenly through your feet. Prioritize form and only do if pain-free. (e.g., bodyweight to 20-30 lb dumbbell)."
+            },
+            {
+              "name": "Single Arm Dumbbell Row (Supported)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Support yourself on a bench with one hand and knee. Keep your back flat and pull the dumbbell towards your hip, squeezing your shoulder blade. (e.g., 20-35 lb for male, 10-20 lb for female)."
+            },
+            {
+              "name": "Push-ups (on Knees or Elevated if needed)",
+              "sets": 3,
+              "reps": "As many reps as possible (AMRAP) to failure",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim for controlled reps. If full push-ups are too challenging, use knee push-ups or place hands on an elevated surface."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a rope attachment, pulling towards your face, externally rotating your shoulders. Excellent for upper back health and posture. (e.g., 30-50 lb for male, 15-30 lb for female)."
+            },
+            {
+              "name": "Bird-Dog",
+              "sets": 3,
+              "reps": "10-12 per side",
+              "rest_seconds": 45,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Slow and controlled movement. Keep your core tight and back stable, extending opposite arm and leg without rotating your hips."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 3,
+              "reps": "30-45 seconds per side",
+              "rest_seconds": 45,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels. Engage your obliques and glutes."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Day 5",
+          "focus": "Cardio & Active Recovery",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Moderate Intensity Cardio (Elliptical, Bike, or Brisk Walk)",
+              "sets": 1,
+              "reps": "30-45 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Maintain a steady pace where you can talk but feel slightly out of breath. Focus on calorie expenditure and cardiovascular health without stressing the back."
+            },
+            {
+              "name": "Dynamic Stretching / Mobility Routine",
+              "sets": 1,
+              "reps": "15 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Perform light leg swings, arm circles, cat-cow, thoracic rotations, and other movements to improve flexibility and aid recovery. Listen to your body and avoid any movements that cause back pain."
+            },
+            {
+              "name": "Light Band Pull-Aparts",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light resistance band, pulling it apart with straight arms. Focus on squeezing your shoulder blades together. Good for shoulder health and posture."
+            },
+            {
+              "name": "Glute Bridges",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Lie on your back, knees bent, feet flat. Lift your hips off the ground by squeezing your glutes. Avoid over-arching your lower back. Great for glute activation and lower back support."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Day 6",
+          "focus": "Rest",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Day 7",
+          "focus": "Rest",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

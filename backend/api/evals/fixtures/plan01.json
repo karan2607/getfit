@@ -1,0 +1,271 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan01",
+  "title": "8-Week Intermediate Fat Loss Full Gym Plan",
+  "context": {
+    "duration_weeks": 8,
+    "goal": "maintain",
+    "level": "intermediate",
+    "injuries": ""
+  },
+  "plan": {
+    "title": "8-Week Intermediate Fat Loss Full Gym Plan",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Monday",
+          "focus": "Lower Body & Core Strength",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Barbell Back Squat",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "As an intermediate with good muscle mass, focus on deep, controlled movements. Aim for a weight challenging enough by the last 2-3 reps. Start with 115-165 lb, adjusting as needed based on your current strength and form."
+            },
+            {
+              "name": "Romanian Deadlift (RDL)",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Emphasize hamstring stretch and glute contraction. Keep a slight bend in the knees and a flat back. Try starting with 95-135 lb."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Control the negative phase and avoid locking out your knees at the top. Use a weight where you feel a strong quad and glute engagement. Begin with 180-270 lb."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on the quad squeeze at the top. Higher reps here promote metabolic stress for fat loss. Start with 70-100 lb."
+            },
+            {
+              "name": "Hamstring Curl (Lying or Seated)",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Isolate the hamstrings. Squeeze hard at the peak contraction. Begin with 60-90 lb."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-60 sec",
+              "rest_seconds": 45,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels. Engage your core, avoid sagging hips. Hold for the recommended time."
+            },
+            {
+              "name": "Russian Twists",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Perform with or without a medicine ball. Focus on controlled rotation, not just arm movement. Try with a 10-20 lb medicine ball or bodyweight."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Tuesday",
+          "focus": "Upper Body Push Strength & Hypertrophy",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on upper chest activation. Lower dumbbells with control, press powerfully. Start with 25-40 lb per hand."
+            },
+            {
+              "name": "Barbell Bench Press",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Ensure proper arch and shoulder retraction for stability. Focus on a controlled descent. Start with 95-135 lb, adjusting for your strength level."
+            },
+            {
+              "name": "Seated Dumbbell Overhead Press",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Press vertically, avoiding excessive back arch. Control the weight throughout the movement. Start with 20-30 lb per hand."
+            },
+            {
+              "name": "Lateral Raises (Dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lead with elbows, maintain a slight bend in the arm, feel it in the side deltoids. Avoid shrugging. Begin with 10-15 lb per hand."
+            },
+            {
+              "name": "Triceps Pushdown (Rope or Bar)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Fully extend the triceps, squeeze at the bottom. Keep elbows tucked close to your body. Start with 40-70 lb."
+            },
+            {
+              "name": "Dumbbell Flyes",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on a deep stretch in the chest, with a slight bend in the elbows. Controlled movement is key. Try 20-30 lb per hand."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Wednesday",
+          "focus": "Rest & Active Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 4,
+          "name": "Thursday",
+          "focus": "Upper Body Pull Strength & Hypertrophy",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on pulling with your back muscles, not just your arms. Squeeze shoulder blades at the bottom. Start with 80-120 lb."
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain an upright posture, pull to the lower abdomen. Feel the squeeze in your mid-back. Start with 80-120 lb."
+            },
+            {
+              "name": "Assisted Pull-ups or Machine Pulldown (Close Grip)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If performing assisted pull-ups, use assistance that allows for controlled reps. If using a machine, focus on back contraction. For assisted pull-ups, aim for 30-60 lb assist. For machine, use 70-110 lb."
+            },
+            {
+              "name": "Face Pulls",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Important for shoulder health and posture. Pull towards your face, externally rotating at the top. Start with 30-50 lb."
+            },
+            {
+              "name": "Bent-Over Dumbbell Rows",
+              "sets": 3,
+              "reps": "10-15 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Support yourself with one hand on a bench, keep your back flat and core engaged. Pull with the lats. Start with 30-45 lb per hand."
+            },
+            {
+              "name": "Dumbbell Bicep Curls",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 45,
+              "measurement_type": "weight_reps",
+              "notes": "Control the eccentric (lowering) phase. Avoid swinging and maintain good form. Alternate arms or curl simultaneously. Start with 15-25 lb per hand."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Friday",
+          "focus": "Rest & Active Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 6,
+          "name": "Saturday",
+          "focus": "Full Body Metabolic Conditioning",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Goblet Squat",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Hold a dumbbell or kettlebell against your chest. Focus on depth and keeping your chest up. Use a 30-50 lb dumbbell or kettlebell."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "As many reps as possible",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform on knees if needed, or elevate your hands to a bench for easier variation. Maximize reps with good form. This is a bodyweight exercise."
+            },
+            {
+              "name": "Dumbbell Rows (Alternating)",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain a bent-over position with a flat back, engage your core. Pull one arm at a time. Start with 30-45 lb per hand."
+            },
+            {
+              "name": "Walking Lunges (Dumbbell)",
+              "sets": 3,
+              "reps": "10-12 per leg",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Take long strides, lower until your back knee almost touches the floor. Keep your torso upright. Hold 15-25 lb dumbbells per hand."
+            },
+            {
+              "name": "Kettlebell Swings (American or Russian)",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on powerful hip drive, not arm lifting. Hinge at the hips, explode forward. Start with a 25-45 lb kettlebell."
+            },
+            {
+              "name": "Mountain Climbers",
+              "sets": 3,
+              "reps": "30-45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Maintain a strong plank position, drive knees to chest rhythmically. Keep core tight. Perform for the recommended time."
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "name": "Sunday",
+          "focus": "Rest & Active Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,574 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan06",
+  "title": "Hybrid Strength & Fat Loss Program (Machine Focused)",
+  "context": {
+    "duration_weeks": 2,
+    "goal": "lose_fat",
+    "level": "intermediate",
+    "injuries": "I am dealing with some lower back and upper back issue. So have to avoid back heavy excercises like Deadlifts and excercises that strain upper back muscles like overhead press."
+  },
+  "plan": {
+    "title": "Hybrid Strength & Fat Loss Program (Machine Focused)",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Strength (Push Focus) & Metabolic Finisher",
+          "focus": "Chest, Shoulders (anterior/lateral), Triceps, Core",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x, thoracic rotation 10x each, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 30lb. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 100lb. Add 5-10lb when all sets completed with good form. Focus on controlled movement and full range."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Focus on a good stretch and squeeze."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 15lb. Add 2.5lb when all sets completed with good form."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 40lb. Add 5lb when all sets completed with good form. Maintain elbows tucked and focus on triceps contraction."
+            },
+            {
+              "name": "Metabolic Finisher: Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Alternate between 1 minute high-intensity sprint/jog and 1 minute brisk walk for 10-15 minutes. Adjust speed/incline as needed."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Strength (Quad/Glute Focus) & Metabolic Finisher",
+          "focus": "Quads, Glutes, Hamstrings, Calves",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x each, bodyweight squats 10x, ankle rolls 30s each, cat-cow 10x, child's pose 30s, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Front Barbell Squats",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 95lb. Add 5-10lb when all sets completed with good form. Focus on keeping an upright torso, elbows high, and core braced to protect your back. Prioritize form over weight."
+            },
+            {
+              "name": "Dumbbell Bulgarian Split Squat",
+              "sets": 3,
+              "reps": "10-12 each leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 20lb dumbbells. Add 2.5-5lb when all sets completed with good form. Focus on balance and depth."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 70lb. Add 5lb when all sets completed with good form."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 60lb. Add 5lb when all sets completed with good form."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 90lb. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Metabolic Finisher: Farmer's Carry",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "weight_duration",
+              "notes": "Hold heavy dumbbells or kettlebells in each hand, walk for distance/time. Maintain upright posture, braced core. Work for 10-15 minutes, taking short breaks as needed."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 4,
+          "name": "Upper Body Strength (Pull Focus) & Metabolic Finisher",
+          "focus": "Back, Biceps, Rear Delts, Core",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x, thoracic rotation 10x each, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 100lb. Add 5-10lb when all sets completed with good form. Avoid excessive leaning or arching to protect the lower back."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 90lb. Add 5-10lb when all sets completed with good form. Maintain neutral spine to protect lower back."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 30lb. Add 2.5-5lb when all sets completed with good form. Focus on scapular retraction to target rear delts and upper back."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 25lb. Add 2.5-5lb when all sets completed with good form. Pull towards face, focusing on external rotation and rear delt contraction."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar/EZ Bar Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 40lb. Add 5lb when all sets completed with good form. Focus on controlled eccentric and peak contraction."
+            },
+            {
+              "name": "Metabolic Finisher: Burpees",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform burpees continuously for 10-15 minutes, taking short breaks as needed. Focus on controlled movement and avoid excessive lumbar extension."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Lower Body Strength (Hamstring/Glute Focus) & Metabolic Finisher",
+          "focus": "Hamstrings, Glutes, Core, Abs",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x each, bodyweight squats 10x, ankle rolls 30s each, cat-cow 10x, child's pose 30s, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Barbell Hip Thrust",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 135lb. Add 10-20lb when all sets completed with good form. Use a pad for comfort. Focus on glute squeeze at the top, maintaining a neutral spine and core brace to protect the lower back. Prioritize form over weight."
+            },
+            {
+              "name": "Cable Pull-Through",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Focus on glute contraction and hinge mechanics, avoiding lower back strain."
+            },
+            {
+              "name": "Cable Glute Kickbacks",
+              "sets": 3,
+              "reps": "12-15 each leg",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 20lb. Add 2.5-5lb when all sets completed with good form. Focus on squeezing the glute at the top of the movement. Maintain a stable core and avoid arching your back."
+            },
+            {
+              "name": "Standing Cable Abduction",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 15lb. Add 2.5lb when all sets completed with good form. Focus on glute medius activation."
+            },
+            {
+              "name": "Cable Ab Crunches",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Control the movement, avoid jerking."
+            },
+            {
+              "name": "Metabolic Finisher: Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Set treadmill to 10-15% incline at a brisk walking pace. Maintain consistent effort for 10-15 minutes."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Strength (Push Focus) & Metabolic Finisher",
+          "focus": "Chest, Shoulders (anterior/lateral), Triceps, Core",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x, thoracic rotation 10x each, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 30lb. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 100lb. Add 5-10lb when all sets completed with good form. Focus on controlled movement and full range."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Focus on a good stretch and squeeze."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 15lb. Add 2.5lb when all sets completed with good form."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 40lb. Add 5lb when all sets completed with good form. Maintain elbows tucked and focus on triceps contraction."
+            },
+            {
+              "name": "Metabolic Finisher: Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Alternate between 1 minute high-intensity sprint/jog and 1 minute brisk walk for 10-15 minutes. Adjust speed/incline as needed."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Strength (Quad/Glute Focus) & Metabolic Finisher",
+          "focus": "Quads, Glutes, Hamstrings, Calves",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x each, bodyweight squats 10x, ankle rolls 30s each, cat-cow 10x, child's pose 30s, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Front Barbell Squats",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 95lb. Add 5-10lb when all sets completed with good form. Focus on keeping an upright torso, elbows high, and core braced to protect your back. Prioritize form over weight."
+            },
+            {
+              "name": "Dumbbell Bulgarian Split Squat",
+              "sets": 3,
+              "reps": "10-12 each leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 20lb dumbbells. Add 2.5-5lb when all sets completed with good form. Focus on balance and depth."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 70lb. Add 5lb when all sets completed with good form."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 60lb. Add 5lb when all sets completed with good form."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 90lb. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Metabolic Finisher: Farmer's Carry",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "weight_duration",
+              "notes": "Hold heavy dumbbells or kettlebells in each hand, walk for distance/time. Maintain upright posture, braced core. Work for 10-15 minutes, taking short breaks as needed."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 4,
+          "name": "Upper Body Strength (Pull Focus) & Metabolic Finisher",
+          "focus": "Back, Biceps, Rear Delts, Core",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x, thoracic rotation 10x each, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 100lb. Add 5-10lb when all sets completed with good form. Avoid excessive leaning or arching to protect the lower back."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 90lb. Add 5-10lb when all sets completed with good form. Maintain neutral spine to protect lower back."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 30lb. Add 2.5-5lb when all sets completed with good form. Focus on scapular retraction to target rear delts and upper back."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 25lb. Add 2.5-5lb when all sets completed with good form. Pull towards face, focusing on external rotation and rear delt contraction."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar/EZ Bar Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 40lb. Add 5lb when all sets completed with good form. Focus on controlled eccentric and peak contraction."
+            },
+            {
+              "name": "Metabolic Finisher: Burpees",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform burpees continuously for 10-15 minutes, taking short breaks as needed. Focus on controlled movement and avoid excessive lumbar extension."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Lower Body Strength (Hamstring/Glute Focus) & Metabolic Finisher",
+          "focus": "Hamstrings, Glutes, Core, Abs",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x each, bodyweight squats 10x, ankle rolls 30s each, cat-cow 10x, child's pose 30s, hip flexor stretch 30s each"
+            },
+            {
+              "name": "Barbell Hip Thrust",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start 135lb. Add 10-20lb when all sets completed with good form. Use a pad for comfort. Focus on glute squeeze at the top, maintaining a neutral spine and core brace to protect the lower back. Prioritize form over weight."
+            },
+            {
+              "name": "Cable Pull-Through",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Focus on glute contraction and hinge mechanics, avoiding lower back strain."
+            },
+            {
+              "name": "Cable Glute Kickbacks",
+              "sets": 3,
+              "reps": "12-15 each leg",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 20lb. Add 2.5-5lb when all sets completed with good form. Focus on squeezing the glute at the top of the movement. Maintain a stable core and avoid arching your back."
+            },
+            {
+              "name": "Standing Cable Abduction",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 15lb. Add 2.5lb when all sets completed with good form. Focus on glute medius activation."
+            },
+            {
+              "name": "Cable Ab Crunches",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start 50lb. Add 5lb when all sets completed with good form. Control the movement, avoid jerking."
+            },
+            {
+              "name": "Metabolic Finisher: Incline Treadmill Walk",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Set treadmill to 10-15% incline at a brisk walking pace. Maintain consistent effort for 10-15 minutes."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

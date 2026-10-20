@@ -1,0 +1,1680 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan03",
+  "title": "6-Week Beginner Fat Loss Home Gym Workout",
+  "context": {
+    "duration_weeks": 6,
+    "goal": "lose_fat",
+    "level": "beginner",
+    "injuries": ""
+  },
+  "plan": {
+    "title": "6-Week Beginner Fat Loss Home Gym Workout",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Week 1, Day 1",
+          "focus": "Full Body (Foundation A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 10-15 lb for females, 15-25 lb for males. Focus on deep squatting while keeping your chest up and core engaged."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-10 lb dumbbells per hand for females, 10-20 lb for males. Lie on your back, press dumbbells straight up."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-10 lb dumbbell for females, 10-15 lb for males. Hinge at hips, keep back flat, pull elbow towards ceiling."
+            },
+            {
+              "name": "Resistance Band Pull-Apart",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light to medium resistance band. Pull the band apart across your chest, squeezing your shoulder blades together."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels, engage your core and glutes."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Week 1, Day 2",
+          "focus": "Full Body (Foundation B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Reverse Lunge",
+              "sets": 3,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with bodyweight or 5-10 lb per hand for females, 10-15 lb for males. Step back, lower until both knees are bent at 90 degrees."
+            },
+            {
+              "name": "Push-up (Kneeling or Incline)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "If standard push-ups are too challenging, start on your knees or with hands on an elevated surface. Focus on controlled movement."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-8 lb dumbbells for females, 10-15 lb for males. Keep elbows tucked in and avoid swinging."
+            },
+            {
+              "name": "Dumbbell Overhead Tricep Extension (single dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 8-12 lb dumbbell for females, 15-20 lb for males. Keep elbows close to your head, extend arm fully."
+            },
+            {
+              "name": "Russian Twist",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with bodyweight or hold a 5-10 lb dumbbell. Rotate your torso, touching the weight or hands to the floor beside you."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Week 1, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 4,
+          "name": "Week 1, Day 4",
+          "focus": "Full Body (Foundation A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 10-15 lb for females, 15-25 lb for males. Focus on deep squatting while keeping your chest up and core engaged."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-10 lb dumbbells per hand for females, 10-20 lb for males. Lie on your back, press dumbbells straight up."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-10 lb dumbbell for females, 10-15 lb for males. Hinge at hips, keep back flat, pull elbow towards ceiling."
+            },
+            {
+              "name": "Resistance Band Pull-Apart",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light to medium resistance band. Pull the band apart across your chest, squeezing your shoulder blades together."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "duration",
+              "notes": "Maintain a straight line from head to heels, engage your core and glutes."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Week 1, Day 5",
+          "focus": "Full Body (Foundation B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Reverse Lunge",
+              "sets": 3,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Start with bodyweight or 5-10 lb per hand for females, 10-15 lb for males. Step back, lower until both knees are bent at 90 degrees."
+            },
+            {
+              "name": "Push-up (Kneeling or Incline)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "If standard push-ups are too challenging, start on your knees or with hands on an elevated surface. Focus on controlled movement."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 5-8 lb dumbbells for females, 10-15 lb for males. Keep elbows tucked in and avoid swinging."
+            },
+            {
+              "name": "Dumbbell Overhead Tricep Extension (single dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with 8-12 lb dumbbell for females, 15-20 lb for males. Keep elbows close to your head, extend arm fully."
+            },
+            {
+              "name": "Russian Twist",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Start with bodyweight or hold a 5-10 lb dumbbell. Rotate your torso, touching the weight or hands to the floor beside you."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Week 1, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Week 1, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 8,
+          "name": "Week 2, Day 1",
+          "focus": "Full Body (Foundation A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 10-15 lb for females, 15-25 lb for males). Focus on deep squatting while keeping your chest up and core engaged."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand if form is perfect (e.g., 5-10 lb dumbbells per hand for females, 10-20 lb for males). Lie on your back, press dumbbells straight up."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 5-10 lb dumbbell for females, 10-15 lb for males). Hinge at hips, keep back flat, pull elbow towards ceiling."
+            },
+            {
+              "name": "Resistance Band Pull-Apart",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light to medium resistance band. Pull the band apart across your chest, squeezing your shoulder blades together."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "duration",
+              "notes": "Aim to hold for slightly longer (e.g., 5-10 seconds) or maintain perfect form. Maintain a straight line from head to heels, engage your core and glutes."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 9,
+          "name": "Week 2, Day 2",
+          "focus": "Full Body (Foundation B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Reverse Lunge",
+              "sets": 3,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand if form is perfect (e.g., bodyweight or 5-10 lb per hand for females, 10-15 lb for males). Step back, lower until both knees are bent at 90 degrees."
+            },
+            {
+              "name": "Push-up (Kneeling or Incline)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim for slightly more reps or a slightly more challenging variation (e.g., lower incline, less support). Focus on controlled movement."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 5-8 lb dumbbells for females, 10-15 lb for males). Keep elbows tucked in and avoid swinging."
+            },
+            {
+              "name": "Dumbbell Overhead Tricep Extension (single dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 8-12 lb dumbbell for females, 15-20 lb for males). Keep elbows close to your head, extend arm fully."
+            },
+            {
+              "name": "Russian Twist",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or use a slightly heavier dumbbell (e.g., 5-10 lb). Rotate your torso, touching the weight or hands to the floor beside you."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 10,
+          "name": "Week 2, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 11,
+          "name": "Week 2, Day 4",
+          "focus": "Full Body (Foundation A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 10-15 lb for females, 15-25 lb for males). Focus on deep squatting while keeping your chest up and core engaged."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand if form is perfect (e.g., 5-10 lb dumbbells per hand for females, 10-20 lb for males). Lie on your back, press dumbbells straight up."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 3,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 5-10 lb dumbbell for females, 10-15 lb for males). Hinge at hips, keep back flat, pull elbow towards ceiling."
+            },
+            {
+              "name": "Resistance Band Pull-Apart",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light to medium resistance band. Pull the band apart across your chest, squeezing your shoulder blades together."
+            },
+            {
+              "name": "Plank",
+              "sets": 3,
+              "reps": "30-45 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "duration",
+              "notes": "Aim to hold for slightly longer (e.g., 5-10 seconds) or maintain perfect form. Maintain a straight line from head to heels, engage your core and glutes."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 12,
+          "name": "Week 2, Day 5",
+          "focus": "Full Body (Foundation B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Reverse Lunge",
+              "sets": 3,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand if form is perfect (e.g., bodyweight or 5-10 lb per hand for females, 10-15 lb for males). Step back, lower until both knees are bent at 90 degrees."
+            },
+            {
+              "name": "Push-up (Kneeling or Incline)",
+              "sets": 3,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim for slightly more reps or a slightly more challenging variation (e.g., lower incline, less support). Focus on controlled movement."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 5-8 lb dumbbells for females, 10-15 lb for males). Keep elbows tucked in and avoid swinging."
+            },
+            {
+              "name": "Dumbbell Overhead Tricep Extension (single dumbbell)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb if form is perfect (e.g., 8-12 lb dumbbell for females, 15-20 lb for males). Keep elbows close to your head, extend arm fully."
+            },
+            {
+              "name": "Russian Twist",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or use a slightly heavier dumbbell (e.g., 5-10 lb). Rotate your torso, touching the weight or hands to the floor beside you."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 13,
+          "name": "Week 2, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 14,
+          "name": "Week 2, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 15,
+          "name": "Week 3, Day 1",
+          "focus": "Full Body (Progression A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb from previous weeks (e.g., 15-20 lb females, 20-30 lb males). Focus on controlled descent and powerful ascent."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb per hand (e.g., 10-15 lb per hand females, 15-25 lb per hand males). Keep elbows slightly tucked."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb (e.g., 10-15 lb females, 15-20 lb males). Maintain a stable core and flat back."
+            },
+            {
+              "name": "Dumbbell Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 3-5 lb per hand for females, 5-8 lb for males. Raise arms to shoulder height with a slight bend in the elbows."
+            },
+            {
+              "name": "Bird-Dog",
+              "sets": 3,
+              "reps": "10-12 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Focus on stability, extending opposite arm and leg without shifting hips or arching back."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 16,
+          "name": "Week 3, Day 2",
+          "focus": "Full Body (Progression B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Step-Up (or Reverse Lunge if no bench)",
+              "sets": 4,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If using step-ups, use a sturdy chair or box. Hold 5-10 lb per hand for females, 10-15 lb for males. If performing lunges, increase weight from previous weeks."
+            },
+            {
+              "name": "Push-up (Standard or Incline)",
+              "sets": 4,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Progress to standard push-ups on toes if possible. If not, continue with incline or kneeling, aiming for more reps or a lower incline."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb from bicep curls (e.g., 8-10 lb females, 12-18 lb males). Keep palms facing each other."
+            },
+            {
+              "name": "Dumbbell Tricep Kickback",
+              "sets": 3,
+              "reps": "12-15 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 5-8 lb for females, 8-12 lb for males. Keep upper arm stationary, extend forearm back."
+            },
+            {
+              "name": "Leg Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lie on your back, keeping your lower back pressed into the floor. Raise legs straight up and slowly lower."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 17,
+          "name": "Week 3, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 18,
+          "name": "Week 3, Day 4",
+          "focus": "Full Body (Progression A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb from previous weeks (e.g., 15-20 lb females, 20-30 lb males). Focus on controlled descent and powerful ascent."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb per hand (e.g., 10-15 lb per hand females, 15-25 lb per hand males). Keep elbows slightly tucked."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb (e.g., 10-15 lb females, 15-20 lb males). Maintain a stable core and flat back."
+            },
+            {
+              "name": "Dumbbell Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 3-5 lb per hand for females, 5-8 lb for males. Raise arms to shoulder height with a slight bend in the elbows."
+            },
+            {
+              "name": "Bird-Dog",
+              "sets": 3,
+              "reps": "10-12 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Focus on stability, extending opposite arm and leg without shifting hips or arching back."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 19,
+          "name": "Week 3, Day 5",
+          "focus": "Full Body (Progression B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Step-Up (or Reverse Lunge if no bench)",
+              "sets": 4,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If using step-ups, use a sturdy chair or box. Hold 5-10 lb per hand for females, 10-15 lb for males. If performing lunges, increase weight from previous weeks."
+            },
+            {
+              "name": "Push-up (Standard or Incline)",
+              "sets": 4,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Progress to standard push-ups on toes if possible. If not, continue with incline or kneeling, aiming for more reps or a lower incline."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight by 2.5-5 lb from bicep curls (e.g., 8-10 lb females, 12-18 lb males). Keep palms facing each other."
+            },
+            {
+              "name": "Dumbbell Tricep Kickback",
+              "sets": 3,
+              "reps": "12-15 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 5-8 lb for females, 8-12 lb for males. Keep upper arm stationary, extend forearm back."
+            },
+            {
+              "name": "Leg Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Lie on your back, keeping your lower back pressed into the floor. Raise legs straight up and slowly lower."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 20,
+          "name": "Week 3, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 21,
+          "name": "Week 3, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 22,
+          "name": "Week 4, Day 1",
+          "focus": "Full Body (Progression A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from previous weeks (e.g., 15-20 lb females, 20-30 lb males). Focus on controlled descent and powerful ascent."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand (e.g., 10-15 lb per hand females, 15-25 lb per hand males). Keep elbows slightly tucked."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 10-15 lb females, 15-20 lb males). Maintain a stable core and flat back."
+            },
+            {
+              "name": "Dumbbell Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 3-5 lb per hand for females, 5-8 lb for males. Raise arms to shoulder height with a slight bend in the elbows."
+            },
+            {
+              "name": "Bird-Dog",
+              "sets": 3,
+              "reps": "10-12 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Focus on stability, extending opposite arm and leg without shifting hips or arching back."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 23,
+          "name": "Week 4, Day 2",
+          "focus": "Full Body (Progression B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Step-Up (or Reverse Lunge if no bench)",
+              "sets": 4,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If using step-ups, use a sturdy chair or box. Hold 5-10 lb per hand for females, 10-15 lb for males. If performing lunges, aim to slightly increase weight from previous weeks."
+            },
+            {
+              "name": "Push-up (Standard or Incline)",
+              "sets": 4,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim for slightly more reps or a more challenging variation. Progress to standard push-ups on toes if possible."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from bicep curls (e.g., 8-10 lb females, 12-18 lb males). Keep palms facing each other."
+            },
+            {
+              "name": "Dumbbell Tricep Kickback",
+              "sets": 3,
+              "reps": "12-15 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 5-8 lb for females, 8-12 lb for males. Keep upper arm stationary, extend forearm back."
+            },
+            {
+              "name": "Leg Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or ensure strict form. Lie on your back, keeping your lower back pressed into the floor. Raise legs straight up and slowly lower."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 24,
+          "name": "Week 4, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 25,
+          "name": "Week 4, Day 4",
+          "focus": "Full Body (Progression A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, jumping jacks)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Goblet Squat",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from previous weeks (e.g., 15-20 lb females, 20-30 lb males). Focus on controlled descent and powerful ascent."
+            },
+            {
+              "name": "Dumbbell Floor Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb per hand (e.g., 10-15 lb per hand females, 15-25 lb per hand males). Keep elbows slightly tucked."
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 10-15 lb females, 15-20 lb males). Maintain a stable core and flat back."
+            },
+            {
+              "name": "Dumbbell Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 3-5 lb per hand for females, 5-8 lb for males. Raise arms to shoulder height with a slight bend in the elbows."
+            },
+            {
+              "name": "Bird-Dog",
+              "sets": 3,
+              "reps": "10-12 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Focus on stability, extending opposite arm and leg without shifting hips or arching back."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 26,
+          "name": "Week 4, Day 5",
+          "focus": "Full Body (Progression B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, high knees)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Prepare your body for exercise with light cardio and dynamic movements."
+            },
+            {
+              "name": "Dumbbell Step-Up (or Reverse Lunge if no bench)",
+              "sets": 4,
+              "reps": "10-12 per leg",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If using step-ups, use a sturdy chair or box. Hold 5-10 lb per hand for females, 10-15 lb for males. If performing lunges, aim to slightly increase weight from previous weeks."
+            },
+            {
+              "name": "Push-up (Standard or Incline)",
+              "sets": 4,
+              "reps": "8-12",
+              "rest_seconds": 75,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim for slightly more reps or a more challenging variation. Progress to standard push-ups on toes if possible."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from bicep curls (e.g., 8-10 lb females, 12-18 lb males). Keep palms facing each other."
+            },
+            {
+              "name": "Dumbbell Tricep Kickback",
+              "sets": 3,
+              "reps": "12-15 per arm",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells, 5-8 lb for females, 8-12 lb for males. Keep upper arm stationary, extend forearm back."
+            },
+            {
+              "name": "Leg Raise",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or ensure strict form. Lie on your back, keeping your lower back pressed into the floor. Raise legs straight up and slowly lower."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 27,
+          "name": "Week 4, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 28,
+          "name": "Week 4, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 29,
+          "name": "Week 5, Day 1",
+          "focus": "Full Body (Advanced A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Sumo Squat",
+              "sets": 4,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Hold one heavier dumbbell (e.g., 20-30 lb females, 30-45 lb males). Adopt a wide stance with toes pointed out, focusing on glutes and inner thighs."
+            },
+            {
+              "name": "Dumbbell Push-up (hands on dumbbells or feet elevated)",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If stable, perform push-ups with hands on dumbbells for a deeper stretch. For more challenge, elevate your feet."
+            },
+            {
+              "name": "Single-Arm Dumbbell Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight (e.g., 12-18 lb females, 18-25 lb males). Brace yourself on a bench or sturdy surface for stability."
+            },
+            {
+              "name": "Dumbbell Front Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (3-5 lb per hand females, 5-8 lb males). Raise dumbbells straight in front of you to shoulder height."
+            },
+            {
+              "name": "Mountain Climber",
+              "sets": 3,
+              "reps": "45-60 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform this as a conditioning exercise. Keep your core tight and drive knees to chest rapidly."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 30,
+          "name": "Week 5, Day 2",
+          "focus": "Full Body (Advanced B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift (RDL)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use moderate dumbbells (10-20 lb per hand females, 20-30 lb per hand males). Keep a slight bend in knees, hinge at hips, feeling the stretch in hamstrings."
+            },
+            {
+              "name": "Dumbbell Thruster",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (5-10 lb per hand females, 10-15 lb per hand males). Combine a deep squat with an overhead press in one fluid movement."
+            },
+            {
+              "name": "Resistance Band Bicep Curl",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a resistance band that provides good tension throughout the movement. Focus on a high rep count for muscle endurance."
+            },
+            {
+              "name": "Dumbbell Skullcrusher",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use moderate dumbbells (5-8 lb per hand females, 10-15 lb per hand males). Lie on the floor, lowering dumbbells towards your forehead by bending elbows."
+            },
+            {
+              "name": "Bicycle Crunch",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Lie on your back, bring opposite elbow to knee, rotating through the core. Keep the movement controlled."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 31,
+          "name": "Week 5, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 32,
+          "name": "Week 5, Day 4",
+          "focus": "Full Body (Advanced A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Sumo Squat",
+              "sets": 4,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Hold one heavier dumbbell (e.g., 20-30 lb females, 30-45 lb males). Adopt a wide stance with toes pointed out, focusing on glutes and inner thighs."
+            },
+            {
+              "name": "Dumbbell Push-up (hands on dumbbells or feet elevated)",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If stable, perform push-ups with hands on dumbbells for a deeper stretch. For more challenge, elevate your feet."
+            },
+            {
+              "name": "Single-Arm Dumbbell Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase weight (e.g., 12-18 lb females, 18-25 lb males). Brace yourself on a bench or sturdy surface for stability."
+            },
+            {
+              "name": "Dumbbell Front Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (3-5 lb per hand females, 5-8 lb males). Raise dumbbells straight in front of you to shoulder height."
+            },
+            {
+              "name": "Mountain Climber",
+              "sets": 3,
+              "reps": "45-60 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform this as a conditioning exercise. Keep your core tight and drive knees to chest rapidly."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 33,
+          "name": "Week 5, Day 5",
+          "focus": "Full Body (Advanced B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift (RDL)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use moderate dumbbells (10-20 lb per hand females, 20-30 lb per hand males). Keep a slight bend in knees, hinge at hips, feeling the stretch in hamstrings."
+            },
+            {
+              "name": "Dumbbell Thruster",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (5-10 lb per hand females, 10-15 lb per hand males). Combine a deep squat with an overhead press in one fluid movement."
+            },
+            {
+              "name": "Resistance Band Bicep Curl",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a resistance band that provides good tension throughout the movement. Focus on a high rep count for muscle endurance."
+            },
+            {
+              "name": "Dumbbell Skullcrusher",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use moderate dumbbells (5-8 lb per hand females, 10-15 lb per hand males). Lie on the floor, lowering dumbbells towards your forehead by bending elbows."
+            },
+            {
+              "name": "Bicycle Crunch",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Lie on your back, bring opposite elbow to knee, rotating through the core. Keep the movement controlled."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 34,
+          "name": "Week 5, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 35,
+          "name": "Week 5, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 36,
+          "name": "Week 6, Day 1",
+          "focus": "Full Body (Advanced A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Sumo Squat",
+              "sets": 4,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from previous weeks (e.g., 20-30 lb females, 30-45 lb males). Adopt a wide stance with toes pointed out, focusing on glutes and inner thighs."
+            },
+            {
+              "name": "Dumbbell Push-up (hands on dumbbells or feet elevated)",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps. If stable, perform push-ups with hands on dumbbells for a deeper stretch. For more challenge, elevate your feet."
+            },
+            {
+              "name": "Single-Arm Dumbbell Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 12-18 lb females, 18-25 lb males). Brace yourself on a bench or sturdy surface for stability."
+            },
+            {
+              "name": "Dumbbell Front Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (3-5 lb per hand females, 5-8 lb males). Raise dumbbells straight in front of you to shoulder height."
+            },
+            {
+              "name": "Mountain Climber",
+              "sets": 3,
+              "reps": "45-60 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform this as a conditioning exercise. Aim to maintain effort or slightly increase speed. Keep your core tight and drive knees to chest rapidly."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 37,
+          "name": "Week 6, Day 2",
+          "focus": "Full Body (Advanced B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift (RDL)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 10-20 lb per hand females, 20-30 lb per hand males). Keep a slight bend in knees, hinge at hips, feeling the stretch in hamstrings."
+            },
+            {
+              "name": "Dumbbell Thruster",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (5-10 lb per hand females, 10-15 lb per hand males). Combine a deep squat with an overhead press in one fluid movement. Aim for fluid motion."
+            },
+            {
+              "name": "Resistance Band Bicep Curl",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a resistance band that provides good tension throughout the movement. Focus on a high rep count for muscle endurance. Aim to increase tension or reps."
+            },
+            {
+              "name": "Dumbbell Skullcrusher",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 5-8 lb per hand females, 10-15 lb per hand males). Lie on the floor, lowering dumbbells towards your forehead by bending elbows."
+            },
+            {
+              "name": "Bicycle Crunch",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim to slightly increase reps or ensure strict form. Lie on your back, bring opposite elbow to knee, rotating through the core. Keep the movement controlled."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 38,
+          "name": "Week 6, Day 3",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 39,
+          "name": "Week 6, Day 4",
+          "focus": "Full Body (Advanced A)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Sumo Squat",
+              "sets": 4,
+              "reps": "12-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb from previous weeks (e.g., 20-30 lb females, 30-45 lb males). Adopt a wide stance with toes pointed out, focusing on glutes and inner thighs."
+            },
+            {
+              "name": "Dumbbell Push-up (hands on dumbbells or feet elevated)",
+              "sets": 4,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps. If stable, perform push-ups with hands on dumbbells for a deeper stretch. For more challenge, elevate your feet."
+            },
+            {
+              "name": "Single-Arm Dumbbell Row",
+              "sets": 4,
+              "reps": "10-12 per arm",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 12-18 lb females, 18-25 lb males). Brace yourself on a bench or sturdy surface for stability."
+            },
+            {
+              "name": "Dumbbell Front Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (3-5 lb per hand females, 5-8 lb males). Raise dumbbells straight in front of you to shoulder height."
+            },
+            {
+              "name": "Mountain Climber",
+              "sets": 3,
+              "reps": "45-60 seconds",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Perform this as a conditioning exercise. Aim to maintain effort or slightly increase speed. Keep your core tight and drive knees to chest rapidly."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 40,
+          "name": "Week 6, Day 5",
+          "focus": "Full Body (Advanced B)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warm-up (dynamic stretches, 2-3 min jump rope)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Add 2-3 minutes of jump rope to your warm-up to increase heart rate and prepare for activity."
+            },
+            {
+              "name": "Dumbbell Romanian Deadlift (RDL)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 10-20 lb per hand females, 20-30 lb per hand males). Keep a slight bend in knees, hinge at hips, feeling the stretch in hamstrings."
+            },
+            {
+              "name": "Dumbbell Thruster",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Use light dumbbells (5-10 lb per hand females, 10-15 lb per hand males). Combine a deep squat with an overhead press in one fluid movement. Aim for fluid motion."
+            },
+            {
+              "name": "Resistance Band Bicep Curl",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a resistance band that provides good tension throughout the movement. Focus on a high rep count for muscle endurance. Aim to increase tension or reps."
+            },
+            {
+              "name": "Dumbbell Skullcrusher",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Aim to slightly increase reps or weight by 2.5-5 lb (e.g., 5-8 lb per hand females, 10-15 lb per hand males). Lie on the floor, lowering dumbbells towards your forehead by bending elbows."
+            },
+            {
+              "name": "Bicycle Crunch",
+              "sets": 3,
+              "reps": "15-20 per side",
+              "rest_seconds": 60,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Aim to slightly increase reps or ensure strict form. Lie on your back, bring opposite elbow to knee, rotating through the core. Keep the movement controlled."
+            },
+            {
+              "name": "Cool-down (static stretches)",
+              "sets": 1,
+              "reps": "5-10 minutes",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Gentle stretches for major muscle groups, holding each stretch for 20-30 seconds."
+            }
+          ]
+        },
+        {
+          "day_number": 41,
+          "name": "Week 6, Day 6",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 42,
+          "name": "Week 6, Day 7",
+          "focus": "Rest & Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,3728 @@
+{
+  "_comment": "Golden-set fixture captured from a real generated plan. Anonymised: no user identity, only the plan content the model produced. Captured 2026-10-19. NOTE: `context.injuries` is the profile's CURRENT stated limitations, which is what the generator is given; it may not match exactly what was stated when this plan was generated.",
+  "label": "plan07",
+  "title": "8-Week Hybrid Muscle Gain & Fat Loss Program (Updated)",
+  "context": {
+    "duration_weeks": 8,
+    "goal": "lose_fat",
+    "level": "intermediate",
+    "injuries": "I am dealing with some lower back and upper back issue. So have to avoid back heavy excercises like Deadlifts and excercises that strain upper back muscles like overhead press."
+  },
+  "plan": {
+    "title": "8-Week Hybrid Muscle Gain & Fat Loss Program (Updated)",
+    "weeks": [
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Main lift. Start at a moderate load, focusing on control. Superset with Push-ups: after each set, do 10 push-ups, then rest 90s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine. Progress by increasing hold time."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line. Progress by increasing hold time."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Main lift. Start at a moderate load with strict bracing and good depth. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hip hinge, light weight for form. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine. Progress by increasing hold time."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line. Progress by increasing hold time."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar Attachment)",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine. Progress by increasing hold time."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line. Progress by increasing hold time."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Cable Row (Wide Grip)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "High-to-Low Cable Crossover",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine. Progress by increasing hold time."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line. Progress by increasing hold time."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Incline Barbell Press",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip)",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Rows",
+              "sets": 3,
+              "reps": "12/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Triceps Extension (Overhead)",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Use a light dumbbell and focus on controlled movement, ensuring no strain on upper back/shoulders. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine. Progress by increasing hold time."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line. Progress by increasing hold time."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Superset with Push-ups: after each set, do 10 push-ups, then rest 90s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "35 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "25 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Main lift. Start at a moderate load with strict bracing and good depth. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on hip hinge, light weight for form. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "35 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "25 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "35 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "25 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Seated Cable Row (Wide Grip)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "High-to-Low Cable Crossover",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "35 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "25 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Incline Barbell Press",
+              "sets": 4,
+              "reps": "10-12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Rows",
+              "sets": 3,
+              "reps": "13/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Triceps Extension (Overhead)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Use a light dumbbell and focus on controlled movement, ensuring no strain on upper back/shoulders. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "35 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "25 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If 12 reps were easy last week, increase weight by 5-10lb and aim for 10-12 reps. Superset with Push-ups: after each set, do 10 push-ups, then rest 90s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "40 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "30 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If 12 reps were easy last week, increase weight by 5-10lb and aim for 10-12 reps. Main lift. Start at a moderate load with strict bracing and good depth. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on hip hinge, light weight for form. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "40 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "30 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar Attachment)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 12 reps were easy last week, increase weight by 2.5-5lb and aim for 10-12 reps. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "40 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "30 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Seated Cable Row (Wide Grip)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "High-to-Low Cable Crossover",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "40 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "30 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Incline Barbell Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Rows",
+              "sets": 3,
+              "reps": "14/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Triceps Extension (Overhead)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Use a light dumbbell and focus on controlled movement, ensuring no strain on upper back/shoulders. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "40 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "30 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form. Superset with Push-ups: after each set, do 10 push-ups, then rest 90s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "10",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press."
+            },
+            {
+              "name": "Incline Dumbbell Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Pec Deck Fly Machine",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 17 reps were completed easily last week, increase weight by 2.5-5lb and aim for 15-18 reps. Otherwise, maintain current weight and aim for 18 reps with improved form."
+            },
+            {
+              "name": "Cable Triceps Pushdown (Rope Attachment)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "35 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Main lift. Start at a moderate load with strict bracing and good depth. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Leg Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 10-20lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form. Focus on hip hinge, light weight for form. Only perform if your lower back tolerates it well."
+            },
+            {
+              "name": "Leg Extension",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Lying Hamstring Curl",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "35 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Lat Pulldown (Wide Grip)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Seated Cable Row (Neutral Grip)",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Machine Reverse Fly",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Cable Face Pulls",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 17 reps were completed easily last week, increase weight by 5-10lb and aim for 15-18 reps. Otherwise, maintain current weight and aim for 18 reps with improved form."
+            },
+            {
+              "name": "Cable Bicep Curls (Straight Bar Attachment)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If 12 reps were easy last week, increase weight by 2.5-5lb and aim for 10-12 reps. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "35 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Chest Press",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Seated Cable Row (Wide Grip)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 15 reps were easy last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, aim for 15+ reps."
+            },
+            {
+              "name": "Dumbbell Lateral Raises",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 17 reps were easy last week, increase weight by 2.5-5lb and aim for 15-18 reps. Otherwise, aim for 18+ reps."
+            },
+            {
+              "name": "High-to-Low Cable Crossover",
+              "sets": 3,
+              "reps": "15-20",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 17 reps were easy last week, increase weight by 5-10lb and aim for 15-18 reps. Otherwise, aim for 18+ reps."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "35 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Incline Barbell Press",
+              "sets": 4,
+              "reps": "12",
+              "rest_seconds": 75,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 12 reps were completed easily last week, increase weight by 5-10lb and aim for 10-12 reps. Otherwise, maintain current weight and aim for 12 reps with improved form."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Dumbbell Rows",
+              "sets": 3,
+              "reps": "15/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 5-10lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Dumbbell Bicep Curl",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 2.5-5lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form."
+            },
+            {
+              "name": "Dumbbell Triceps Extension (Overhead)",
+              "sets": 3,
+              "reps": "15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "If all sets of 14 reps were completed easily last week, increase weight by 2.5-5lb and aim for 12-15 reps. Otherwise, maintain current weight and aim for 15 reps with improved form. Use a light dumbbell and focus on controlled movement, ensuring no strain on upper back/shoulders."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "45 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "35 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Lower reps, higher weight. Superset with Push-ups: after each set, do 5-8 push-ups, then rest 120s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "5-8",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press. Make harder if needed (e.g., elevated feet, weighted vest)."
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Lower reps, higher weight. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Flat Barbell Press",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Shoulder Press",
+              "sets": 3,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Safer alternative to overhead press for upper back issues. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Weighted Dips",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Use a dip belt for added weight. Focus on controlled descent and ascent. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Close Grip Barbell Bench Press",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on triceps engagement. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "50 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "40 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Heavier weight. Focus on strict form. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Heavy Leg Press",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Heavier weight. Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Heavier weight, focus on strict form and hinge. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Hack Squat Machine",
+              "sets": 3,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Good quad emphasis with back support. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Glute Ham Raise (GHR)",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on hamstring and glute activation. Start with bodyweight. Progress to weighted if possible and safe for lower back. Add reps if able."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Lower reps, higher weight. Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "50 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "40 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Weighted Pull-ups",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Use a dip belt for added weight. If unweighted pull-ups are challenging, use assisted machine or band. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Chest Supported T-Bar Row",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Provides good back support for lower back issues. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Single Arm Dumbbell Row",
+              "sets": 3,
+              "reps": "6/side",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on controlled movement and full range of motion. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Face Pulls (Heavy)",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on pulling to face and external rotation. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Bicep Curl",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on strict form, avoid swinging. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Intensification phase: Heavier weight. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "50 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "40 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Incline Press",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Single Arm Cable Row",
+              "sets": 3,
+              "reps": "10/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Lateral Raise",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Crossover (Low-to-High)",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "50 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "40 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip, Heavy)",
+              "sets": 3,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "T-Bar Row (Chest Supported)",
+              "sets": 3,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Overhead Cable Triceps Extension",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Safer for upper back/shoulders than dumbbell overhead. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "50 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "40 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Superset with Push-ups: after each set, do 6-10 push-ups, then rest 120s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "6-10",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press. Make harder if needed (e.g., elevated feet, weighted vest)."
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Flat Barbell Press",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Shoulder Press",
+              "sets": 3,
+              "reps": "6-8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Weighted Dips",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Use a dip belt for added weight. Focus on controlled descent and ascent. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Close Grip Barbell Bench Press",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on triceps engagement. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "55 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "45 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Intensification phase: Heavier weight. Focus on strict form. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Heavy Leg Press",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Heavier weight, focus on strict form and hinge. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Hack Squat Machine",
+              "sets": 3,
+              "reps": "6-8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Glute Ham Raise (GHR)",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on hamstring and glute activation. Start with bodyweight. Progress to weighted if possible and safe for lower back. Add reps if able."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Intensification phase. Focus on full range of motion, controlled eccentric. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "55 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "45 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Weighted Pull-ups",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Use a dip belt for added weight. If unweighted pull-ups are challenging, use assisted machine or band. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Chest Supported T-Bar Row",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Provides good back support for lower back issues. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Single Arm Dumbbell Row",
+              "sets": 3,
+              "reps": "7/side",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on controlled movement and full range of motion. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Face Pulls (Heavy)",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on pulling to face and external rotation. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Bicep Curl",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Focus on strict form, avoid swinging. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "55 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "45 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Incline Press",
+              "sets": 3,
+              "reps": "10-12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Single Arm Cable Row",
+              "sets": 3,
+              "reps": "11/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Cable Crossover (Low-to-High)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "55 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "45 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "6",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip, Heavy)",
+              "sets": 3,
+              "reps": "6-8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "T-Bar Row (Chest Supported)",
+              "sets": 3,
+              "reps": "6-8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Overhead Cable Triceps Extension",
+              "sets": 3,
+              "reps": "8-10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Safer for upper back/shoulders than dumbbell overhead. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "55 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "45 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Muscle Gain (Chest, Shoulders, Triceps) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If 8 reps were easy last week, increase weight by 5-10lb and reset to 6 reps. Superset with Push-ups: after each set, do 8-12 push-ups, then rest 120s. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 4,
+              "reps": "8-12",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press. Make harder if needed (e.g., elevated feet, weighted vest)."
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Flat Barbell Press",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Machine Shoulder Press",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Weighted Dips",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 5-10lb and reset to 8 reps. Use a dip belt for added weight. Focus on controlled descent and ascent."
+            },
+            {
+              "name": "Close Grip Barbell Bench Press",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 5-10lb and reset to 8 reps. Focus on triceps engagement."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "60 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "50 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Treadmill HIIT",
+              "sets": 1,
+              "reps": "10-12 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Warm-up 3 min, then alternate 30 sec sprint / 90 sec walk for 7-9 min, cool-down 2 min."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Muscle Gain (Quads, Glutes, Hamstrings, Calves) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If 8 reps were easy last week, increase weight by 5-10lb and reset to 6 reps. Main lift. Start at a moderate load with strict bracing and good depth. Add 5-10lb when all sets completed with good form."
+            },
+            {
+              "name": "Heavy Leg Press",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 10-20lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Heavier weight, focus on strict form and hinge. Only perform if your lower back tolerates it well. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Hack Squat Machine",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 8 reps were easy, increase weight next week by 5-10lb and reset to 6 reps."
+            },
+            {
+              "name": "Glute Ham Raise (GHR)",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, consider adding light weight next week and resetting to 8 reps. Focus on hamstring and glute activation. Start with bodyweight. Add reps if able."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 12 reps were easy, increase weight next week by 5-10lb and reset to 10 reps. Focus on full range of motion, controlled eccentric."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "60 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "50 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Start flat and slow, hold rails if needed. Progress to a slight incline over weeks. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Muscle Gain (Back, Biceps, Rear Delts) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Weighted Pull-ups",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 2.5-5lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Chest Supported T-Bar Row",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Provides good back support for lower back issues. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Single Arm Dumbbell Row",
+              "sets": 3,
+              "reps": "8/side",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 8 reps were easy, increase weight next week by 5-10lb and reset to 6 reps. Focus on controlled movement and full range of motion."
+            },
+            {
+              "name": "Cable Face Pulls (Heavy)",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 5-10lb and reset to 8 reps. Focus on pulling to face and external rotation."
+            },
+            {
+              "name": "Barbell Bicep Curl",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 5-10lb and reset to 8 reps. Focus on strict form, avoid swinging."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 2.5-5lb and reset to 8 reps. Add 2.5-5lb when all sets completed with good form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "60 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "50 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Incline Press",
+              "sets": 3,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 12 reps were easy, increase weight next week by 5-10lb and reset to 10 reps."
+            },
+            {
+              "name": "Single Arm Cable Row",
+              "sets": 3,
+              "reps": "12/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 12 reps were easy, increase weight next week by 5-10lb and reset to 10 reps."
+            },
+            {
+              "name": "Cable Lateral Raise",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 14 reps were easy, increase weight next week by 2.5-5lb and reset to 12 reps."
+            },
+            {
+              "name": "Cable Crossover (Low-to-High)",
+              "sets": 3,
+              "reps": "12-15",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 14 reps were easy, increase weight next week by 5-10lb and reset to 12 reps."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "60 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "50 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 3,
+              "reps": "10-12/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 3,
+              "reps": "10-15",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Muscle Gain (Upper Body) & Fat Loss",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 4,
+              "reps": "6-8",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. Add 5-10lb when all sets completed with good form for the target reps in a given week."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip, Heavy)",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 8 reps were easy, increase weight next week by 5-10lb and reset to 6 reps."
+            },
+            {
+              "name": "T-Bar Row (Chest Supported)",
+              "sets": 3,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 8 reps were easy, increase weight next week by 5-10lb and reset to 6 reps."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 2.5-5lb and reset to 8 reps."
+            },
+            {
+              "name": "Overhead Cable Triceps Extension",
+              "sets": 3,
+              "reps": "10",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Increase reps from last week. If all sets of 10 reps were easy, increase weight next week by 5-10lb and reset to 8 reps. Safer for upper back/shoulders than dumbbell overhead."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "60 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Increase hold time from last week. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "50 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "10-15 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Maintain a conversational pace (Zone 2 heart rate)."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ],
+      [
+        {
+          "day_number": 1,
+          "name": "Upper Body Push Focus",
+          "focus": "Deload (Chest, Shoulders, Triceps)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Arm circles 20x, band pull-aparts 15x, shoulder CARs 5x each, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Chest Press (Flat Bench)",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form. Superset with Push-ups: after each set, do 5 push-ups, then rest 120s."
+            },
+            {
+              "name": "Push-ups",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 0,
+              "measurement_type": "bodyweight_reps",
+              "notes": "Superset with Barbell Chest Press. Deload."
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Flat Barbell Press",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Machine Shoulder Press",
+              "sets": 2,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Weighted Dips",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form. If bodyweight only, aim for 2 sets of 8-10 reps."
+            },
+            {
+              "name": "Close Grip Barbell Bench Press",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "8-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Light steady state cardio for active recovery. Incline walk, bike, or elliptical."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "name": "Lower Body Focus",
+          "focus": "Deload (Quads, Glutes, Hamstrings, Calves)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Leg swings 10x each, hip circles 10x, bodyweight squats 10x, ankle rolls 30s, cat-cow 10x (for lower back), hip flexor stretch 30s each (for lower back)"
+            },
+            {
+              "name": "Barbell Back Squats",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: 50-60% volume, same weight as W5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Heavy Leg Press",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Barbell Romanian Deadlift",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form and hinge. Only perform if your lower back tolerates it well."
+            },
+            {
+              "name": "Hack Squat Machine",
+              "sets": 2,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Glute Ham Raise (GHR)",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume. Focus on hamstring and glute activation. Use bodyweight."
+            },
+            {
+              "name": "Seated Calf Raise",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from Week 5, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Keep body in a straight line."
+            },
+            {
+              "name": "Backward Walking (Treadmill)",
+              "sets": 1,
+              "reps": "8-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Reduced duration for deload. Start flat and slow, hold rails if needed. Focus on controlled movement and knee-friendly quad work."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "name": "Upper Body Pull Focus",
+          "focus": "Deload (Back, Biceps, Rear Delts)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "Thoracic rotation 10x, scapular retractions 15x, doorframe chest stretch 30s, cat-cow 10x (for lower back), child's pose 30s (for lower back)"
+            },
+            {
+              "name": "Weighted Pull-ups",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Chest Supported T-Bar Row",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form. Provides good back support for lower back issues."
+            },
+            {
+              "name": "Single Arm Dumbbell Row",
+              "sets": 2,
+              "reps": "6/side",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Cable Face Pulls (Heavy)",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Barbell Bicep Curl",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Dumbbell Hammer Curls",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: 50-60% volume, same weight as W5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "8-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Light steady state cardio for active recovery. Incline walk, bike, or elliptical."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "name": "Cardio, Abs & Accessories",
+          "focus": "Fat Loss, Core & Mobility",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), wall slides 10x (for upper back)"
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "30-40 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Incline walk, bike, or elliptical. Focus on maintaining a conversational pace (Zone 2 heart rate). Prefer bike/elliptical if your legs feel heavy, keep incline moderate."
+            },
+            {
+              "name": "Machine Incline Press",
+              "sets": 2,
+              "reps": "10",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Single Arm Cable Row",
+              "sets": 2,
+              "reps": "10/side",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Cable Lateral Raise",
+              "sets": 2,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Cable Crossover (Low-to-High)",
+              "sets": 2,
+              "reps": "12",
+              "rest_seconds": 60,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Keep body in a straight line."
+            },
+            {
+              "name": "Dead Bug",
+              "sets": 2,
+              "reps": "10/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume. Focus on keeping lower back pressed into the floor throughout the movement."
+            },
+            {
+              "name": "Pallof Press (Cable)",
+              "sets": 2,
+              "reps": "10/side",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume. Maintain anti-rotation by bracing your core strongly, resisting the pull of the cable."
+            },
+            {
+              "name": "Cable Crunches",
+              "sets": 2,
+              "reps": "10-12",
+              "rest_seconds": 30,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume. Focus on contracting the abs, not just pulling with your arms. Keep it controlled and fluid."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "name": "Upper Body & Core",
+          "focus": "Deload (Full Body)",
+          "is_rest_day": false,
+          "exercises": [
+            {
+              "name": "Warmup & Mobility",
+              "sets": 1,
+              "reps": "5-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "warmup",
+              "notes": "World's greatest stretch 5x each, hip flexor stretch 30s each, arm circles 20x, cat-cow 10x (for lower back), thoracic rotation 10x (for upper back)"
+            },
+            {
+              "name": "Barbell Incline Press",
+              "sets": 3,
+              "reps": "5",
+              "rest_seconds": 120,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Lat Pulldown (Neutral Grip, Heavy)",
+              "sets": 2,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "T-Bar Row (Chest Supported)",
+              "sets": 2,
+              "reps": "6",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Dumbbell Hammer Curl",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Overhead Cable Triceps Extension",
+              "sets": 2,
+              "reps": "8",
+              "rest_seconds": 90,
+              "measurement_type": "weight_reps",
+              "notes": "Deload phase: Reduce sets/volume by 50-60% from last week, use same weight as Week 5 or slightly less. Focus on perfect form."
+            },
+            {
+              "name": "Plank",
+              "sets": 1,
+              "reps": "30 sec",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Focus on maintaining a neutral spine."
+            },
+            {
+              "name": "Side Plank",
+              "sets": 1,
+              "reps": "20 sec/side",
+              "rest_seconds": 30,
+              "measurement_type": "duration",
+              "notes": "Reduced volume for deload. Keep body in a straight line."
+            },
+            {
+              "name": "Moderate Zone 2 Cardio",
+              "sets": 1,
+              "reps": "8-10 min",
+              "rest_seconds": 0,
+              "measurement_type": "duration",
+              "notes": "Light steady state cardio for active recovery. Incline walk, bike, or elliptical."
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "name": "Rest Day",
+          "focus": "Recovery",
+          "is_rest_day": true,
+          "exercises": []
+        },
+        {
+          "day_number": 7,
+          "name": "Rest Day / Active Recovery",
+          "focus": "Recovery / Light Activity (e.g., cricket/hiking)",
+          "is_rest_day": true,
+          "exercises": []
+        }
+      ]
+    ]
+  }
+}
