@@ -23,6 +23,7 @@ exactly today's behaviour -- so a profile that never reports one is unaffected.
 Everything that means "the user's current day" must go through `user_today`.
 """
 
+import datetime as dt
 import logging
 
 try:                                            # Python 3.9+
@@ -34,6 +35,16 @@ except ImportError:                             # pragma: no cover
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# datetime.timezone.utc, NOT django.utils.timezone.utc.
+#
+# The Django alias was deprecated in 4.1 and REMOVED in 5.0, and
+# requirements.txt pins only `django>=4.2`. The local venv resolved to 4.2.30
+# where it still exists, production resolved to 5.x where it does not, so the
+# first version of this module took out /api/health/series/ and
+# /api/health/calorie-balance/ with an AttributeError while every local test
+# passed. The stdlib constant is correct on every version.
+UTC = dt.timezone.utc
 
 DEFAULT_TIMEZONE = 'UTC'
 
@@ -52,13 +63,13 @@ def resolve_zone(name):
     key = (name or '').strip() or DEFAULT_TIMEZONE
     if key in _ZONE_CACHE:
         return _ZONE_CACHE[key]
-    zone = timezone.utc
+    zone = UTC
     if ZoneInfo is not None:
         try:
             zone = ZoneInfo(key)
         except (ZoneInfoNotFoundError, ValueError, TypeError):
             logger.warning('unknown timezone %r, falling back to UTC', name)
-            zone = timezone.utc
+            zone = UTC
     _ZONE_CACHE[key] = zone
     return zone
 

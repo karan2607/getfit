@@ -23,7 +23,13 @@ jobs:
         # 3.9 is what the local venv runs; 3.12 is what Render is likely to pick
         # given requirements.txt pins no Python version. Testing both catches
         # version-specific syntax before a Render default bump breaks the deploy.
-        python-version: ['3.9', '3.12']
+        # 3.9 is the local dev venv; 3.13 is the closest widely-available
+        # runner to production, which runs Python 3.14. requirements.txt pins
+        # only `django>=4.2`, so the Python version decides the Django major:
+        # 3.9 gets Django 4.2, newer gets 5.x. Testing only 3.9 is how
+        # `django.utils.timezone.utc` (removed in Django 5.0) reached
+        # production and 500'd the health page.
+        python-version: ['3.9', '3.12', '3.13']
     defaults:
       run:
         working-directory: backend
