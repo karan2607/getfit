@@ -159,12 +159,75 @@ def _step_4_normalize_rep_schemes(plan, stdout):
     return changed
 
 
+def _step_5_canonicalise_exercise_names(plan, stdout):
+    """
+    Rewrite Exercise.name and SetLog.exercise_name to the canonical spelling.
+
+    Why this is a step and not a migration: it rewrites a user's real training
+    history, and the local DB is empty so a backfill cannot be observed before
+    it reaches production. Running it is therefore a deliberate act
+    (`manage.py upgrade_data`), reviewable with `--dry-run` first.
+
+    What it fixes: 190 distinct names existed across Exercise and SetLog for a
+    far smaller set of real movements, and history is matched on the name, so
+    the progression logic could only ever see part of a user's logged sets.
+
+    Only the explicit registry in `exercise_names` drives this -- no similarity
+    scoring -- so every merge is one a human wrote down and can veto.
+
+    Idempotent: a row already canonical is left untouched.
+
+    NOTE on SetLog rows: `exercise_name` is denormalised and deliberately
+    survives plan deletion, so rows whose `exercise` FK is null are not reached
+    by walking this plan's exercises. They are handled by matching on the name
+    for this plan's user, which is why the SetLog pass is scoped by user rather
+    than by exercise.
+    """
+    from .models import SetLog
+    from . import exercise_names
+
+    changed = 0
+    seen_names = set()
+
+    for day in plan.days.all():
+        for exercise in day.exercises.all():
+            seen_names.add(exercise.name)
+            canonical = exercise_names.canonical(exercise.name)
+            if canonical != exercise.name:
+                stdout('    exercise %r -> %r' % (exercise.name, canonical))
+                exercise.name = canonical
+                exercise.save(update_fields=['name'])
+                changed += 1
+                seen_names.add(canonical)
+
+    # Every spelling this user has logged, not only the ones still referenced
+    # by a plan -- the point is to reunite history with the current plan.
+    logged = set(
+        SetLog.objects
+        .filter(workout_session__user=plan.user)
+        .values_list('exercise_name', flat=True)
+        .distinct()
+    )
+    for name in sorted(n for n in logged if n):
+        canonical = exercise_names.canonical(name)
+        if canonical == name:
+            continue
+        rows = (SetLog.objects
+                .filter(workout_session__user=plan.user, exercise_name=name)
+                .update(exercise_name=canonical))
+        if rows:
+            stdout('    %d set log(s) %r -> %r' % (rows, name, canonical))
+            changed += rows
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
     2: ('enforce SetLog field contract', _step_2_fix_setlog_field_contract),
     3: ('strip placeholder weights from notes', _step_3_strip_placeholder_weights),
     4: ('normalize rep schemes', _step_4_normalize_rep_schemes),
+    5: ('canonicalise exercise names', _step_5_canonicalise_exercise_names),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0

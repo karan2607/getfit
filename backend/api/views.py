@@ -51,6 +51,7 @@ from .serializers import (
 from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
 from . import exercise_types
+from . import exercise_names
 
 User = get_user_model()
 
@@ -989,7 +990,11 @@ def _create_exercise(day, ex_data: dict, order: int):
     replaced four duplicated `.get('measurement_type', 'weight_reps')` call sites
     that silently stamped the worst-case default on anything the AI omitted.
     """
-    name = str(ex_data['name']).strip()
+    # Canonical spelling, so one movement has one identity. The model renames
+    # the same exercise freely between weeks and plans ("Incline Dumbbell
+    # Press" / "Dumbbell Incline Press"), and history is matched on the name,
+    # so a variant hides a user's own logged sets from the progression logic.
+    name = exercise_names.canonical(str(ex_data['name']).strip())
     # Snap arbitrary rep counts onto conventional schemes (13 -> "12-15"). The
     # model was emitting numbers like 11/13/17, which read as machine output
     # rather than programming.
@@ -1499,13 +1504,17 @@ def workout_session_log_set(request, session_id):
 
     exercise = get_object_or_404(Exercise, pk=exercise_id, day__plan__user=request.user)
 
+    # Canonicalised here as well as in _create_exercise, because plans created
+    # before canonicalisation still carry variant names on the Exercise row and
+    # every set logged against them would inherit one.
+    canonical_name = exercise_names.canonical(exercise.name)
     log, _ = SetLog.objects.get_or_create(
         workout_session=session,
         exercise=exercise,
         set_number=set_number,
-        defaults={'exercise_name': exercise.name},
+        defaults={'exercise_name': canonical_name},
     )
-    log.exercise_name = exercise.name
+    log.exercise_name = canonical_name
 
     # Enforce the measurement-type field contract on write. This endpoint
     # previously accepted whatever the client sent, which is how seconds ended up
@@ -1904,6 +1913,47 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
 ADVICE_VERSION = 2
 
 
+def _matching_spellings(stored_names, exercise_name):
+    """
+    Of the spellings actually present in the database, those that refer to the
+    same movement as `exercise_name`.
+
+    Resolved against stored data rather than from a list of expected variants,
+    so a spelling nobody anticipated is still matched as long as it
+    canonicalises to the same movement.
+    """
+    # same_movement, not canonical-string equality: it also reunites variants
+    # of an exercise that has no registry entry yet.
+    matching = {name for name in stored_names
+                if name and exercise_names.same_movement(name, exercise_name)}
+    # Always include what was asked for, so behaviour is unchanged when the
+    # movement is unregistered and nothing else matches.
+    matching.add(exercise_name)
+    return matching
+
+
+def _logged_name_variants(user, exercise_name):
+    """
+    Every spelling under which this user has logged THIS movement.
+
+    The history lookup used to be `exercise_name__iexact`, which is the defect
+    that made the coach look stupid: 88 logged sets of "Incline Dumbbell Press"
+    were invisible to a plan that said "Dumbbell Incline Press", and a week-5
+    "T-Bar Row (Chest Supported)" reported no history at all despite nine
+    logged sets under "Chest-Supported T-Bar Row".
+
+    New writes are canonical, so this matters for rows written before that and
+    is harmless afterwards.
+    """
+    return _matching_spellings(
+        SetLog.objects
+        .filter(workout_session__user=user)
+        .values_list('exercise_name', flat=True)
+        .distinct(),
+        exercise_name,
+    )
+
+
 def _exercise_history(user, exercise_name, measurement_type, limit=30):
     """
     Recent completed sets for one exercise, filtered on the field that matters
@@ -1920,7 +1970,7 @@ def _exercise_history(user, exercise_name, measurement_type, limit=30):
         SetLog.objects
         .filter(
             workout_session__user=user,
-            exercise_name__iexact=exercise_name,
+            exercise_name__in=_logged_name_variants(user, exercise_name),
             is_completed=True,
             **{'%s__isnull' % metric: False}
         )
@@ -2051,8 +2101,11 @@ def _exercise_prescription(user, exercise_name, exercise_id=None):
             return row[0] or exercise_types.classify(exercise_name), row[1]
         # Fall through: a stale id (deleted plan) should degrade, not 404.
 
+    # Match any spelling of the movement, for plans created before names were
+    # canonicalised on write.
     row = (
-        qs.filter(name__iexact=exercise_name)
+        qs.filter(name__in=_matching_spellings(
+            qs.values_list('name', flat=True).distinct(), exercise_name))
         .annotate(on_current_week=Case(
             When(day__week_number=F('day__plan__current_week'), then=Value(1)),
             default=Value(0),

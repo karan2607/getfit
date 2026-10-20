@@ -435,17 +435,44 @@ class GoldenSetTests(SimpleTestCase):
             self.assertIn('context', doc)
             self.assertIn('label', doc)
 
-    def test_the_two_most_recent_plans_are_clean(self):
-        """
-        plan07 and plan08 were generated after this year's prompt and
-        classifier fixes landed. They are the proof the fixes worked, and the
-        guard against regressing them.
-        """
+    # Rules that existed before canonical naming shipped. plan07 and plan08
+    # were generated after the prompt and classifier fixes landed and score a
+    # clean 1.000 against these -- that is the proof those fixes worked, and
+    # the guard against regressing them.
+    PRE_CANONICAL_RULES = tuple(
+        r for r in RULES if r[0] != 'canonical_exercise_names')
+
+    def test_the_two_most_recent_plans_are_clean_on_the_earlier_rules(self):
         for label in ('plan07', 'plan08'):
-            card = self.cards[label]
+            _, plan_json, context = next(
+                c for c in self.cases if c[0] == label)
+            card = score_plan(plan_json, context, label=label,
+                              rules=self.PRE_CANONICAL_RULES)
             self.assertEqual(card.score, 1.0,
                              msg='%s regressed: %s' % (
                                  label, [f.detail for f in card.findings][:5]))
+
+    def test_the_canonical_rule_finds_the_live_plans_name_collisions(self):
+        """
+        The defect WS3 exists to fix, measured on the user's ACTIVE plan.
+
+        plan07 repeats six non-canonical names across eight weeks, and every
+        one of them collides with real logged history -- "Barbell Chest Press
+        (Flat Bench)" against 27 rows of "Barbell Bench Press", "Cable
+        Crunches" against 28 rows of "Cable Ab Crunches", and so on. Until the
+        backfill runs and a new plan is generated, those exercises are coached
+        against partial history.
+
+        This test documents the current state. When it starts failing because
+        the count dropped, that is the fix landing -- update it then.
+        """
+        card = self.cards['plan07']
+        result = card.by_rule()['canonical_exercise_names']
+        self.assertGreater(result.failed, 0)
+        distinct = {f.where.split(' ', 1)[1] for f in result.findings}
+        self.assertIn('Barbell Chest Press (Flat Bench)', distinct)
+        self.assertIn('Cable Crunches', distinct)
+        self.assertIn('Dumbbell Rows', distinct)
 
     def test_the_harness_rediscovers_the_burpees_defect(self):
         """Filed as feedback and fixed in the prompt; the eval must see it."""
@@ -471,16 +498,22 @@ class GoldenSetTests(SimpleTestCase):
         self.assertLess(old, new)
 
     def test_mean_score_floor(self):
+        """
+        No-regression floor, set just under the current value (0.931). It
+        dropped from 0.957 when canonical naming shipped, because a new rule
+        revealed a defect the earlier rules could not see -- which is the
+        harness doing its job, not a regression. Raise this as plans improve.
+        """
         scores = [c.score for c in self.cards.values() if c.score is not None]
-        self.assertGreaterEqual(sum(scores) / len(scores), 0.95)
+        self.assertGreaterEqual(sum(scores) / len(scores), 0.92)
 
     def test_every_rule_is_exercised_by_the_golden_set(self):
         """
         A rule that never gets to check anything across eight real plans is
-        either dead or misspecified. Superset and canonical-name rules are
-        exempt until WS3/WS4 land.
+        either dead or misspecified. The superset rule is exempt until WS4
+        lands, since no existing plan can express a superset.
         """
-        pending = {'superset_groups_valid', 'canonical_exercise_names'}
+        pending = {'superset_groups_valid'}
         for name, _, _ in RULES:
             if name in pending:
                 continue
