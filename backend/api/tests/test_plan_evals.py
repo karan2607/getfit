@@ -62,6 +62,14 @@ def only(rule_name):
     return tuple(r for r in RULES if r[0] == rule_name)
 
 
+# Rules added after the two most recent golden-set plans were generated. Each
+# revealed a defect the earlier rules could not see, so those plans are scored
+# against the earlier set for the "still clean" guard and against the new rules
+# separately. Module level because a class-body genexp cannot see class names.
+LATER_RULES = {'canonical_exercise_names', 'notes_without_progression_rules'}
+PRE_CANONICAL_RULES = tuple(r for r in RULES if r[0] not in LATER_RULES)
+
+
 class RuleBehaviourTests(SimpleTestCase):
     """One violating case and one legitimate case per rule."""
 
@@ -215,6 +223,42 @@ class RuleBehaviourTests(SimpleTestCase):
             WARMUP, ex('Barbell Bench Press', 3, '6-8',
                        notes='Start Xlb. Pause at the chest.')])]),
             'notes_without_placeholder_weights')
+
+    # -- notes_without_progression_rules ------------------------------------
+
+    def test_a_static_progression_rule_in_notes_is_flagged(self):
+        """
+        Reported as "Getting different advice in diff places": this note sat
+        above computed advice saying "DECREASE WEIGHT. Drop to about 55lb".
+        """
+        card = self.assert_flags(plan([day(1, 'Push', [
+            WARMUP, ex('Dumbbell Lateral Raises', 3, '15-20',
+                       notes='Increase reps from last week. Add 2.5-5lb when '
+                             'all sets completed with good form.')])]),
+            'notes_without_progression_rules')
+        self.assertIn('competes with the computed advice', card.findings[0].detail)
+
+    def test_a_static_starting_weight_in_notes_is_flagged(self):
+        self.assert_flags(plan([day(1, 'Push', [
+            WARMUP, ex('Barbell Bench Press', 3, '6-8',
+                       notes='Start with 95-135 lb, adjusting for your '
+                             'strength level.')])]),
+            'notes_without_progression_rules')
+
+    def test_a_pure_form_cue_is_not_flagged(self):
+        self.assert_clean(plan([day(1, 'Push', [
+            WARMUP, ex('Barbell Bench Press', 3, '6-8',
+                       notes='Pause 1s at the chest. Keep the elbows at 45 '
+                             'degrees and control the eccentric.')])]),
+            'notes_without_progression_rules')
+
+    def test_a_warmup_drill_list_is_not_flagged(self):
+        self.assert_clean(plan([day(1, 'Legs', [
+            ex('Warmup & Mobility', 1, '5-10 min', et.WARMUP,
+               notes='Leg swings 10x each, hip circles 10x, bodyweight '
+                     'squats 10x, ankle rolls 30s'),
+            ex('Leg Press', 3, '10-12')])]),
+            'notes_without_progression_rules')
 
     def test_set_notation_in_notes_is_not_mistaken_for_a_placeholder(self):
         """"3 x 12" must survive -- the regex is case-sensitive for this."""
@@ -435,12 +479,14 @@ class GoldenSetTests(SimpleTestCase):
             self.assertIn('context', doc)
             self.assertIn('label', doc)
 
-    # Rules that existed before canonical naming shipped. plan07 and plan08
-    # were generated after the prompt and classifier fixes landed and score a
-    # clean 1.000 against these -- that is the proof those fixes worked, and
-    # the guard against regressing them.
-    PRE_CANONICAL_RULES = tuple(
-        r for r in RULES if r[0] != 'canonical_exercise_names')
+    # Rules that already existed when plan07 and plan08 were generated. Those
+    # two score a clean 1.000 against this set -- the proof the prompt and
+    # classifier fixes worked, and the guard against regressing them.
+    #
+    # Rules added later are excluded here and asserted separately below. Each
+    # one revealed a defect the earlier rules could not see, which is the
+    # harness doing its job rather than those plans getting worse.
+    PRE_CANONICAL_RULES = PRE_CANONICAL_RULES
 
     def test_the_two_most_recent_plans_are_clean_on_the_earlier_rules(self):
         for label in ('plan07', 'plan08'):
@@ -499,13 +545,31 @@ class GoldenSetTests(SimpleTestCase):
 
     def test_mean_score_floor(self):
         """
-        No-regression floor, set just under the current value (0.931). It
-        dropped from 0.957 when canonical naming shipped, because a new rule
-        revealed a defect the earlier rules could not see -- which is the
-        harness doing its job, not a regression. Raise this as plans improve.
+        No-regression floor, set just under the current value (0.873).
+
+        History: 0.957 with the original rules, 0.931 once canonical naming
+        shipped, 0.873 once static progression rules in notes were scored.
+        Each drop is a new rule exposing a real defect, not plan quality
+        falling. Raise this as generated plans actually improve.
         """
         scores = [c.score for c in self.cards.values() if c.score is not None]
-        self.assertGreaterEqual(sum(scores) / len(scores), 0.92)
+        self.assertGreaterEqual(sum(scores) / len(scores), 0.85)
+
+    def test_the_notes_rule_finds_the_contradictory_advice(self):
+        """
+        Reported as "Getting different advice in diff places": notes saying
+        "Add 2.5-5lb when all sets completed" sat directly above computed
+        advice saying "DECREASE WEIGHT. Drop to about 55lb".
+
+        492 of 1078 exercises across the golden set carry such a rule -- 46%,
+        mostly "from last week" and a static starting weight. Documents the
+        current state; when this count drops, the fix has reached real plans.
+        """
+        total = sum(c.by_rule()['notes_without_progression_rules'].failed
+                    for c in self.cards.values())
+        self.assertGreater(total, 100)
+        details = [f.detail for f in self.cards['plan07'].findings]
+        self.assertTrue(any('static progression rule' in d for d in details))
 
     def test_every_rule_is_exercised_by_the_golden_set(self):
         """

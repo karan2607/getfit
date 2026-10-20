@@ -90,12 +90,19 @@ class CreateExerciseScrubsNotesTests(APITestCase):
         }, 0)
         self.assertEqual(ex.notes, '')
 
-    def test_create_exercise_keeps_useful_notes(self):
+    def test_create_exercise_keeps_the_form_cue_and_drops_the_weight(self):
+        """
+        UPDATED. This used to assert "Start 135lb." SURVIVED, because the gate
+        only removed PLACEHOLDER weights. That behaviour contradicted the
+        prompt ("Do NOT put a starting weight ... in notes") and was reported
+        as a bug: a static "Start 135lb" sat next to computed advice saying to
+        drop 30lb. A concrete weight is now stripped like a placeholder one.
+        """
         ex = views._create_exercise(self.day, {
             'name': 'Barbell Bench Press', 'sets': 3, 'reps': '8-12',
             'notes': 'Pause at the chest. Start 135lb.',
         }, 0)
-        self.assertEqual(ex.notes, 'Pause at the chest. Start 135lb.')
+        self.assertEqual(ex.notes, 'Pause at the chest.')
 
     def test_plan_replace_strips_placeholders(self):
         """An AI plan edit must not reintroduce them either."""
@@ -113,7 +120,8 @@ class CreateExerciseScrubsNotesTests(APITestCase):
         notes = dict(Exercise.objects.filter(day__plan=self.plan)
                      .values_list('name', 'notes'))
         self.assertEqual(notes['Barbell Bench Press'], '')
-        self.assertEqual(notes['Barbell Squat'], 'Brace hard. Start 225lb.')
+        # "Start 225lb." is now stripped too -- see the note above on why.
+        self.assertEqual(notes['Barbell Squat'], 'Brace hard.')
 
     def test_no_exercise_in_db_retains_a_placeholder(self):
         views._create_exercise(self.day, {
@@ -129,9 +137,10 @@ class CreateExerciseScrubsNotesTests(APITestCase):
             if views._PLACEHOLDER_TOKEN_RE.search(n or '')
         ]
         self.assertEqual(leaked, [])
-        # ...and the "3 x 12" note survived untouched.
-        self.assertEqual(Exercise.objects.get(name='C').notes,
-                         'Start 3 x 12 at 100lb.')
+        # "Start 3 x 12 at 100lb." names a concrete weight, so the whole
+        # sentence goes. The set notation "3 x 12" is still safe on its own --
+        # pinned by test_set_notation_survives in test_notes_progression_rules.
+        self.assertEqual(Exercise.objects.get(name='C').notes, '')
 
 
 class PromptForbidsPlaceholdersTests(APITestCase):

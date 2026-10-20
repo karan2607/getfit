@@ -15,7 +15,7 @@ nothing.
 import re
 
 from .. import exercise_types
-from ..views import _PLACEHOLDER_TOKEN_RE
+from ..views import _PLACEHOLDER_TOKEN_RE, _PROGRESSION_RULE_RE
 
 
 # --------------------------------------------------------------------------
@@ -307,6 +307,30 @@ def notes_without_placeholder_weights(plan, context, find):
     return checked
 
 
+def notes_without_progression_rules(plan, context, find):
+    """
+    Notes must not carry a week-over-week progression rule or a concrete
+    weight.
+
+    Reported as "Getting different advice in diff places": one card showed
+    notes saying "Add 2.5-5lb when all sets completed" directly above computed
+    advice saying "DECREASE WEIGHT. Drop to about 55lb". A frozen rule does not
+    just go stale, it contradicts the live recommendation.
+    """
+    checked = 0
+    for week_number, day, exercise in iter_exercises(plan):
+        notes = exercise.get('notes')
+        if not notes:
+            continue
+        checked += 1
+        match = _PROGRESSION_RULE_RE.search(str(notes))
+        if match:
+            find(where(week_number, day, exercise),
+                 'notes carry a static progression rule (%r) that competes '
+                 'with the computed advice' % match.group(0).strip())
+    return checked
+
+
 # Prompt: "INJURY PROTOCOL (highest priority — overrides all other decisions):
 # Any stated injury or limitation is a HARD constraint." Each entry is
 # (what the user said, what must not be programmed, why).
@@ -468,6 +492,9 @@ RULES = (
     ('phase_variation', phase_variation, 1.0),
     ('rep_scheme_conventional', rep_scheme_conventional, 1.0),
     ('notes_without_placeholder_weights', notes_without_placeholder_weights, 1.0),
+    # Weighted 2.0: a note contradicting the live advice actively misleads,
+    # rather than merely reading oddly.
+    ('notes_without_progression_rules', notes_without_progression_rules, 2.0),
     ('no_banned_names', no_banned_names, 1.0),
     ('superset_groups_valid', superset_groups_valid, 1.0),
 )

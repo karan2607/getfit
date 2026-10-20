@@ -980,6 +980,49 @@ def _strip_placeholder_weights(text):
     return re.sub(r'\s{2,}', ' ', ' '.join(kept)).strip()
 
 
+# A static progression rule baked into the notes at plan-creation time.
+#
+# The prompt already forbids these ("no 'Start ...', no 'Add ... when all sets
+# clean', no placeholder weights of any kind") because weight recommendations
+# are recomputed every request from logged history. A frozen rule in the notes
+# does not just go stale -- it CONTRADICTS the live advice on the same card:
+#
+#   notes:  "Add 2.5-5lb when all sets completed with good form."
+#   advice: "Only 10 reps at 85lb last session -> DECREASE WEIGHT.
+#            Drop to about 55lb."
+#
+# Reported as "Getting different advice in diff places", and the user was
+# right: one card told them to add weight and to drop 30lb simultaneously.
+_PROGRESSION_RULE_RE = re.compile(
+    # Any concrete weight, in any unit. The prompt bans weights in notes
+    # outright, so this needs no verb context.
+    r'\d+\s*(?:\.\d+)?\s*-?\s*\d*\s*(?:kg|lbs?|kilos?|pounds?)\b'
+    # Week-over-week progression instructions, which are the advice's job.
+    r'|\b(?:from|since|than)\s+last\s+week\b'
+    r'|\b(?:each|every|next)\s+week\b'
+    r'|\bwhen\s+all\s+(?:your\s+)?sets\b'
+    r'|\bonce\s+you\s+(?:can|hit|complete|reach)\b',
+    re.I,
+)
+
+
+def _clean_exercise_notes(text):
+    """
+    Notes keep coaching that does not change week to week, and lose anything
+    that competes with the computed progression advice.
+
+    Two passes over the same sentence split: placeholder weights, then static
+    progression rules. A form cue ("Pause 1s at the chest", "Keep the elbows
+    tucked") mentions neither a unit nor a week, so it survives.
+    """
+    cleaned = _strip_placeholder_weights(text)
+    if not cleaned:
+        return cleaned
+    sentences = re.split(r'(?<=[.!?])\s+', cleaned)
+    kept = [s for s in sentences if not _PROGRESSION_RULE_RE.search(s)]
+    return re.sub(r'\s{2,}', ' ', ' '.join(kept)).strip()
+
+
 def _create_exercise(day, ex_data: dict, order: int):
     """
     Single creation path for Exercise rows.
@@ -1005,7 +1048,7 @@ def _create_exercise(day, ex_data: dict, order: int):
         sets=ex_data.get('sets', 3),
         reps=reps,
         rest_seconds=ex_data.get('rest_seconds'),
-        notes=_strip_placeholder_weights(ex_data.get('notes', '')),
+        notes=_clean_exercise_notes(ex_data.get('notes', '')),
         order=order,
         measurement_type=exercise_types.normalize(
             ex_data.get('measurement_type'),

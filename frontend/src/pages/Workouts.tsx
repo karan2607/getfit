@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType } from '../lib/api'
 import {
-  type SetField, type WeightUnit,
+  type SetField, type WeightUnit, type TimeUnit,
   fieldsFor, fieldLabel, prescriptionMismatch, toDisplayField, toStorageField,
-  chartSpecFor, chartLabel, formatChartValue, formatDuration,
+  chartSpecFor, chartLabel, formatChartValue, formatDuration, timeUnitFor,
 } from '../lib/units'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
@@ -1010,11 +1010,15 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     return pending?.is_completed ?? log.is_completed
   }
 
-  function handleSetField(log: SetLog, field: SetField, rawValue: string) {
+  function handleSetField(
+    log: SetLog, field: SetField, rawValue: string, timeUnit: TimeUnit = 'sec',
+  ) {
     // Convert by measurement type, never by field name. The old code scaled
     // anything called `weight_kg` by KG_PER_LB, which corrupted duration seconds.
+    // `timeUnit` is what the INPUT is labelled in; storage is always seconds.
     const typed = rawValue === '' ? null : Number(rawValue)
-    const stored = Number.isNaN(typed as number) ? null : toStorageField(field, typed, unit)
+    const stored = Number.isNaN(typed as number)
+      ? null : toStorageField(field, typed, unit, timeUnit)
     const key = pendKey(log.exercise_id, log.set_number)
     setPendingLogs((prev) => ({ ...prev, [key]: { ...prev[key], [field]: stored } }))
     setIsDirty(true)
@@ -1375,6 +1379,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   // Which inputs to show comes from the shared contract, so the
                   // frontend can never disagree with what the server accepts.
                   const fields = fieldsFor(mType)
+                  // A 25-30 min treadmill walk asks for minutes, a 45 sec plank
+                  // for seconds. Storage is seconds either way.
+                  const timeUnit = timeUnitFor(planEx?.reps)
 
                   if (fields.length === 0) {
                     // Warmup: a single completion tick, no numeric inputs at all.
@@ -1428,7 +1435,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                             Plan says <span className="font-semibold">{planEx?.reps}</span> —
                             log the{' '}
                             <span className="font-semibold">
-                              {expects === 'time' ? 'time it took you, in seconds' : 'number of reps you did'}
+                              {expects === 'time'
+                                ? `time it took you, in ${timeUnit === 'min' ? 'minutes' : 'seconds'}`
+                                : 'number of reps you did'}
                             </span>.
                           </div>
                         )
@@ -1436,7 +1445,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                       <div className={`grid ${gridCols} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
                         <span>#</span>
                         {fields.map((f) => (
-                          <span key={f}>{fieldLabel(f, unit, exerciseName)}</span>
+                          <span key={f}>{fieldLabel(f, unit, exerciseName, timeUnit)}</span>
                         ))}
                         <span />
                       </div>
@@ -1466,12 +1475,17 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                 // state. Previously these were uncontrolled
                                 // (defaultValue + stable key), so a refetch after
                                 // a plan update never repainted the inputs.
-                                const display = toDisplayField(field, setFieldValue(log, field), unit)
+                                const display = toDisplayField(
+                                  field, setFieldValue(log, field), unit, timeUnit)
                                 if (isCompleted) {
+                                  // formatDuration takes SECONDS, so read the
+                                  // stored value rather than the minutes shown
+                                  // in the input.
+                                  const stored = setFieldValue(log, field)
                                   return (
                                     <span key={field} className="text-sm text-gray-700 font-medium">
-                                      {field === 'duration_seconds' && display !== null
-                                        ? formatDuration(display)
+                                      {field === 'duration_seconds' && stored !== null
+                                        ? formatDuration(stored)
                                         : display ?? '—'}
                                     </span>
                                   )
@@ -1480,10 +1494,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                   <input
                                     key={field}
                                     type="number" min={0}
-                                    step={field === 'weight_kg' ? 0.5 : 1}
+                                    step={field === 'weight_kg' || (field === 'duration_seconds' && timeUnit === 'min') ? 0.5 : 1}
                                     placeholder="0"
                                     value={display ?? ''}
-                                    onChange={(e) => handleSetField(log, field, e.target.value)}
+                                    onChange={(e) => handleSetField(log, field, e.target.value, timeUnit)}
                                     onDoubleClick={() => {
                                       // Double-tap a later set to copy the one above it.
                                       if (logIdx > 0) handleCopyPrevious(log, logs[logIdx - 1], mType)

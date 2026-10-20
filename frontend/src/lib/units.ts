@@ -72,6 +72,35 @@ export function usesField(measurementType: MeasurementType, field: SetField): bo
 }
 
 /**
+ * Which unit the TIME input should ask for, from the plan's prescription.
+ *
+ * Storage is always seconds. But an incline treadmill walk prescribed as
+ * "25-30 min" was asking the user to type 1800, which is the kind of thing
+ * nobody does twice — reported as "the requested time should be in minutes and
+ * not secs". A plank prescribed "45 sec" still asks for seconds.
+ */
+export type TimeUnit = 'sec' | 'min'
+
+export function timeUnitFor(reps: string | null | undefined): TimeUnit {
+  if (!reps) return 'sec'
+  // Drop rest/work clauses first — "3 min, 30 sec rest" prescribes MINUTES and
+  // only mentions seconds for the rest period. Mirrors the same strip in
+  // exercise_types._reps_imply_duration.
+  // The rest clause can follow the prescription ("3 min, 30 sec rest"), so
+  // drop the whole comma-delimited clause that mentions it, not just the tail
+  // from the keyword onwards.
+  const prescription = reps
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[,;][^,;]*\b(rest|work|tempo|between sets)\b[^,;]*/gi, ' ')
+    .replace(/\b(rest|work|tempo|between sets)\b.*$/i, ' ')
+  if (/\b(sec|secs|second|seconds)\b/i.test(prescription)) return 'sec'
+  return /\b(min|mins|minute|minutes|hour|hours|hr|hrs)\b/i.test(prescription)
+    ? 'min' : 'sec'
+}
+
+export const SECONDS_PER_MIN = 60
+
+/**
  * Column label for a set input.
  * `weight_kg` is the only field whose label depends on the user's unit.
  */
@@ -79,9 +108,12 @@ export function fieldLabel(
   field: SetField,
   unit: WeightUnit,
   exerciseName = '',
+  timeUnit: TimeUnit = 'sec',
 ): string {
   if (field === 'reps_completed') return 'Reps'
-  if (field === 'duration_seconds') return 'Time (sec)'
+  if (field === 'duration_seconds') {
+    return timeUnit === 'min' ? 'Time (min)' : 'Time (sec)'
+  }
   const n = exerciseName.toLowerCase()
   if (/dumbbell|db /.test(n)) return `Each (${unit})`
   if (/barbell|bb |squat|deadlift|bench press|overhead press|ohp/.test(n)) return `Bar (${unit})`
@@ -97,19 +129,29 @@ export function toDisplayField(
   field: SetField,
   value: number | null | undefined,
   unit: WeightUnit,
+  timeUnit: TimeUnit = 'sec',
 ): number | null {
   if (value === null || value === undefined) return null
-  return field === 'weight_kg' ? toDisplayWeight(value, unit) : value
+  if (field === 'weight_kg') return toDisplayWeight(value, unit)
+  if (field === 'duration_seconds' && timeUnit === 'min') {
+    // One decimal, so 90s shows as 1.5 rather than a lossy 2.
+    return Math.round((value / SECONDS_PER_MIN) * 10) / 10
+  }
+  return value
 }
 
-/** Convert a typed-in set value into storage form. */
+/** Convert a typed-in set value into storage form. Time is always stored in seconds. */
 export function toStorageField(
   field: SetField,
   value: number | null | undefined,
   unit: WeightUnit,
+  timeUnit: TimeUnit = 'sec',
 ): number | null {
   if (value === null || value === undefined) return null
   if (field === 'weight_kg') return toStorageWeight(value, unit)
+  if (field === 'duration_seconds' && timeUnit === 'min') {
+    return Math.max(0, Math.round(value * SECONDS_PER_MIN))
+  }
   return Math.max(0, Math.round(value))
 }
 

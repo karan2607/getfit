@@ -30,6 +30,10 @@ export default function WorkoutChatDrawer({
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // Whether the view is pinned to the bottom. Autoscroll only applies while it
+  // is, so scrolling up to re-read something is not fought on every token.
+  const stickToBottomRef = useRef(true)
   // Messages typed while a reply is still streaming. Flushed as a single
   // follow-up once the in-flight reply lands, so the AI answers both.
   const queuedRef = useRef<string[]>([])
@@ -82,9 +86,59 @@ export default function WorkoutChatDrawer({
       .finally(() => setInitializing(false))
   }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Keep the newest message in view -- but only when the user has not scrolled
+   * away.
+   *
+   * This effect runs on every streamed token. With an unconditional
+   * scrollIntoView it re-pinned the view continuously, so any attempt to
+   * scroll up while the AI was typing was immediately yanked back: reported as
+   * "When ai is typing on workout page, I cannot scroll".
+   *
+   * 'auto' rather than 'smooth' during streaming: a smooth scroll per token
+   * queues animations faster than they finish, which is the other half of why
+   * the panel felt stuck.
+   */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!stickToBottomRef.current) return
+    bottomRef.current?.scrollIntoView({
+      behavior: streamingContent ? 'auto' : 'smooth',
+    })
   }, [session?.messages.length, streamingContent])
+
+  /**
+   * Recover the reply when the browser backgrounds the tab mid-stream.
+   *
+   * Reported as "if ai is responding and I minimize the browser, the network
+   * call always fails". The browser aborts the SSE connection when the tab is
+   * hidden and there is no way to stop it from the page.
+   *
+   * But the server persists the assistant message in a `finally` block the
+   * moment the generator ends (api/views.py chat_message_stream), so the reply
+   * is NOT lost -- only the client's view of it. Reloading the session on
+   * re-focus surfaces whatever landed instead of leaving a dead error state.
+   */
+  useEffect(() => {
+    if (!isOpen || !sessionId) return
+    function onVisible() {
+      if (document.visibilityState === 'visible') loadSession(sessionId!)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [isOpen, sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    // 48px of slack, so a near-bottom position still counts as pinned.
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickToBottomRef.current = distance < 48
+  }
+
+  // Sending a message is an explicit "take me to the bottom".
+  useEffect(() => {
+    if (isSending) stickToBottomRef.current = true
+  }, [isSending])
 
   if (!isOpen) return null
 
@@ -117,7 +171,8 @@ export default function WorkoutChatDrawer({
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div ref={scrollRef} onScroll={handleScroll}
+             className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
           {busy ? (
             <div className="flex items-center justify-center h-full">
               <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
