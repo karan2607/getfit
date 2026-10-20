@@ -18,6 +18,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from .models import HealthDailySummary
+from .user_time import user_today
 
 METRICS = (
     'steps',
@@ -69,7 +70,9 @@ def build_series(user, range_key=DEFAULT_RANGE, today=None):
     resolved = range_key if range_key in RANGES else DEFAULT_RANGE
     granularity = spec['bucket']
 
-    today = today or timezone.now().date()
+    # The user's current day, not the server's -- otherwise the newest bucket
+    # is tomorrow for anyone west of UTC in the evening.
+    today = today or user_today(user)
     window_start = _bucket_start(today - timedelta(days=spec['days'] - 1),
                                  granularity)
 

@@ -42,8 +42,21 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'height_cm', 'weight_kg', 'age', 'gender',
             'fitness_goal', 'experience_level', 'dietary_preference', 'activity_level',
-            'personal_notes', 'preferred_unit',
+            'personal_notes', 'preferred_unit', 'timezone',
         ]
+
+    def validate_timezone(self, value):
+        """
+        Accept only a resolvable IANA name, so a junk value cannot silently
+        shift every date the user sees.
+        """
+        from .user_time import DEFAULT_TIMEZONE, resolve_zone
+        name = (value or '').strip()
+        if not name:
+            return ''
+        if str(resolve_zone(name)) == 'UTC' and name.upper() != DEFAULT_TIMEZONE:
+            raise serializers.ValidationError('Unknown timezone %r' % name)
+        return name
 
 
 class UserSerializer(serializers.ModelSerializer):

@@ -52,6 +52,7 @@ from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
 from . import exercise_types
 from . import exercise_names
+from .user_time import user_today
 
 User = get_user_model()
 
@@ -265,8 +266,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
     # Today's meal log summary
     meal_text = ''
     try:
-        from django.utils import timezone as _tz
-        today = _tz.now().date()
+        today = user_today(user)
         todays_logs = MealLog.objects.filter(user=user, date=today)
         if todays_logs.exists():
             total_cal = sum(m.calories for m in todays_logs)
@@ -3207,8 +3207,10 @@ def meal_logs(request):
         if date_str:
             qs = qs.filter(date=date_str)
         else:
-            from django.utils import timezone as _tz
-            qs = qs.filter(date=_tz.now().date())
+            # The user's today, not the server's. This line is the reported
+            # bug: at 11pm Eastern it asked for the next UTC day and returned
+            # nothing against five logged meals.
+            qs = qs.filter(date=user_today(request.user))
         return Response(MealLogSerializer(qs, many=True).data)
 
     ser = MealLogSerializer(data=request.data)
@@ -3436,15 +3438,18 @@ def _parse_health_payload(body):
 HEALTH_STALE_DATE_DAYS = 7
 
 
-def _parse_health_date(value):
+def _parse_health_date(value, user=None):
     """
     Validate the summary date. Returns (date, error_message).
 
     The raw string used to go straight into a DateField lookup, so a malformed
     value was a 500 and a typo'd year silently created a summary in 2206.
+
+    `user` sets which "today" an omitted date means, and which future dates are
+    rejected. A Shortcut syncing at 11pm local means the local day.
     """
     from django.utils import timezone as _tz
-    today = _tz.now().date()
+    today = user_today(user) if user is not None else _tz.now().date()
     if value in (None, ''):
         return today, None
 
@@ -3458,7 +3463,7 @@ def _parse_health_date(value):
     return parsed, None
 
 
-def _stale_date_warning(supplied, resolved):
+def _stale_date_warning(supplied, resolved, user=None):
     """
     Warn when a client keeps writing to a long-past date.
 
@@ -3471,7 +3476,8 @@ def _stale_date_warning(supplied, resolved):
     from django.utils import timezone as _tz
     if supplied in (None, '') or resolved is None:
         return None
-    age = (_tz.now().date() - resolved).days
+    today = user_today(user) if user is not None else _tz.now().date()
+    age = (today - resolved).days
     if age < HEALTH_STALE_DATE_DAYS:
         return None
     return (
@@ -3581,13 +3587,15 @@ def health_shortcuts_sync(request):
         return Response({'detail': 'Could not parse payload: %s' % parse_error},
                         status=status.HTTP_400_BAD_REQUEST)
 
-    summary_date, date_error = _parse_health_date(parsed.get('date'))
+    summary_date, date_error = _parse_health_date(
+        parsed.get('date'), user=sync_user)
     if date_error:
         return Response({'detail': date_error},
                         status=status.HTTP_400_BAD_REQUEST)
 
     stored_fields, field_errors = _coerce_health_fields(parsed)
-    stale_warning = _stale_date_warning(parsed.get('date'), summary_date)
+    stale_warning = _stale_date_warning(
+        parsed.get('date'), summary_date, user=sync_user)
 
     created_summary = False
     if stored_fields:
@@ -3660,8 +3668,7 @@ def health_recovery(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_calorie_balance(request):
-    from django.utils import timezone as _tz
-    today = _tz.now().date()
+    today = user_today(request.user)
 
     todays_logs = MealLog.objects.filter(user=request.user, date=today)
     calories_in = sum(m.calories for m in todays_logs)
@@ -3743,9 +3750,8 @@ def health_calorie_balance(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_activity_suggestion(request):
-    from django.utils import timezone as _tz
     from datetime import timedelta
-    today = _tz.now().date()
+    today = user_today(request.user)
 
     rows = list(
         HealthDailySummary.objects

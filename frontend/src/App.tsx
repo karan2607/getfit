@@ -42,6 +42,29 @@ function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false))
   }, [])
 
+  /**
+   * Report the browser's timezone so the server can work out the user's own
+   * "today".
+   *
+   * The server is UTC and had no way to know the local day: meals logged at
+   * 11pm on the 19th were stored under the 19th (the client sends the local
+   * date) and then read back against the 20th, so the health page showed 0
+   * eaten. Sent once per session, and only when it has actually changed.
+   */
+  useEffect(() => {
+    if (!user) return
+    let detected = ''
+    try {
+      detected = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+    } catch {
+      return
+    }
+    if (!detected || detected === user.profile?.timezone) return
+    api.profile.update({ timezone: detected })
+      .then((profile) => setUser({ ...user, profile }))
+      .catch(() => {})   // never block the app on this
+  }, [user?.id, user?.profile?.timezone]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function login(token: string, userData: User) {
     setToken(token)
     setUser(userData)

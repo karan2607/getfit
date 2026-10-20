@@ -30,6 +30,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
 from . import exercise_types
+from .user_time import user_today
 from .models import (
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     DietPlan, UserProfile, HealthDailySummary, HealthWorkout, MealLog,
@@ -372,20 +373,24 @@ def _tool_get_diet_plan(user, args):
     }
 
 
-def _mcp_date(args, key='date'):
+def _mcp_date(args, key='date', user=None):
     """
-    Parse an ISO date argument, defaulting to today.
+    Parse an ISO date argument, defaulting to the USER's today.
 
     Validated here rather than handed to a DateField lookup, which is how the
     Shortcuts sync endpoint used to turn a typo into a 500.
+
+    `user` matters because the server runs on UTC: an agent logging a meal at
+    11pm local with no explicit date meant the local day, and defaulting to the
+    server's day filed it under tomorrow.
     """
     raw = args.get(key)
+    today = user_today(user) if user is not None else timezone.now().date()
     if raw in (None, ''):
-        return timezone.now().date()
+        return today
     parsed = parse_date(str(raw).strip())
     if parsed is None:
         raise McpError('%s must be ISO format (YYYY-MM-DD), got %r' % (key, raw))
-    today = timezone.now().date()
     if parsed > today + timedelta(days=1):
         raise McpError('%s %s is in the future' % (key, parsed.isoformat()))
     return parsed
@@ -398,9 +403,9 @@ def _tool_log_health_day(user, args):
     """
     from .views import _coerce_health_fields, _stale_date_warning
 
-    day = _mcp_date(args)
+    day = _mcp_date(args, user=user)
     stored, problems = _coerce_health_fields(args)
-    stale = _stale_date_warning(args.get('date'), day)
+    stale = _stale_date_warning(args.get('date'), day, user=user)
     if stale:
         problems = problems + [stale]
     if not stored:
@@ -481,7 +486,7 @@ def _tool_log_meal(user, args):
 
     log = MealLog.objects.create(
         user=user,
-        date=_mcp_date(args),
+        date=_mcp_date(args, user=user),
         meal_type=meal_type,
         food_name=food_name[:200],
         calories=int(num('calories', float)),
@@ -500,7 +505,7 @@ def _tool_log_meal(user, args):
 
 def _tool_get_meal_logs(user, args):
     """Meals logged on a date, or across a trailing window."""
-    end = _mcp_date(args)
+    end = _mcp_date(args, user=user)
     days = max(1, min(int(args.get('days') or 1), 60))
     start = end - timedelta(days=days - 1)
 

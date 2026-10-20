@@ -11,6 +11,12 @@ export interface UserProfile {
   activity_level: 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active' | null
   personal_notes: string
   preferred_unit: 'lb' | 'kg'
+  /**
+   * IANA name, reported by the browser. The server runs on UTC, so without
+   * this every "today" was the server's day — at 11pm Eastern the health page
+   * asked for tomorrow and showed 0 calories against 5 logged meals.
+   */
+  timezone: string
 }
 
 export interface MealLog {

@@ -64,6 +64,14 @@ class UserProfile(models.Model):
     dietary_preference = models.CharField(max_length=15, choices=DIET_CHOICES, null=True, blank=True)
     activity_level = models.CharField(max_length=20, choices=ACTIVITY_CHOICES, null=True, blank=True)
     preferred_unit = models.CharField(max_length=2, choices=UNIT_CHOICES, default='lb')
+    # IANA name ("America/New_York"), set by the client from
+    # Intl.DateTimeFormat().resolvedOptions().timeZone.
+    #
+    # The server runs on UTC, so without this every "today" was the server's
+    # date: meals logged at 11pm local were stored under the correct local date
+    # and then read back against the next UTC day, reporting an empty day.
+    # Blank means UTC, which is the previous behaviour exactly.
+    timezone = models.CharField(max_length=64, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
