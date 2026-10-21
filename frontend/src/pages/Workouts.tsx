@@ -13,6 +13,7 @@ import { SkeletonCard, SkeletonText } from '../components/Skeleton'
 import PageHeader from '../components/PageHeader'
 import ExerciseDrawer from '../components/ExerciseDrawer'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
+import UpcomingWeeks from '../components/workout/UpcomingWeeks'
 import ConfirmModal from '../components/ConfirmModal'
 import { compressImage } from '../lib/imageUtils'
 
@@ -476,7 +477,13 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
             </div>
 
             <div className="space-y-2 mb-5">
-              {(preview.weeks ?? (preview.days ? [preview.days] : [])).map((weekDays, idx) => {
+              {/* Three shapes: `week` (per-week generation — what new plans
+                  return), `weeks` (legacy whole-plan), `days` (older single
+                  week). Reading only the first two rendered an empty preview
+                  for every new plan. */}
+              {(preview.weeks
+                ?? (preview.week ? [preview.week] : null)
+                ?? (preview.days ? [preview.days] : [])).map((weekDays, idx) => {
                 const weekNum = idx + 1
                 const isOpen = expandedPreviewWeeks.has(weekNum)
                 const trainingCount = weekDays.filter((d) => !d.is_rest_day).length
@@ -530,6 +537,38 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                 )
               })}
             </div>
+
+            {/* Only week 1 is generated up front, so without this an 8-week
+                plan would preview as a single week and look broken. The
+                outline is what makes the rest of the program legible. */}
+            {preview.program_outline && preview.program_outline.length > 0 && (
+              <div className="mb-5 bg-white rounded-2xl border border-gray-100 p-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+                  Then, as you go
+                </p>
+                <div className="space-y-2">
+                  {preview.program_outline.map((phase) => (
+                    <div key={`${phase.start_week}-${phase.end_week}`} className="flex gap-3">
+                      <span className="text-xs font-bold text-brand-500 whitespace-nowrap pt-0.5 w-16 flex-shrink-0">
+                        {phase.start_week === phase.end_week
+                          ? `Week ${phase.start_week}`
+                          : `Wk ${phase.start_week}-${phase.end_week}`}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{phase.name}</p>
+                        {phase.focus && (
+                          <p className="text-xs text-gray-400">{phase.focus}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-3 pt-3 border-t border-gray-100">
+                  Each week is written when you reach it, using what you
+                  actually lifted in the weeks before — not guessed now.
+                </p>
+              </div>
+            )}
 
             <button onClick={handleSave} disabled={saving} className={btnBase}>
               {saving ? 'Saving...' : 'Save this plan'}
@@ -607,6 +646,23 @@ function PlanDetail({ planId }: { planId: string }) {
       .catch(() => showToast('Failed to load plan', 'error'))
       .finally(() => setLoading(false))
   }, [planId])
+
+  /**
+   * Poll while a week is generating in the background.
+   *
+   * Generation runs in a server-side thread (no task queue on a single
+   * worker), so there is nothing to subscribe to — the client asks. Only
+   * polls while `is_preparing` is true, which the server reports as false
+   * once the lock goes stale, so a dyno restart mid-generation stops this
+   * rather than leaving it spinning forever.
+   */
+  useEffect(() => {
+    if (!plan?.is_preparing) return
+    const timer = setInterval(() => {
+      api.workouts.getPlan(plan.id).then(setPlan).catch(() => {})
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [plan?.is_preparing, plan?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build a map of dayId → most recent session (in-progress or today-completed)
   const today = new Date().toDateString()
@@ -894,6 +950,12 @@ function PlanDetail({ planId }: { planId: string }) {
             </div>
           )
         })()}
+        {/* Weeks not generated yet. Normally nobody touches the button —
+            finishing a week auto-starts the next one. */}
+        <UpcomingWeeks
+          plan={plan}
+          onChanged={() => api.workouts.getPlan(plan.id).then(setPlan).catch(() => {})}
+        />
       </div>
 
       {/* Chat FAB — sits above mobile bottom nav (4rem) and desktop support widget */}

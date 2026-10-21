@@ -366,6 +366,19 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    /**
+     * Start generating one week in the background. 202 when it started,
+     * 200 when the week already exists (a race with the auto-trigger),
+     * 409 when another week is mid-flight.
+     */
+    prepareNextWeek: (planId: string, week: number, notes?: string) =>
+      request<{
+        detail: string; started: boolean
+        preparing_week: number | null; weeks_ready: number
+      }>(`/api/workouts/plans/${planId}/weeks/${week}/prepare/`, {
+        method: 'POST', body: JSON.stringify({ notes: notes ?? '' }),
+      }),
+
     listExercises: () =>
       request<ExerciseSummary[]>('/api/workouts/exercises/'),
 
@@ -559,6 +572,13 @@ export interface WorkoutDay {
   last_completed_at: string | null
 }
 
+export interface ProgramPhase {
+  start_week: number
+  end_week: number
+  name: string
+  focus: string
+}
+
 export interface WorkoutPlan {
   id: string
   title: string
@@ -581,6 +601,23 @@ export interface WorkoutPlan {
   } | null
   goal_check_in_shown: boolean
   data_version?: number
+  /**
+   * Phase structure for the whole program. Lets the UI show the shape of
+   * weeks that have not been generated yet. Ranges are integers and
+   * server-validated to tile 1..duration_weeks exactly.
+   */
+  program_outline: ProgramPhase[] | null
+  /**
+   * Highest week that actually has days — DERIVED server-side from the days
+   * that exist, so it cannot drift. Plans created before per-week generation
+   * report their full duration.
+   */
+  weeks_ready: number
+  /** Week currently being generated in the background, if any. */
+  preparing_week: number | null
+  /** True only while a preparation is live (a stale lock reads false). */
+  is_preparing: boolean
+  prepare_error: string
   created_at: string
   updated_at: string
 }
@@ -615,7 +652,14 @@ export interface WorkoutPlanPreview {
   specific_goal?: string
   program_target?: WorkoutPlan['program_target']
   generated_by_ai?: boolean
+  /** Week 1, from per-week generation. The shape new plans arrive in. */
+  week?: PreviewDay[]
+  /** Phase structure for the whole program; weeks 2+ are generated later. */
+  program_outline?: ProgramPhase[]
+  /** Notes keyed by exercise name, emitted once instead of per week. */
+  exercise_notes?: Record<string, string>
   days?: PreviewDay[]
+  /** Legacy whole-plan shape. Still accepted on save. */
   weeks?: PreviewDay[][]
 }
 
