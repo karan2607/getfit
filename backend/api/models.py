@@ -251,11 +251,60 @@ class WorkoutPlan(models.Model):
     specific_goal = models.TextField(blank=True)
     program_target = models.JSONField(null=True, blank=True)
     goal_check_in_shown = models.BooleanField(default=False)
+
+    # ---- per-week generation -------------------------------------------
+    # Plans are generated ONE WEEK AT A TIME. An 8-week plan emitted in a
+    # single call is ~25,000 output tokens, and a sweep of four models hit 2
+    # unparseable responses in 14 attempts (~14%) at that size -- truncation
+    # at the model's output ceiling leaves JSON that cannot parse. Week-sized
+    # calls are ~3,000 tokens.
+    #
+    # The bigger win is quality: weeks 2+ used to be written before the user
+    # had trained a single session. Now each week is generated with the
+    # previous weeks' logged performance in the prompt.
+    #
+    # The phase structure (name, focus, week range) for the whole program, so
+    # the UI can show the shape of weeks that do not exist yet. Ranges are
+    # integers and validated to tile 1..duration_weeks exactly.
+    program_outline = models.JSONField(null=True, blank=True)
+    # Set while a week is being generated in a background thread. Doubles as
+    # the concurrency guard -- one generation per plan at a time.
+    preparing_week = models.PositiveIntegerField(null=True, blank=True)
+    prepare_started_at = models.DateTimeField(null=True, blank=True)
+    prepare_error = models.TextField(blank=True)
     # Highest upgrade step from api/data_upgrades.py already applied to this plan.
     # Lets a major update repair existing plans in place instead of requiring the
     # user to recreate them. See `manage.py upgrade_data`.
     data_version = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # A generation that died mid-run (dyno restart, thread killed) would
+    # otherwise leave `preparing_week` set forever and wedge the plan. Any
+    # lock older than this is treated as failed and can be retried.
+    PREPARE_LOCK_TIMEOUT = timedelta(minutes=5)
+
+    @property
+    def weeks_ready(self):
+        """
+        Highest week number that actually has days.
+
+        Derived rather than stored so it cannot drift from reality. Plans
+        created before per-week generation have every week materialised, so
+        this returns their full duration and they need no special-casing.
+        """
+        from django.db.models import Max
+        return self.days.aggregate(m=Max('week_number'))['m'] or 0
+
+    @property
+    def prepare_lock_is_stale(self):
+        if self.preparing_week is None or self.prepare_started_at is None:
+            return False
+        return timezone.now() - self.prepare_started_at > self.PREPARE_LOCK_TIMEOUT
+
+    @property
+    def is_preparing(self):
+        """Preparing, and the lock has not expired."""
+        return self.preparing_week is not None and not self.prepare_lock_is_stale
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

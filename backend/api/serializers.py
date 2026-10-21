@@ -142,19 +142,27 @@ class WorkoutDaySerializer(serializers.ModelSerializer):
 
 
 class WorkoutPlanSerializer(serializers.ModelSerializer):
+    # Per-week generation state. `weeks_ready` is derived from the days that
+    # actually exist, so it cannot drift -- and plans created before per-week
+    # generation report their full duration and need no special-casing.
+    weeks_ready = serializers.IntegerField(read_only=True)
+    is_preparing = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
+        read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
 
 
 class WorkoutPlanDetailSerializer(serializers.ModelSerializer):
     days = WorkoutDaySerializer(many=True, read_only=True)
+    weeks_ready = serializers.IntegerField(read_only=True)
+    is_preparing = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'days', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'days', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
+        read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
 
 
 class SetLogSerializer(serializers.ModelSerializer):

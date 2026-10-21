@@ -34,6 +34,10 @@ urlpatterns = [
     path('workouts/plans/<uuid:plan_id>/activate/', views.workout_plan_activate, name='workout-plan-activate'),
     path('workouts/plans/<uuid:plan_id>/advance-week/', views.workout_plan_advance_week, name='workout-plan-advance-week'),
     path('workouts/plans/<uuid:plan_id>/prepare-week/', views.workout_plan_prepare_week, name='workout-plan-prepare-week'),
+    # Generates one WEEK of the plan (distinct from prepare-week above, which
+    # only pre-warms ExerciseGuide rows for a week that already exists).
+    path('workouts/plans/<uuid:plan_id>/weeks/<int:week_number>/prepare/',
+         views.workout_plan_prepare_next_week, name='workout-plan-prepare-next-week'),
     path('workouts/plans/<uuid:plan_id>/mark-rest-day/', views.workout_plan_mark_rest_day, name='workout-plan-mark-rest-day'),
     path('workouts/sessions/', views.workout_sessions, name='workout-sessions'),
     path('workouts/sessions/<uuid:session_id>/', views.workout_session_detail, name='workout-session-detail'),

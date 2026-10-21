@@ -4,7 +4,7 @@ import re
 from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Case, F, IntegerField, Value, When
 
 logger = logging.getLogger(__name__)
@@ -635,19 +635,17 @@ def _auto_title(session: ChatSession, first_user_message: str) -> str:
 # Workout Planner
 # ---------------------------------------------------------------------------
 
-def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
-                              fitness_goal: str = '', experience_level: str = '',
-                              equipment: str = '', notes: str = '',
-                              body_context: str = '', preferred_unit: str = 'lb',
-                              specific_goals: list = None, goal_params: dict = None,
-                              confirmed_target: dict = None,
-                              past_exercises: list = None) -> tuple[str, str]:
-    goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
-    goal = goal_map.get(fitness_goal or getattr(profile, 'fitness_goal', '') or '', 'general fitness')
-    level = experience_level or getattr(profile, 'experience_level', 'beginner') or 'beginner'
-    equip = equipment or 'full gym'
+def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
+    """
+    The coaching doctrine, shared by whole-plan and single-week generation.
 
-    system = (
+    Extracted so a week generated later carries the SAME rules as week 1 --
+    measurement types, the conventional rep brackets, the injury protocol and
+    the ban on weights in notes. Two copies would drift, and the drift would
+    show up as weeks 2+ quietly violating gates week 1 passes.
+    """
+    return (
+
         f'You are a certified personal trainer, strength and conditioning coach, and sports scientist '
         f'with 15+ years of experience. Design evidence-based programs for clients of all levels. '
         f'Return valid JSON only — no markdown, no explanation outside the JSON object. '
@@ -802,6 +800,21 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         f'BAD:   "Start 95{preferred_unit}. Add 5{preferred_unit} when all sets clean."'
     )
 
+
+def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
+                              fitness_goal: str = '', experience_level: str = '',
+                              equipment: str = '', notes: str = '',
+                              body_context: str = '', preferred_unit: str = 'lb',
+                              specific_goals: list = None, goal_params: dict = None,
+                              confirmed_target: dict = None,
+                              past_exercises: list = None) -> tuple[str, str]:
+    goal_map = {'lose_fat': 'fat loss', 'build_muscle': 'muscle gain', 'maintain': 'maintenance'}
+    goal = goal_map.get(fitness_goal or getattr(profile, 'fitness_goal', '') or '', 'general fitness')
+    level = experience_level or getattr(profile, 'experience_level', 'beginner') or 'beginner'
+    equip = equipment or 'full gym'
+
+    system = _workout_system_prompt(preferred_unit)
+
     # Build the structured user prompt
     age = getattr(profile, 'age', None) if profile else None
     gender = getattr(profile, 'gender', None) if profile else None
@@ -859,45 +872,270 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
         '',
         f'Design the optimal {duration_weeks}-week plan for this specific person using your full trainer expertise.',
         f'Structure into {phases}. Consider ALL stated goals — blend programming for hybrid goals.',
-        'Within each phase increase overload week-to-week (sets or reduced rest before adding load).',
-        f'CRITICAL: the weeks array MUST contain exactly {duration_weeks} sub-arrays. Fewer weeks = incomplete response.',
-        'Schema (show all weeks — example has 2, you must return all {duration_weeks}):'.replace('{duration_weeks}', str(duration_weeks)),
+        '',
+        # Week 1 only. An 8-week plan in one response is ~25,000 output tokens,
+        # and at that size responses get truncated at the model's output
+        # ceiling -- 2 unparseable responses in 14 attempts across four models.
+        # Later weeks are generated when the user reaches them, which also
+        # means they can be written against real logged performance instead of
+        # being guessed before the user has trained once.
+        'RETURN WEEK 1 ONLY, plus an outline of the whole program.',
+        f'Do NOT return weeks 2-{duration_weeks}; they are generated later, each'
+        if duration_weeks > 1 else '',
+        'one informed by what the client actually lifted in the weeks before it.'
+        if duration_weeks > 1 else '',
+        '',
+        'PROGRAM OUTLINE:',
+        f'  - cover every week from 1 to {duration_weeks} with no gaps and no overlaps',
+        '  - week ranges are INTEGERS (start_week, end_week), never strings',
+        f'  - the first phase starts at week 1 and the last ends at week {duration_weeks}',
+        '',
+        'EXERCISE NOTES — one entry per exercise NAME, not per week:',
+        'Notes are form cues and substitution reasons, which do not change week',
+        'to week. Return them once in `exercise_notes`, keyed by the exact',
+        'exercise name used in the days below. Do NOT put a `notes` field on',
+        'the individual exercises.',
+        '',
+        'Schema:',
         '{',
         '  "title": "string",',
         '  "description": "string (mention the periodization approach)",',
         f'  "duration_weeks": {duration_weeks},',
-        '  "weeks": [',
-        '    [  // Week 1: first phase (e.g. Accumulation — 4x10-12, 60s rest)',
-        '      {',
-        '        "day_number": 1,',
-        '        "name": "string",',
-        '        "focus": "string",',
-        '        "is_rest_day": false,',
-        '        "exercises": [',
-        '          {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min", "rest_seconds": 0, "measurement_type": "warmup", "notes": "specific drills for today"},',
+        '  "program_outline": [',
+        '    {"start_week": 1, "end_week": 4, "name": "Accumulation",'
+        ' "focus": "high volume, 4x10-12, 60-75s rest"}',
+        f'    // ... phases continue until end_week == {duration_weeks}',
+        '  ],',
+        '  "exercise_notes": {',
         # The notes example must be a FORM CUE, never a weight. It previously
         # showed a starting-weight sentence, which the model dutifully copied --
         # first as a literal placeholder ("Start Xkg"), then as a static guess
         # that competed with the history-based weekly recommendation.
-        '          {"name": "string", "sets": number, "reps": "string", "rest_seconds": number, "measurement_type": "weight_reps", "notes": "form cue for this exercise"}',
-        '        ]',
-        '      }',
-        '    ],',
-        '    [  // Week 2: same structure — same exercises, notes show progressive overload (e.g. +1 rep or +weight)',
-        '      { "day_number": 1, "name": "string", "focus": "string", "is_rest_day": false, "exercises": [ ... ] }',
-        '    ]',
-        f'    // ... weeks 3 through {duration_weeks} follow the same pattern, evolving with each phase',
+        '    "Barbell Bench Press": "Pause 1s at the chest. Elbows at 45 degrees.",',
+        '    "Warmup & Mobility": "Arm circles 20x, band pull-aparts 15x"',
+        '  },',
+        '  "week": [',
+        '    {',
+        '      "day_number": 1,',
+        '      "name": "string",',
+        '      "focus": "string",',
+        '      "is_rest_day": false,',
+        '      "exercises": [',
+        '        {"name": "Warmup & Mobility", "sets": 1, "reps": "5-10 min",'
+        ' "rest_seconds": 0, "measurement_type": "warmup"},',
+        '        {"name": "string", "sets": number, "reps": "string",'
+        ' "rest_seconds": number, "measurement_type": "weight_reps"}',
+        '      ]',
+        '    }',
+        f'    // ... all {days_per_week} training days plus rest days',
         '  ]',
         '}',
     ]))
     return system, user
 
 
+def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
+                          user_note='', history=None, previous_week=None):
+    """
+    Prompt for ONE week of an existing plan.
+
+    This is the half that could not exist before: it carries the client's
+    actual logged performance for the exercises they just did, so week N is
+    programmed against reality rather than guessed at plan-creation time.
+
+    `user_note` is free text the user typed when asking for the week ("knee
+    felt off on squats"), which is the single highest-value input available and
+    had nowhere to go previously.
+    """
+    outline = plan.program_outline or []
+    phase = next(
+        (p for p in outline
+         if isinstance(p, dict)
+         and (p.get('start_week') or 0) <= week_number <= (p.get('end_week') or 0)),
+        None)
+
+    lines = [
+        f'Generate WEEK {week_number} of a {plan.duration_weeks}-week program.',
+        f'Program: {plan.title}',
+        '',
+    ]
+    if phase:
+        lines += [
+            'This week falls in phase "%s" (weeks %s-%s): %s'
+            % (phase.get('name', '?'), phase.get('start_week'),
+               phase.get('end_week'), phase.get('focus', '')),
+            '',
+        ]
+    if outline:
+        lines.append('Full program outline, for context:')
+        for p in outline:
+            if isinstance(p, dict):
+                lines.append('  weeks %s-%s: %s — %s'
+                             % (p.get('start_week'), p.get('end_week'),
+                                p.get('name', '?'), p.get('focus', '')))
+        lines.append('')
+
+    if previous_week:
+        lines.append('Last week\'s structure (keep the split; evolve the loading):')
+        for day in previous_week:
+            names = ', '.join(
+                '%s %sx%s' % (e.name, e.sets, e.reps) for e in day['exercises'])
+            lines.append('  Day %s (%s): %s' % (day['day_number'], day['name'], names))
+        lines.append('')
+
+    if history:
+        lines += [
+            'WHAT THE CLIENT ACTUALLY LIFTED (use this to set this week\'s loading):',
+        ]
+        for name, summary in history.items():
+            lines.append('  %s: %s' % (name, summary))
+        lines += [
+            'Progress from these real numbers. If they missed the target reps,',
+            'hold or reduce rather than adding load.',
+            '',
+        ]
+
+    if user_note:
+        lines += [
+            'THE CLIENT ALSO SAID (treat as a constraint, not a suggestion):',
+            user_note.strip()[:600],
+            '',
+        ]
+
+    lines += [
+        f'Return ONLY week {week_number}. Same JSON shape as a plan\'s "week"'
+        ' key, plus "exercise_notes" for any exercise not seen before:',
+        '{',
+        '  "exercise_notes": {"New Exercise": "form cue"},',
+        '  "week": [{"day_number": 1, "name": "string", "focus": "string",',
+        '            "is_rest_day": false, "exercises": [...]}]',
+        '}',
+    ]
+    return _workout_system_prompt(preferred_unit), '\n'.join(
+        line for line in lines if line is not None)
+
+
+def validate_program_outline(outline, duration_weeks):
+    """
+    The phase list must tile 1..duration_weeks exactly.
+
+    Ranges are integers, not strings: `"1-4"` is the same class of unvalidatable
+    free text that produced `Cable Crossover (Mid-to-High)`. With integers this
+    is checkable, and it works identically for the 4, 6, 8 and 12 week options
+    the UI offers.
+
+    Returns a list of problems, empty when valid. A malformed outline is
+    DROPPED by the caller rather than rejecting the plan -- the outline is for
+    display, and losing a whole plan over it would be the wrong trade.
+    """
+    if not isinstance(outline, list) or not outline:
+        return ['outline is missing or not a list']
+    if not duration_weeks:
+        return ['duration_weeks is unknown']
+
+    problems = []
+    spans = []
+    for index, phase in enumerate(outline, 1):
+        if not isinstance(phase, dict):
+            problems.append('phase #%d is not an object' % index)
+            continue
+        try:
+            start = int(phase['start_week'])
+            end = int(phase['end_week'])
+        except (KeyError, TypeError, ValueError):
+            problems.append('phase #%d needs integer start_week and end_week'
+                            % index)
+            continue
+        if start > end:
+            problems.append('phase #%d starts at %d but ends at %d'
+                            % (index, start, end))
+            continue
+        spans.append((start, end, phase.get('name') or 'phase #%d' % index))
+
+    if problems:
+        return problems
+
+    spans.sort()
+    if spans[0][0] != 1:
+        problems.append('first phase starts at week %d, not 1' % spans[0][0])
+    if spans[-1][1] != duration_weeks:
+        problems.append('last phase ends at week %d, not %d'
+                        % (spans[-1][1], duration_weeks))
+    for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(spans, spans[1:]):
+        if b_start == a_end + 1:
+            continue
+        if b_start <= a_end:
+            problems.append('%r (%d-%d) overlaps %r (%d-%d)'
+                            % (b_name, b_start, b_end, a_name, a_start, a_end))
+        else:
+            problems.append('gap between week %d and week %d' % (a_end, b_start))
+    return problems
+
+
+def _plan_days(data):
+    """
+    Every day in a generated payload, whatever shape it arrived in.
+
+    Three shapes are accepted:
+      {"week":  [day, ...]}        one week (per-week generation)
+      {"weeks": [[day, ...], ...]} multiple weeks (legacy whole-plan)
+      {"days":  [day, ...]}        single week, older key
+    """
+    if not isinstance(data, dict):
+        return []
+    if isinstance(data.get('week'), list):
+        return [d for d in data['week'] if isinstance(d, dict)]
+    if isinstance(data.get('weeks'), list):
+        out = []
+        for week in data['weeks']:
+            if isinstance(week, list):
+                out.extend(d for d in week if isinstance(d, dict))
+        return out
+    if isinstance(data.get('days'), list):
+        return [d for d in data['days'] if isinstance(d, dict)]
+    return []
+
+
+def _create_day(plan, day_data, week_number, order):
+    """Single creation path for WorkoutDay, shared by plan and week creation."""
+    return WorkoutDay.objects.create(
+        plan=plan,
+        day_number=day_data['day_number'],
+        week_number=week_number,
+        name=day_data['name'],
+        focus=day_data.get('focus', ''),
+        is_rest_day=day_data.get('is_rest_day', False),
+        order=order,
+    )
+
+
+def _accepted_outline(data):
+    """
+    The program outline, or None if the model got it wrong.
+
+    Dropped rather than rejected: the outline drives display only, so losing a
+    whole plan over a malformed phase list would be the wrong trade -- the same
+    call made for prescription mismatches.
+    """
+    outline = data.get('program_outline')
+    if outline is None:
+        return None
+    problems = validate_program_outline(outline, data.get('duration_weeks'))
+    if problems:
+        logger.warning('dropping invalid program_outline: %s', '; '.join(problems))
+        return None
+    return outline
+
+
 def _validate_plan_json(data: dict) -> None:
     if 'title' not in data:
         raise ValueError('Missing required field: title')
     days_list = []
-    if 'weeks' in data:
+    if 'week' in data:
+        if not isinstance(data['week'], list) or not data['week']:
+            raise ValueError('week must be a non-empty list of days')
+        days_list = data['week']
+    elif 'weeks' in data:
         if not isinstance(data['weeks'], list) or len(data['weeks']) == 0:
             raise ValueError('weeks must be a non-empty list')
         for week in data['weeks']:
@@ -1024,7 +1262,39 @@ def _clean_exercise_notes(text):
     return re.sub(r'\s{2,}', ' ', ' '.join(kept)).strip()
 
 
-def _create_exercise(day, ex_data: dict, order: int):
+def _exercise_note(ex_data, canonical_name, notes_by_name):
+    """
+    The note for one exercise, from the per-exercise field or the shared map.
+
+    Generation returns notes ONCE per exercise name rather than per
+    week-instance: they were 46% of an 8-week payload (47KB of 101KB) with only
+    117 distinct strings across 408 exercises, because the same form cue was
+    re-emitted every week. The prompt already said notes are "for things that
+    do not change week to week".
+
+    Wire format only -- `Exercise.notes` is still written per row exactly as
+    before, so nothing downstream changes. An inline `notes` field still wins,
+    so older payloads and AI chat edits keep working.
+    """
+    inline = ex_data.get('notes')
+    if inline:
+        return inline
+    if not notes_by_name:
+        return ''
+    # Match on the canonical name, then on whatever the model actually wrote,
+    # so a key that differs only in spelling still resolves.
+    raw = str(ex_data.get('name') or '')
+    for key in (canonical_name, raw):
+        if key in notes_by_name:
+            return notes_by_name[key] or ''
+    canonical_map = {
+        exercise_names.canonical(str(k)): v
+        for k, v in notes_by_name.items() if isinstance(k, str)
+    }
+    return canonical_map.get(canonical_name) or ''
+
+
+def _create_exercise(day, ex_data: dict, order: int, notes_by_name=None):
     """
     Single creation path for Exercise rows.
 
@@ -1049,7 +1319,7 @@ def _create_exercise(day, ex_data: dict, order: int):
         sets=ex_data.get('sets', 3),
         reps=reps,
         rest_seconds=ex_data.get('rest_seconds'),
-        notes=_clean_exercise_notes(ex_data.get('notes', '')),
+        notes=_clean_exercise_notes(_exercise_note(ex_data, name, notes_by_name)),
         order=order,
         measurement_type=exercise_types.normalize(
             ex_data.get('measurement_type'),
@@ -1237,28 +1507,23 @@ def workout_plan_generate(request):
     except ValueError as e:
         return Response({'detail': f'AI returned invalid plan: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
 
-    # If Gemini returned fewer weeks than requested, retry once with a stronger prompt
-    returned_weeks = len(plan_data.get('weeks', []))
-    if returned_weeks < duration_weeks:
-        retry_user = (
-            f'The plan you just returned only has {returned_weeks} week(s) but must have exactly {duration_weeks}. '
-            f'Expand it now. Repeat the same exercises across weeks but change sets/reps/rest to show progression '
-            f'(e.g. add 1 rep per week, reduce rest, or increase sets). '
-            f'Return the COMPLETE plan with ALL {duration_weeks} weeks in the weeks array. '
-            f'Do not omit any weeks.\n\n' + user_prompt
-        )
-        try:
-            plan_data2 = call_gemini_json(system_prompt=system, user_prompt=retry_user)
-            _validate_plan_json(plan_data2)
-            if len(plan_data2.get('weeks', [])) >= returned_weeks:
-                plan_data = plan_data2
-        except Exception:
-            pass  # keep original if retry fails
-
-    # Always use user's requested duration — override whatever the AI returned
+    # The old "returned fewer weeks than requested, retry with a stronger
+    # prompt" branch is gone: generation now returns ONE week by design, and
+    # the rest are prepared as the user reaches them. That retry existed
+    # because asking for 8 weeks at once routinely came back short -- a
+    # symptom of the output-size problem this change removes.
+    #
+    # A model that ignores the instruction and returns `weeks` anyway is
+    # tolerated: keep week 1 and drop the speculative rest, since weeks 2+
+    # generated before the user has trained are exactly what we are replacing.
     plan_data['duration_weeks'] = duration_weeks
-    if 'weeks' in plan_data and isinstance(plan_data['weeks'], list):
-        plan_data['weeks'] = plan_data['weeks'][:duration_weeks]
+    if isinstance(plan_data.get('weeks'), list) and plan_data['weeks']:
+        first = plan_data['weeks'][0]
+        if isinstance(first, list) and first:
+            logger.info('plan generate: model returned %d weeks, keeping week 1',
+                        len(plan_data['weeks']))
+            plan_data['week'] = first
+        plan_data.pop('weeks', None)
 
     # Attach the confirmed target so the frontend can save it with the plan
     if confirmed_target:
@@ -1289,40 +1554,28 @@ def workout_plans(request):
         generated_by_ai=data.get('generated_by_ai', True),
         specific_goal=data.get('specific_goal', ''),
         program_target=data.get('program_target'),
+        program_outline=_accepted_outline(data),
     )
 
-    # Support both single-week ('days') and multi-week ('weeks') plan formats
+    notes_by_name = data.get('exercise_notes') or None
+
+    # Three accepted shapes: 'week' (one week, per-week generation), 'weeks'
+    # (legacy whole-plan), 'days' (older single week).
     order_counter = 0
     if 'weeks' in data:
-        weeks = data['weeks']
-        for week_idx, week_days in enumerate(weeks, start=1):
+        for week_idx, week_days in enumerate(data['weeks'], start=1):
             for day_data in week_days:
-                day = WorkoutDay.objects.create(
-                    plan=plan,
-                    day_number=day_data['day_number'],
-                    week_number=week_idx,
-                    name=day_data['name'],
-                    focus=day_data.get('focus', ''),
-                    is_rest_day=day_data.get('is_rest_day', False),
-                    order=order_counter,
-                )
+                day = _create_day(plan, day_data, week_idx, order_counter)
                 order_counter += 1
                 for j, ex_data in enumerate(day_data.get('exercises', [])):
-                    _create_exercise(day, ex_data, j)
+                    _create_exercise(day, ex_data, j, notes_by_name)
     else:
-        for day_data in data['days']:
-            day = WorkoutDay.objects.create(
-                plan=plan,
-                day_number=day_data['day_number'],
-                week_number=day_data.get('week_number', 1),
-                name=day_data['name'],
-                focus=day_data.get('focus', ''),
-                is_rest_day=day_data.get('is_rest_day', False),
-                order=order_counter,
-            )
+        for day_data in (data.get('week') or data.get('days') or []):
+            day = _create_day(plan, day_data, day_data.get('week_number', 1),
+                              order_counter)
             order_counter += 1
             for j, ex_data in enumerate(day_data.get('exercises', [])):
-                _create_exercise(day, ex_data, j)
+                _create_exercise(day, ex_data, j, notes_by_name)
 
     import threading
     threading.Thread(target=_bg_cache_plan_guides, args=(plan.id,), daemon=True).start()
@@ -1531,6 +1784,13 @@ def workout_session_detail(request, session_id):
     if 'notes' in request.data:
         session.notes = request.data['notes']
     session.save()
+
+    # Finishing the last training day of a week starts the next one generating,
+    # so the user does not wait when they get there. Best-effort by design --
+    # it must never affect completing a workout.
+    if session.is_completed:
+        _maybe_autoprepare_next_week(session)
+
     return Response(WorkoutSessionSerializer(session).data)
 
 
@@ -4339,3 +4599,233 @@ def api_key_revoke(request, key_id):
         logger.info('api key %s… revoked for %s',
                     api_key.prefix, request.user.email)
     return Response(_api_key_payload(api_key))
+
+
+# ---------------------------------------------------------------------------
+# Per-week generation
+# ---------------------------------------------------------------------------
+# Weeks after the first are generated when the user reaches them, in a
+# background thread, because an 8-week plan in one call is ~25,000 output
+# tokens and that size produced unparseable (truncated) JSON about 14% of the
+# time across four models.
+#
+# The other half of the point: a week prepared now can be written against what
+# the user ACTUALLY lifted in the weeks before it. Weeks 2+ used to be guessed
+# at plan-creation time, before a single session existed.
+
+
+def _week_history_summary(user, exercise_names_list, unit='lb'):
+    """
+    One line per exercise describing recent logged performance.
+
+    Reuses `_exercise_history` and `_analyze_progression`, so the week prompt
+    sees exactly what the per-exercise coaching advice sees -- they cannot
+    disagree about what the user lifted.
+    """
+    out = {}
+    for name in exercise_names_list:
+        measurement_type, prescribed = _exercise_prescription(user, name)
+        logs, _metric = _exercise_history(user, name, measurement_type, limit=30)
+        if not logs:
+            continue
+        low, high = _target_rep_range(prescribed)
+        prog = _analyze_progression(
+            logs, target_reps=(low, high),
+            measurement_type=measurement_type, unit=unit)
+        summary = prog.get('summary')
+        if summary:
+            out[name] = summary
+        elif prog.get('last_value') is not None:
+            out[name] = 'last session %s' % prog['last_value']
+    return out
+
+
+def _previous_week_structure(plan, week_number):
+    """The split and loading of the most recent prepared week, for continuity."""
+    source = max(1, week_number - 1)
+    days = (plan.days.filter(week_number=source)
+            .prefetch_related('exercises').order_by('day_number'))
+    out = []
+    for day in days:
+        if day.is_rest_day:
+            continue
+        out.append({
+            'day_number': day.day_number,
+            'name': day.name,
+            'exercises': list(day.exercises.all().order_by('order')),
+        })
+    return out
+
+
+def _generate_week(plan_id, week_number, user_note=''):
+    """
+    Generate and persist one week. Runs in a background thread.
+
+    Everything is wrapped so a failure records `prepare_error` and releases the
+    lock rather than leaving the plan stuck in "preparing" forever.
+    """
+    from .gemini import call_gemini_json, GeminiError as _GeminiError
+
+    plan = WorkoutPlan.objects.filter(pk=plan_id).first()
+    if plan is None:
+        return
+
+    try:
+        unit = _user_unit(plan.user)
+        profile = getattr(plan.user, 'profile', None)
+        previous = _previous_week_structure(plan, week_number)
+        names = [ex.name for day in previous for ex in day['exercises']]
+        history = _week_history_summary(plan.user, names, unit)
+
+        system, user_prompt = _week_generate_prompt(
+            plan, week_number, profile, preferred_unit=unit,
+            user_note=user_note, history=history, previous_week=previous)
+
+        data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
+        days = _plan_days(data)
+        if not days:
+            raise ValueError('no days returned')
+
+        notes_by_name = data.get('exercise_notes') or None
+
+        # One transaction: a partial week is worse than no week, because the
+        # user would train an incomplete split and `weeks_ready` would lie.
+        with transaction.atomic():
+            if plan.days.filter(week_number=week_number).exists():
+                logger.info('week %d of plan %s already exists, skipping',
+                            week_number, plan_id)
+            else:
+                base_order = (plan.days.aggregate(
+                    m=models.Max('order'))['m'] or 0) + 1
+                for offset, day_data in enumerate(days):
+                    day = _create_day(plan, day_data, week_number,
+                                      base_order + offset)
+                    for j, ex_data in enumerate(day_data.get('exercises', [])):
+                        _create_exercise(day, ex_data, j, notes_by_name)
+
+        WorkoutPlan.objects.filter(pk=plan_id).update(
+            preparing_week=None, prepare_started_at=None, prepare_error='')
+        logger.info('prepared week %d of plan %s (%d days)',
+                    week_number, plan_id, len(days))
+
+    except (_GeminiError, ValueError, KeyError, TypeError) as exc:
+        logger.exception('week %d of plan %s failed', week_number, plan_id)
+        WorkoutPlan.objects.filter(pk=plan_id).update(
+            preparing_week=None, prepare_started_at=None,
+            prepare_error=str(exc)[:500] or 'Generation failed')
+    except Exception as exc:                            # noqa: BLE001
+        logger.exception('week %d of plan %s failed unexpectedly',
+                         week_number, plan_id)
+        WorkoutPlan.objects.filter(pk=plan_id).update(
+            preparing_week=None, prepare_started_at=None,
+            prepare_error='Generation failed unexpectedly')
+
+
+def _start_week_preparation(plan, week_number, user_note=''):
+    """
+    Claim the lock and spawn the generation thread.
+
+    Returns (started, reason). The claim is a conditional UPDATE, so two
+    concurrent triggers cannot both win -- the second sees 0 rows updated.
+    """
+    if week_number < 2:
+        return False, 'week 1 is created with the plan'
+    if plan.duration_weeks and week_number > plan.duration_weeks:
+        return False, 'week %d is beyond the %d-week program' % (
+            week_number, plan.duration_weeks)
+    if plan.days.filter(week_number=week_number).exists():
+        return False, 'week %d already exists' % week_number
+    if plan.is_preparing:
+        return False, 'week %d is already preparing' % plan.preparing_week
+
+    # Only claim if nobody holds a live lock. A stale lock (older than
+    # PREPARE_LOCK_TIMEOUT) is reclaimable, which is what stops a dyno restart
+    # mid-generation from wedging the plan forever.
+    cutoff = timezone.now() - WorkoutPlan.PREPARE_LOCK_TIMEOUT
+    claimed = (WorkoutPlan.objects
+               .filter(pk=plan.pk)
+               .filter(models.Q(preparing_week__isnull=True)
+                       | models.Q(prepare_started_at__lt=cutoff))
+               .update(preparing_week=week_number,
+                       prepare_started_at=timezone.now(),
+                       prepare_error=''))
+    if not claimed:
+        return False, 'another week is already preparing'
+
+    import threading
+    threading.Thread(target=_generate_week,
+                     args=(plan.pk, week_number, user_note),
+                     daemon=True).start()
+    return True, 'preparing'
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_prepare_next_week(request, plan_id, week_number):
+    """
+    Start generating one week, in the background.
+
+    Named `prepare_next_week` deliberately: `workout_plan_prepare_week` already
+    exists and pre-warms ExerciseGuide rows, which is a different job.
+
+    Returns 202 immediately; the client polls the plan detail for
+    `preparing_week` / `weeks_ready` / `prepare_error`.
+    """
+    plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
+    note = str(request.data.get('notes') or '')[:600]
+
+    started, reason = _start_week_preparation(plan, int(week_number), note)
+    plan.refresh_from_db()
+    payload = {
+        'detail': reason,
+        'started': started,
+        'preparing_week': plan.preparing_week,
+        'weeks_ready': plan.weeks_ready,
+    }
+    if started:
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
+    # Not an error when the week is simply already there — the client may have
+    # raced its own auto-trigger.
+    already = 'already exists' in reason
+    return Response(
+        payload,
+        status=status.HTTP_200_OK if already else status.HTTP_409_CONFLICT)
+
+
+def _maybe_autoprepare_next_week(session):
+    """
+    Called when a workout session is completed.
+
+    Fires preparation for the following week once the last training day of the
+    current one is done, so the user normally never waits. Entirely
+    best-effort: a failure here must never affect completing a workout.
+    """
+    try:
+        day = session.exercise_day
+        if day is None or day.plan_id is None:
+            return
+        plan = day.plan
+        week = day.week_number or 1
+        if plan.duration_weeks and week >= plan.duration_weeks:
+            return
+        if plan.days.filter(week_number=week + 1).exists():
+            return
+
+        # Every non-rest day of this week must have a completed session.
+        day_ids = list(plan.days.filter(week_number=week, is_rest_day=False)
+                       .values_list('id', flat=True))
+        if not day_ids:
+            return
+        completed = set(
+            WorkoutSession.objects
+            .filter(user=plan.user, exercise_day_id__in=day_ids,
+                    is_completed=True)
+            .values_list('exercise_day_id', flat=True))
+        if len(completed) < len(day_ids):
+            return
+
+        started, reason = _start_week_preparation(plan, week + 1)
+        logger.info('autoprepare week %d of plan %s: %s',
+                    week + 1, plan.pk, reason)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('autoprepare check failed')
