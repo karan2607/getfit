@@ -6,6 +6,7 @@ import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 import AdminResetCard from '../components/profile/AdminResetCard'
+import ApiKeyCard from '../components/profile/ApiKeyCard'
 import PasswordInput from '../components/PasswordInput'
 
 // ── Personal Notes Card ───────────────────────────────────────────────────────
@@ -371,6 +372,14 @@ export default function Profile() {
               </button>
             </form>
           </section>
+        )}
+
+        {/* Credentials live next to the password, which is where someone
+            looks when an integration stops working. */}
+        {tab === 'password' && (
+          <div className="mt-6">
+            <ApiKeyCard />
+          </div>
         )}
 
         {/* Superuser-only reset tooling. Renders nothing for everyone else. */}

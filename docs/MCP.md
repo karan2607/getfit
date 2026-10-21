@@ -5,7 +5,16 @@ agent can read your plans and training history and write results back.
 
 - **Endpoint:** `POST /api/mcp/`
 - **Transport:** JSON-RPC 2.0 over HTTP POST
-- **Auth:** the same DRF token the app uses — `Authorization: Token <key>`
+- **Auth:** an **integration key** — `Authorization: Bearer <key>`
+
+  Create one in **Profile → Password → Integration keys**. Do *not* use the
+  app's session token (`Authorization: Token …`) for an agent: DRF stores one
+  token row per user and `logout()` deletes it, and the web app auto-logs-out
+  after 30 minutes of inactivity. Leaving a browser tab open therefore revoked
+  the agent's credential, which read as the token "expiring". An integration
+  key is independent of sessions, scoped so it cannot change your password or
+  reach admin endpoints, and shows `last used` in the UI so a dead key is
+  obvious.
 - **Implementation:** [`backend/api/mcp.py`](../backend/api/mcp.py) (tool registry)
   and `mcp_endpoint` in [`backend/api/views.py`](../backend/api/views.py)
 
@@ -25,7 +34,7 @@ channel needs a bridge such as `mcp-remote`:
       "args": [
         "-y", "mcp-remote",
         "https://<your-backend>.onrender.com/api/mcp/",
-        "--header", "Authorization: Token ${GETFIT_TOKEN}"
+        "--header", "Authorization: Bearer ${GETFIT_API_KEY}"
       ],
       "env": { "GETFIT_TOKEN": "<your-40-char-token>" }
     }
@@ -146,11 +155,11 @@ TOKEN=<your-token>
 BASE=https://<your-backend>.onrender.com
 
 curl -s -X POST "$BASE/api/mcp/" \
-  -H "Authorization: Token $TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $GETFIT_API_KEY" -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 
 curl -s -X POST "$BASE/api/mcp/" \
-  -H "Authorization: Token $TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $GETFIT_API_KEY" -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
        "params":{"name":"get_workout_plan","arguments":{}}}' | jq '.result.structuredContent'
 ```

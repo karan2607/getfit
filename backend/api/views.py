@@ -10,6 +10,7 @@ from django.db.models import Case, F, IntegerField, Value, When
 logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse, Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
@@ -23,7 +24,7 @@ from .models import (
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
     ExerciseGuide, MealGuide,
     HealthConnection, HealthDailySummary, HealthWorkout,
-    Feedback,
+    Feedback, ApiKey,
 )
 from .serializers import (
     RegisterSerializer,
@@ -4229,3 +4230,112 @@ def admin_issue_reset_link(request):
         'expires_in_hours': hours,
         'superseded_links': superseded,
     }, status=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------------------
+# Integration keys
+# ---------------------------------------------------------------------------
+# Long-lived credentials for external agents. Deliberately NOT the DRF session
+# token: that is one row per user and logout() deletes it, so the web app's
+# 30-minute idle timeout was silently revoking the user's phone agent.
+
+
+# A soft cap, so a compromised session cannot mint keys without bound.
+API_KEY_LIMIT = 10
+
+
+def _api_key_payload(api_key, reveal=False):
+    """
+    Serialise a key. The secret is returned ONCE, at creation.
+
+    Afterwards only a prefix, so a leaked screenshot of the settings page is
+    not a leaked credential.
+    """
+    data = {
+        'id': str(api_key.id),
+        'label': api_key.label,
+        'prefix': api_key.prefix,
+        'scope': api_key.scope,
+        'scope_display': api_key.get_scope_display(),
+        'created_at': api_key.created_at.isoformat(),
+        'last_used_at': (api_key.last_used_at.isoformat()
+                         if api_key.last_used_at else None),
+        'revoked_at': (api_key.revoked_at.isoformat()
+                       if api_key.revoked_at else None),
+        'is_active': api_key.is_active,
+    }
+    if reveal:
+        data['key'] = api_key.key
+    return data
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_keys(request):
+    """
+    List or create integration keys for the signed-in user.
+
+    Creation requires a SESSION token: an integration key must not be able to
+    mint another integration key, which would let a scoped credential escalate
+    by issuing itself a new one. `scope_allows` already blocks `auth/` paths,
+    but this lives under profile-adjacent routes, so the check is explicit.
+    """
+    if isinstance(request.auth, ApiKey):
+        return Response(
+            {'detail': 'Integration keys cannot manage other integration keys.'},
+            status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response([
+            _api_key_payload(k)
+            for k in ApiKey.objects.filter(user=request.user)
+        ])
+
+    label = str(request.data.get('label') or '').strip()[:64]
+    if not label:
+        return Response({'detail': 'label is required.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    scope = request.data.get('scope') or ApiKey.SCOPE_LOGGING
+    valid_scopes = {choice for choice, _label in ApiKey.SCOPE_CHOICES}
+    if scope not in valid_scopes:
+        return Response(
+            {'detail': 'scope must be one of %s.' % ', '.join(sorted(valid_scopes))},
+            status=status.HTTP_400_BAD_REQUEST)
+
+    active = ApiKey.objects.filter(user=request.user, revoked_at__isnull=True)
+    if active.count() >= API_KEY_LIMIT:
+        return Response(
+            {'detail': 'You already have %d active keys. Revoke one first.'
+                       % API_KEY_LIMIT},
+            status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = ApiKey.objects.create(user=request.user, label=label, scope=scope)
+    logger.info('api key created for %s (scope=%s)', request.user.email, scope)
+    return Response(_api_key_payload(api_key, reveal=True),
+                    status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def api_key_revoke(request, key_id):
+    """
+    Revoke a key. Soft delete, so `last_used_at` survives for diagnosis.
+
+    Session token only, for the same reason as creation.
+    """
+    if isinstance(request.auth, ApiKey):
+        return Response(
+            {'detail': 'Integration keys cannot manage other integration keys.'},
+            status=status.HTTP_403_FORBIDDEN)
+
+    api_key = ApiKey.objects.filter(pk=key_id, user=request.user).first()
+    if api_key is None:
+        return Response({'detail': 'Not found.'},
+                        status=status.HTTP_404_NOT_FOUND)
+    if api_key.is_active:
+        api_key.revoked_at = timezone.now()
+        api_key.save(update_fields=['revoked_at'])
+        logger.info('api key %s… revoked for %s',
+                    api_key.prefix, request.user.email)
+    return Response(_api_key_payload(api_key))

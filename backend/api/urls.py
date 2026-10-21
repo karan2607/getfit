@@ -17,6 +17,11 @@ urlpatterns = [
     path('auth/admin/reset-link/', views.admin_issue_reset_link, name='admin-reset-link'),
     # Profile
     path('profile/', views.profile, name='profile'),
+    # Integration keys (session token only — an integration key cannot mint
+    # another one). See api/auth_keys.py for the Bearer scheme they enable.
+    path('profile/api-keys/', views.api_keys, name='api-keys'),
+    path('profile/api-keys/<uuid:key_id>/', views.api_key_revoke,
+         name='api-key-revoke'),
     # Chat
     path('chat/sessions/', views.chat_sessions, name='chat-sessions'),
     path('chat/sessions/<uuid:session_id>/', views.chat_session_detail, name='chat-session-detail'),

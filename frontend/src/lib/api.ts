@@ -82,6 +82,23 @@ export interface AdminResetLink {
   superseded_links: number
 }
 
+/** A long-lived credential for an external integration (phone agent, script). */
+export interface ApiKey {
+  id: string
+  label: string
+  /** First 8 chars. The full key is returned ONCE, at creation. */
+  prefix: string
+  scope: string
+  scope_display: string
+  created_at: string
+  /** Surfaced in the UI — a key that stopped being used is the failure mode. */
+  last_used_at: string | null
+  revoked_at: string | null
+  is_active: boolean
+  /** Present only in the create response. */
+  key?: string
+}
+
 export type FeedbackStatus = 'new' | 'in_progress' | 'done' | 'failed' | 'skipped'
 
 export interface Feedback {
@@ -197,6 +214,18 @@ export const api = {
 
     update: (data: Partial<UserProfile>) =>
       request<UserProfile>('/api/profile/', { method: 'PATCH', body: JSON.stringify(data) }),
+
+    listApiKeys: () =>
+      request<ApiKey[]>('/api/profile/api-keys/'),
+
+    /** The response is the only time the full key is returned. */
+    createApiKey: (label: string, scope = 'logging') =>
+      request<ApiKey>('/api/profile/api-keys/', {
+        method: 'POST', body: JSON.stringify({ label, scope }),
+      }),
+
+    revokeApiKey: (id: string) =>
+      request<ApiKey>(`/api/profile/api-keys/${id}/`, { method: 'DELETE' }),
   },
 
   chat: {

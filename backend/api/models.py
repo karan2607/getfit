@@ -104,6 +104,96 @@ class PasswordResetToken(models.Model):
         return self.used_at is None and self.expires_at > timezone.now()
 
 
+class ApiKey(models.Model):
+    """
+    A long-lived credential for an external integration.
+
+    Why this is not just the DRF token
+    ----------------------------------
+    DRF models `Token` as ONE ROW PER USER, so a browser session and every
+    external integration share a single credential -- and `logout()` deletes
+    it. The web app auto-logs-out after 30 minutes of inactivity and calls that
+    endpoint, so leaving a tab open silently revoked the phone agent's access.
+    The symptom was "my token to send health metrics has expired"; DRF tokens
+    have no expiry, the row was being deleted and a different one minted.
+
+    An ApiKey is independent of sessions by construction: nothing in login,
+    logout or password-change touches it. It is also scoped, so a key living on
+    a phone all day cannot change the account password or reach admin
+    endpoints.
+    """
+
+    SCOPE_LOGGING = 'logging'
+    SCOPE_FULL = 'full'
+    SCOPE_CHOICES = [
+        (SCOPE_LOGGING, 'Health, diet and workout logging'),
+        (SCOPE_FULL, 'Full account access'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE,
+                             related_name='api_keys')
+    label = models.CharField(max_length=64)
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    scope = models.CharField(max_length=32, choices=SCOPE_CHOICES,
+                             default=SCOPE_LOGGING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Surfaced in the UI. A key that silently stopped being used is exactly the
+    # failure this model exists to prevent, and "last used 3 days ago" makes it
+    # obvious at a glance.
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.new_key()
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def new_key():
+        """
+        43 urlsafe characters from `secrets`, the same generator
+        PasswordResetToken and HealthConnection.new_sync_token use.
+
+        Deliberately not derived from anything about the user: the original
+        sync token was md5(user_id + "getFit") in a public repo, which
+        migration 0034 had to replace.
+        """
+        return secrets.token_urlsafe(32)
+
+    @property
+    def is_active(self):
+        return self.revoked_at is None
+
+    @property
+    def prefix(self):
+        """First 8 characters, for identifying a key without revealing it."""
+        return self.key[:8]
+
+    def touch(self, now=None, min_interval=timedelta(hours=1)):
+        """
+        Record use, at most once per `min_interval`.
+
+        An agent polling all day would otherwise write this row on every
+        request for no benefit -- hourly resolution is plenty to answer "is
+        this key still alive".
+        """
+        now = now or timezone.now()
+        if self.last_used_at and (now - self.last_used_at) < min_interval:
+            return False
+        # update() rather than save() so this never races with a concurrent
+        # request rewriting other fields.
+        ApiKey.objects.filter(pk=self.pk).update(last_used_at=now)
+        self.last_used_at = now
+        return True
+
+    def __str__(self):
+        return '%s (%s…)' % (self.label, self.prefix)
+
+
 # ---------------------------------------------------------------------------
 # Chat
 # ---------------------------------------------------------------------------

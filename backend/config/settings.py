@@ -131,10 +131,18 @@ AUTH_USER_MODEL = 'api.User'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Session credential: one row per user, deleted by logout.
         'rest_framework.authentication.TokenAuthentication',
+        # Long-lived integration credential, independent of sessions and
+        # scoped. See api/auth_keys.py.
+        'api.auth_keys.ApiKeyAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
+        # A no-op unless the request authenticated with an ApiKey, so the web
+        # app is unaffected. Applied globally on purpose: scoping enforced
+        # per-view would leave every newly added endpoint open by default.
+        'api.auth_keys.ApiKeyScopePermission',
     ],
 }
 
