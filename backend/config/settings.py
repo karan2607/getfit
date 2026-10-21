@@ -18,7 +18,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+# Defaults to FALSE. It used to default to True, which is how production
+# served Django's technical 500 page -- including the DATABASES dict, with the
+# Neon host and username unredacted (Django only hides settings whose NAMES
+# match KEY/SECRET/PASS/TOKEN) and 14 stack frames of local variables. Local
+# development sets DEBUG=True explicitly; see backend/.env.example.
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 

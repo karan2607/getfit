@@ -20,9 +20,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is what the local venv runs; 3.12 is what Render is likely to pick
-        # given requirements.txt pins no Python version. Testing both catches
-        # version-specific syntax before a Render default bump breaks the deploy.
         # 3.9 is the local dev venv; 3.13 is the closest widely-available
         # runner to production, which runs Python 3.14. requirements.txt pins
         # only `django>=4.2`, so the Python version decides the Django major:
