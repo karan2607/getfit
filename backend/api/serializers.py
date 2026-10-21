@@ -128,7 +128,7 @@ class ChatSessionDetailSerializer(serializers.ModelSerializer):
 class ExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise
-        fields = ['id', 'name', 'sets', 'reps', 'rest_seconds', 'notes', 'order', 'measurement_type']
+        fields = ['id', 'name', 'sets', 'reps', 'rest_seconds', 'notes', 'order', 'measurement_type', 'superset_group']
         read_only_fields = ['id']
 
 

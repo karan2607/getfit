@@ -39,6 +39,7 @@ from .serializers import (
     ChatMessageSerializer,
     WorkoutPlanSerializer,
     WorkoutPlanDetailSerializer,
+    WorkoutDaySerializer,
     WorkoutSessionSerializer,
     WorkoutSessionListSerializer,
     SetLogSerializer,
@@ -720,6 +721,26 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
         '  Knee: quad stretch 30s each, clamshells 15x, terminal knee extensions 15x\n'
         '  Shoulder: doorframe stretch 30s, wall slides 10x, thoracic rotation 10x each\n\n'
 
+        'SUPERSETS (optional, and only where they earn their place):\n'
+        'A superset is two exercises done back to back. Mark them with the same\n'
+        '"superset_group" integer on both; omit the field entirely otherwise.\n'
+        'Rules, all enforced server-side -- a group that breaks one is silently\n'
+        'ungrouped, so there is no point guessing:\n'
+        '  - at most 2 groups per day, and most days should have none\n'
+        '  - never the day\'s first working exercise: that is the primary lift\n'
+        '    and is done fresh and heavy\n'
+        '  - both members need the SAME number of sets (it is N rounds of both)\n'
+        '  - pair ANTAGONISTS (push with pull: bench press + row, curl with\n'
+        '    triceps extension, leg extension + leg curl) or a lift with\n'
+        '    non-competing core work. The resting muscle recovers while the\n'
+        '    other works, so nothing is compromised and the session is shorter.\n'
+        '  - NEVER two exercises that train the same muscle as compounds\n'
+        '    (bench press + push-ups is wrong -- both push, both chest, each\n'
+        '    ruins the other), and never two heavy compounds back to back\n'
+        '  - never two timed holds (plank + side plank saves no time)\n'
+        'Favour them on fat-loss and metabolic blocks where density is the\n'
+        'point. On strength blocks, leave the main work unpaired.\n\n'
+
         'EXERCISE SELECTION (priority order):\n'
         '1. Primary compound: squat/hinge/horizontal push/vertical pull/loaded carry\n'
         '2. Secondary compound: lunge, dip, cable row, incline/decline variation\n'
@@ -1096,6 +1117,102 @@ def _plan_days(data):
     return []
 
 
+# Superset groups. The AI gets a vote; these rules decide.
+#
+# "Not everything has to be a superset" -- enforced here rather than left to
+# the prompt, because prose prohibitions do not hold (the prompt said
+# "Mid-to-High does not exist" and production contained it anyway).
+MAX_SUPERSET_GROUPS_PER_DAY = 2
+
+
+def _validate_superset_groups(day_name, exercises, has_back_limitation=False):
+    """
+    Check a day's superset groups. Returns (clean_exercises, problems).
+
+    Invalid groups are UNGROUPED rather than rejecting the day -- a bad pairing
+    should cost the superset, not the workout. Same call as the prescription
+    mismatch and the program outline.
+    """
+    from . import exercise_muscles
+
+    problems = []
+    groups = {}
+    for position, exercise in enumerate(exercises):
+        if not isinstance(exercise, dict):
+            continue
+        group = exercise.get('superset_group')
+        if group is None:
+            continue
+        groups.setdefault(group, []).append((position, exercise))
+
+    if not groups:
+        return exercises, problems
+
+    if len(groups) > MAX_SUPERSET_GROUPS_PER_DAY:
+        problems.append('%s: %d superset groups, max %d'
+                        % (day_name, len(groups), MAX_SUPERSET_GROUPS_PER_DAY))
+
+    # The first non-warmup exercise is the day's primary lift and is done
+    # fresh and heavy, never paired.
+    first_working = next(
+        (index for index, ex in enumerate(exercises)
+         if isinstance(ex, dict)
+         and not exercise_types.is_warmup_name(ex.get('name'))),
+        None)
+
+    keep = {}
+    for group, members in sorted(groups.items(), key=lambda kv: str(kv[0])):
+        positions = [p for p, _ex in members]
+        names = [str(ex.get('name') or '') for _p, ex in members]
+        label = '%s group %r' % (day_name, group)
+
+        if len(members) < 2:
+            problems.append('%s has only one member' % label)
+            continue
+        if len(keep) >= MAX_SUPERSET_GROUPS_PER_DAY:
+            problems.append('%s dropped: over the per-day limit' % label)
+            continue
+        if positions != list(range(positions[0], positions[0] + len(positions))):
+            problems.append('%s members are not adjacent (positions %s)'
+                            % (label, positions))
+            continue
+        if first_working is not None and first_working in positions:
+            problems.append('%s includes the day\'s first working exercise'
+                            % label)
+            continue
+        sets = {ex.get('sets') for _p, ex in members}
+        if len(sets) > 1:
+            problems.append('%s has mismatched set counts %s' % (label, sorted(
+                str(x) for x in sets)))
+            continue
+
+        bad = None
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                ok, kind, reason = exercise_muscles.superset_verdict(
+                    names[i], names[j], has_back_limitation)
+                if not ok:
+                    bad = '%s rejected %r + %r: %s (%s)' % (
+                        label, names[i], names[j], kind, reason)
+                    break
+            if bad:
+                break
+        if bad:
+            problems.append(bad)
+            continue
+
+        keep[group] = positions
+
+    kept_positions = {p for positions in keep.values() for p in positions}
+    for position, exercise in enumerate(exercises):
+        if isinstance(exercise, dict) and exercise.get('superset_group') is not None:
+            if position not in kept_positions:
+                exercise = dict(exercise)
+                exercise.pop('superset_group', None)
+                exercises[position] = exercise
+    return exercises, problems
+
+
 def _create_day(plan, day_data, week_number, order):
     """Single creation path for WorkoutDay, shared by plan and week creation."""
     return WorkoutDay.objects.create(
@@ -1189,6 +1306,15 @@ def _validate_plan_json(data: dict) -> None:
                     logger.warning(
                         'plan prescription mismatch: %s [%s] reps=%r (expected %s)',
                         name, mtype, str(reps), expected)
+
+            # Superset groups are checked here too, and invalid ones are
+            # UNGROUPED in place -- a bad pairing should cost the superset, not
+            # the workout.
+            cleaned, superset_problems = _validate_superset_groups(
+                str(day.get('name') or 'day'), exercises)
+            day['exercises'] = cleaned
+            for problem in superset_problems:
+                logger.warning('superset rejected: %s', problem)
 
 
 # A placeholder weight the model emitted instead of choosing a number:
@@ -1327,6 +1453,7 @@ def _create_exercise(day, ex_data: dict, order: int, notes_by_name=None):
             day_name=getattr(day, 'name', None),
             reps=reps,
         ),
+        superset_group=ex_data.get('superset_group'),
     )
 
 
@@ -4829,3 +4956,175 @@ def _maybe_autoprepare_next_week(session):
                     week + 1, plan.pk, reason)
     except Exception:                                   # noqa: BLE001
         logger.exception('autoprepare check failed')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_day_supersets(request, day_id):
+    """
+    Set a day's superset grouping, atomically.
+
+    One endpoint for the whole day rather than a per-exercise PATCH, because
+    the invariants are about the SET of groups (adjacency, the per-day cap, not
+    including the first working lift). A per-exercise write could leave a day
+    in a state no validation pass would ever have accepted.
+
+    Body: {"groups": [["<exercise-id>", "<exercise-id>"], ...]}
+    An empty list clears all grouping on the day.
+    """
+    from . import exercise_muscles
+
+    day = get_object_or_404(WorkoutDay, pk=day_id, plan__user=request.user)
+    groups = request.data.get('groups')
+    if not isinstance(groups, list):
+        return Response({'detail': 'groups must be a list of id lists.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    exercises = list(day.exercises.all().order_by('order'))
+    by_id = {str(ex.id): ex for ex in exercises}
+    has_back_limitation = _has_back_limitation(request.user)
+
+    # Resolve and validate before writing anything.
+    resolved = []
+    for group in groups:
+        if not isinstance(group, list) or len(group) < 2:
+            return Response({'detail': 'each group needs at least two exercises.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        members = []
+        for raw_id in group:
+            exercise = by_id.get(str(raw_id))
+            if exercise is None:
+                return Response(
+                    {'detail': 'exercise %s is not on this day.' % raw_id},
+                    status=status.HTTP_400_BAD_REQUEST)
+            members.append(exercise)
+        resolved.append(members)
+
+    if len(resolved) > MAX_SUPERSET_GROUPS_PER_DAY:
+        return Response(
+            {'detail': 'at most %d superset groups per day.'
+                       % MAX_SUPERSET_GROUPS_PER_DAY},
+            status=status.HTTP_400_BAD_REQUEST)
+
+    seen = set()
+    first_working = next(
+        (ex for ex in exercises
+         if not exercise_types.is_warmup_name(ex.name)), None)
+
+    for members in resolved:
+        ids = {ex.id for ex in members}
+        if ids & seen:
+            return Response({'detail': 'an exercise cannot be in two groups.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        seen |= ids
+        if first_working is not None and first_working.id in ids:
+            return Response(
+                {'detail': '%s is the first working exercise of this day and '
+                           'should be done fresh, not in a superset.'
+                           % first_working.name},
+                status=status.HTTP_400_BAD_REQUEST)
+        if len({ex.sets for ex in members}) > 1:
+            return Response(
+                {'detail': 'superset members must have the same number of sets.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                ok, kind, reason = exercise_muscles.superset_verdict(
+                    members[i].name, members[j].name, has_back_limitation)
+                if not ok:
+                    return Response(
+                        {'detail': '%s + %s is not a good superset: %s.'
+                                   % (members[i].name, members[j].name, reason),
+                         'kind': kind},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    # Reorder so members are contiguous, then assign group numbers.
+    with transaction.atomic():
+        Exercise.objects.filter(day=day).update(superset_group=None)
+
+        grouped_ids = {ex.id for members in resolved for ex in members}
+        sequence = []
+        placed = set()
+        for exercise in exercises:
+            if exercise.id in placed:
+                continue
+            owning = next((m for m in resolved
+                           if exercise.id in {e.id for e in m}), None)
+            if owning is None:
+                sequence.append((exercise, None))
+                placed.add(exercise.id)
+                continue
+            number = resolved.index(owning) + 1
+            for member in owning:
+                sequence.append((member, number))
+                placed.add(member.id)
+
+        for order, (exercise, number) in enumerate(sequence):
+            Exercise.objects.filter(pk=exercise.pk).update(
+                order=order, superset_group=number)
+
+    logger.info('day %s supersets set: %d group(s)', day_id, len(resolved))
+    day.refresh_from_db()
+    return Response(WorkoutDaySerializer(day).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def workout_day_superset_options(request, day_id):
+    """
+    Which pairings are offered for this day, and why.
+
+    The picker only shows partners `superset_verdict` accepts, so a bad
+    pairing is not reachable by hand either -- and the reason is returned so
+    the UI can explain why something is or is not on the list.
+    """
+    from . import exercise_muscles
+
+    day = get_object_or_404(WorkoutDay, pk=day_id, plan__user=request.user)
+    exercises = list(day.exercises.all().order_by('order'))
+    has_back_limitation = _has_back_limitation(request.user)
+
+    first_working = next(
+        (ex for ex in exercises
+         if not exercise_types.is_warmup_name(ex.name)), None)
+
+    out = []
+    for exercise in exercises:
+        if exercise_types.is_warmup_name(exercise.name):
+            continue
+        if first_working is not None and exercise.id == first_working.id:
+            continue
+        candidates = [
+            other for other in exercises
+            if other.id != exercise.id
+            and not exercise_types.is_warmup_name(other.name)
+            and not (first_working is not None and other.id == first_working.id)
+        ]
+        partners = []
+        for other in candidates:
+            ok, kind, reason = exercise_muscles.superset_verdict(
+                exercise.name, other.name, has_back_limitation)
+            if ok:
+                partners.append({'id': str(other.id), 'name': other.name,
+                                 'kind': kind, 'reason': reason,
+                                 'same_sets': other.sets == exercise.sets})
+        if partners:
+            out.append({'id': str(exercise.id), 'name': exercise.name,
+                        'partners': partners})
+    return Response({'exercises': out,
+                     'max_groups': MAX_SUPERSET_GROUPS_PER_DAY})
+
+
+def _has_back_limitation(user):
+    """
+    Whether the user has stated a back problem.
+
+    Read from the profile's free-text notes, which is where it actually lives
+    ("I am dealing with some lower back and upper back issue").
+    """
+    try:
+        notes = (user.profile.personal_notes or '').lower()
+    except Exception:                                   # noqa: BLE001
+        return False
+    return bool(re.search(r'\b(lower\s+)?back\b|\blumbar\b|\bspine\b|\bdisc\b',
+                          notes))

@@ -351,6 +351,18 @@ class Exercise(models.Model):
     notes = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     measurement_type = models.CharField(max_length=20, choices=MEASUREMENT_TYPE_CHOICES, default='weight_reps')
+    # Exercises on the same day sharing a group are performed back to back.
+    # null = a standalone exercise, which is almost everything.
+    #
+    # Invariants enforced server-side (see views._validate_superset_groups):
+    # >=2 members, contiguous in `order`, no warmup member, equal `sets`, and
+    # every pair accepted by exercise_muscles.superset_verdict -- so a bad
+    # pairing is not reachable by the AI or by hand.
+    #
+    # SetLog is deliberately untouched: each member still logs its own sets,
+    # so the field contract, coerce_set_fields, progression and history all
+    # keep working unchanged.
+    superset_group = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ['order']
