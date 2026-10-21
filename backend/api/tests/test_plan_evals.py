@@ -21,7 +21,12 @@ from api import exercise_types as et
 from api.evals import score_plan
 from api.evals.rules import RULES
 from api.evals.scorer import format_scorecard
-from api.management.commands.eval_plans import FIXTURE_DIR, load_fixtures
+from api.evals.suite import (
+    SUITE_VERSION, build_baseline, diff_baseline, rules_fingerprint,
+)
+from api.management.commands.eval_plans import (
+    FIXTURE_DIR, load_baseline, load_fixtures,
+)
 
 
 def day(day_number=1, name='Push', exercises=(), is_rest_day=False):
@@ -472,7 +477,7 @@ class GoldenSetTests(SimpleTestCase):
 
     def test_the_fixtures_are_present_and_well_formed(self):
         self.assertEqual(len(self.cases), 8)
-        for path in glob.glob(os.path.join(FIXTURE_DIR, '*.json')):
+        for path in glob.glob(os.path.join(FIXTURE_DIR, 'plan*.json')):
             with open(path) as handle:
                 doc = json.load(handle)
             self.assertIn('plan', doc)
@@ -543,17 +548,34 @@ class GoldenSetTests(SimpleTestCase):
         new = min(self.cards[l].score for l in ('plan07', 'plan08'))
         self.assertLess(old, new)
 
-    def test_mean_score_floor(self):
+    def test_scores_match_the_checked_in_baseline_exactly(self):
         """
-        No-regression floor, set just under the current value (0.873).
+        Replaces the old `test_mean_score_floor`.
 
-        History: 0.957 with the original rules, 0.931 once canonical naming
-        shipped, 0.873 once static progression rules in notes were scored.
-        Each drop is a new rule exposing a real defect, not plan quality
-        falling. Raise this as generated plans actually improve.
+        That test asserted a floor on the mean across these 8 fixtures, and I
+        lowered it twice (0.95 -> 0.92 -> 0.85), each time because a NEW RULE
+        had found real defects. These plans are frozen historical artifacts:
+        they cannot improve, so adding a rule can only push that mean down. A
+        threshold that gets moved whenever it fails is not a regression test,
+        and the aggregate conflated "the generator got worse" with "we measure
+        more".
+
+        An exact snapshot makes every scoring change a precise, reviewable
+        diff instead. Re-baseline deliberately with
+        `manage.py eval_plans --update-baseline`, in its own commit.
         """
-        scores = [c.score for c in self.cards.values() if c.score is not None]
-        self.assertGreaterEqual(sum(scores) / len(scores), 0.85)
+        problems = diff_baseline(load_baseline(), list(self.cards.values()))
+        self.assertEqual(problems, [], msg='\n' + '\n'.join(problems))
+
+    def test_the_baseline_fingerprint_matches_the_current_rules(self):
+        """
+        The silent-drift guard: changing RULES without re-baselining is caught
+        here with an explicit message, rather than showing up as a mean
+        quietly sagging towards whatever floor was last set.
+        """
+        baseline = load_baseline()
+        self.assertEqual(baseline['rules_fingerprint'], rules_fingerprint())
+        self.assertEqual(baseline['suite_version'], SUITE_VERSION)
 
     def test_the_notes_rule_finds_the_contradictory_advice(self):
         """
@@ -583,3 +605,63 @@ class GoldenSetTests(SimpleTestCase):
                 continue
             checked = sum(c.by_rule()[name].checked for c in self.cards.values())
             self.assertGreater(checked, 0, msg='%s checked nothing' % name)
+
+
+class BaselineMechanicsTests(SimpleTestCase):
+    """
+    The snapshot machinery itself. A guard that cannot fail is worthless, so
+    each of these proves the detector fires.
+    """
+
+    def cards(self):
+        return [score_plan(plan, context, label=label)
+                for label, plan, context in load_fixtures()]
+
+    def test_a_fresh_build_matches_the_committed_baseline(self):
+        self.assertEqual(build_baseline(self.cards())['plans'],
+                         load_baseline()['plans'])
+
+    def test_a_changed_failure_count_is_reported(self):
+        baseline = load_baseline()
+        tampered = json.loads(json.dumps(baseline))
+        label = sorted(tampered['plans'])[0]
+        rule = sorted(tampered['plans'][label])[0]
+        tampered['plans'][label][rule] += 7
+        problems = diff_baseline(tampered, self.cards())
+        self.assertTrue(any(label in p and rule in p for p in problems),
+                        msg=problems)
+
+    def test_a_rules_change_without_rebaselining_is_reported(self):
+        baseline = json.loads(json.dumps(load_baseline()))
+        baseline['rules_fingerprint'] = 'stale' + '0' * 59
+        problems = diff_baseline(baseline, self.cards())
+        self.assertTrue(any('RULES changed' in p for p in problems),
+                        msg=problems)
+        self.assertTrue(any('update-baseline' in p for p in problems))
+
+    def test_a_missing_fixture_is_reported(self):
+        baseline = json.loads(json.dumps(load_baseline()))
+        baseline['plans']['plan99'] = {'warmup_first': 0}
+        problems = diff_baseline(baseline, self.cards())
+        self.assertTrue(any('plan99' in p for p in problems), msg=problems)
+
+    def test_the_fingerprint_tracks_weights_not_just_names(self):
+        """A reweighted rule changes scoring, so it must invalidate too."""
+        reweighted = tuple((name, func, weight + 1)
+                           for name, func, weight in RULES)
+        self.assertNotEqual(rules_fingerprint(), rules_fingerprint(reweighted))
+
+    def test_the_fingerprint_is_stable_across_calls(self):
+        self.assertEqual(rules_fingerprint(), rules_fingerprint())
+
+    def test_the_baseline_is_not_scored_as_a_fixture(self):
+        """baseline.json lives in the fixture directory; it is not a plan."""
+        self.assertNotIn('baseline', [label for label, _, _ in load_fixtures()])
+
+    def test_the_mean_floor_test_is_gone(self):
+        """
+        Explicitly assert the old gate was removed rather than left alongside
+        the snapshot, since keeping both would reintroduce the thing that had
+        to be lowered twice.
+        """
+        self.assertFalse(hasattr(GoldenSetTests, 'test_mean_score_floor'))

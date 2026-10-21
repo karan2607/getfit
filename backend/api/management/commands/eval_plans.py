@@ -20,14 +20,24 @@ from django.core.management.base import BaseCommand, CommandError
 from api.evals import score_plan
 from api.evals.rules import RULES
 from api.evals.scorer import format_scorecard
+from api.evals.suite import SUITE_VERSION, build_baseline, diff_baseline
 
 FIXTURE_DIR = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), 'evals', 'fixtures')
+
+BASELINE_PATH = os.path.join(FIXTURE_DIR, 'baseline.json')
+
+
+def load_baseline():
+    with open(BASELINE_PATH) as handle:
+        return json.load(handle)
 
 
 def load_fixtures(pattern='*.json'):
     out = []
     for path in sorted(glob.glob(os.path.join(FIXTURE_DIR, pattern))):
+        if os.path.basename(path) == 'baseline.json':
+            continue                      # the snapshot, not a plan
         with open(path) as handle:
             doc = json.load(handle)
         out.append((
@@ -57,9 +67,16 @@ class Command(BaseCommand):
         parser.add_argument('--temperature', type=float, default=None)
         parser.add_argument('--n', type=int, default=1,
                             help='--live: plans to generate per model')
+        parser.add_argument(
+            '--update-baseline', action='store_true',
+            help='rewrite fixtures/baseline.json from a fresh fixture run. '
+                 'Commit this on its own -- bundling it with a code change '
+                 'would launder a regression into the baseline.')
 
     def handle(self, *args, **options):
         rules = RULES
+        if options['update_baseline']:
+            return self._update_baseline()
         if options.get('rules'):
             wanted = set(options['rules'])
             unknown = wanted - {name for name, _, _ in RULES}
@@ -89,6 +106,37 @@ class Command(BaseCommand):
             self.stdout.write('')
 
         self._summary(cards, rules)
+
+    # -- baseline ------------------------------------------------------------
+
+    def _update_baseline(self):
+        cases = load_fixtures()
+        if not cases:
+            raise CommandError('no fixtures found in %s' % FIXTURE_DIR)
+        cards = [score_plan(plan, context, label=label)
+                 for label, plan, context in cases]
+
+        try:
+            previous = load_baseline()
+        except (IOError, OSError, ValueError):
+            previous = None
+
+        baseline = build_baseline(cards)
+        with open(BASELINE_PATH, 'w') as handle:
+            json.dump(baseline, handle, indent=2, sort_keys=False)
+            handle.write('\n')
+
+        self.stdout.write('wrote %s (suite_version=%d, %d plan(s))'
+                          % (BASELINE_PATH, SUITE_VERSION, len(cards)))
+        if previous:
+            changes = diff_baseline(previous, cards)
+            if changes:
+                self.stdout.write('')
+                self.stdout.write('changes against the previous baseline:')
+                for line in changes:
+                    self.stdout.write('  %s' % line)
+            else:
+                self.stdout.write('no change against the previous baseline')
 
     # -- reporting -----------------------------------------------------------
 
