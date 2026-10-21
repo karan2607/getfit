@@ -10,7 +10,29 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
 API_ROOT = 'https://generativelanguage.googleapis.com/v1beta/models'
-DEFAULT_MODEL = 'gemini-2.5-flash'
+
+# Chosen from this repo's own eval harness, not a leaderboard.
+#
+# Measured on freshly generated 8-week plans (manage.py eval_plans --live):
+#
+#   gemini-2.5-flash        0.970   28/515 rep-scheme, 15/481 type  <- previous
+#   gemini-3.5-flash        0.977   0, 0
+#   gemini-3.8-flash        0.978   0, 8/206
+#   gemini-4-argon          0.986   0, 0
+#   gemini-3.1-pro-preview  0.988   0, 4/424
+#
+# 2.5-flash was the only model emitting unconventional rep schemes at all, and
+# the worst on measurement-type agreement. The 0.986/0.988 difference between
+# the top two is inside the noise at these sample sizes; gemini-4-argon is
+# preferred because -preview models can change or be withdrawn under us, and
+# because it posted zero failures on every rule except exercise naming.
+#
+# Naming is the top failure for EVERY model (32-115 occurrences). No model
+# fixes it -- that is what the canonical registry in exercise_names.py is for.
+#
+# Override per deployment with GEMINI_MODEL; re-measure with
+# `manage.py eval_plans --live --model=a,b --n=3`.
+DEFAULT_MODEL = 'gemini-4-argon'
 
 # Kept so existing imports and log greps keep working; the model used per call
 # now comes from _model() so it can be overridden without editing this file.
@@ -79,7 +101,29 @@ def call_gemini_json(*, system_prompt: str, user_prompt: str,
             text = data['candidates'][0]['content']['parts'][0]['text']
             return json.loads(text)
         except json.JSONDecodeError as exc:
-            raise GeminiError('AI returned non-JSON response') from exc
+            # RETRY, do not give up.
+            #
+            # This used to raise on the first occurrence, inside the retry
+            # loop, so only HTTP 429/503 ever got a second attempt. A single
+            # malformed response therefore became a 503 for the user -- which
+            # is what "Generate plan is throwing request fail" was.
+            #
+            # It is not rare at this output size: an eval sweep of four models
+            # generating 8-week plans (~25k output tokens each) hit 2 failures
+            # in 14 attempts, ~14%. The likely mechanism is the response being
+            # truncated at the model's output ceiling, which leaves JSON that
+            # cannot parse. Retrying is the cheap mitigation; generating one
+            # week per call is the real fix.
+            logger.error(
+                'Gemini returned unparseable JSON (attempt %d/3, %d chars)',
+                attempt + 1, len(locals().get('text') or ''))
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+                continue
+            raise GeminiError(
+                'AI returned a malformed response three times. If you are '
+                'generating a long plan, try fewer weeks.') from exc
         except urllib.error.HTTPError as exc:
             body = exc.read().decode()
             logger.error('Gemini HTTP error %s (attempt %d): %s', exc.code, attempt + 1, body)

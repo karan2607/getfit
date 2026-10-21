@@ -59,7 +59,7 @@ class EndpointTests(SimpleTestCase):
         self.assertEqual(
             gemini._endpoint('generateContent'),
             'https://generativelanguage.googleapis.com/v1beta/models/'
-            'gemini-2.5-flash:generateContent?key=test-key')
+            + gemini.DEFAULT_MODEL + ':generateContent?key=test-key')
 
     def test_base_url_still_matches_the_default_model(self):
         """Kept as a module constant; it must not drift from DEFAULT_MODEL."""
@@ -132,7 +132,7 @@ class CallShapeTests(SimpleTestCase):
     def test_a_plain_call_hits_the_default_model_with_no_temperature(self):
         captured, result = self.call()
         self.assertEqual(result, {'ok': True})
-        self.assertIn('/gemini-2.5-flash:generateContent', captured.url)
+        self.assertIn('/' + gemini.DEFAULT_MODEL + ':generateContent', captured.url)
         self.assertEqual(captured.body['generationConfig'],
                          {'response_mime_type': 'application/json'})
 
@@ -192,3 +192,83 @@ class ExistingCallersUnaffectedTests(SimpleTestCase):
         with mock.patch.object(gemini, 'call_gemini_json', _double):
             gemini.call_gemini_json(system_prompt='s', user_prompt='u')
         self.assertTrue(seen['ok'])
+
+
+class MalformedJsonRetryTests(SimpleTestCase):
+    """
+    A malformed response must be retried, not surfaced as a 503.
+
+    It used to raise on the first occurrence — inside the retry loop, but
+    before any retry could happen, so only HTTP 429/503 ever got a second
+    attempt. One bad response became "Generate plan is throwing request fail".
+
+    This is not a rare path at the sizes this app generates: an eval sweep of
+    four models producing 8-week plans (~25k output tokens) hit 2 unparseable
+    responses in 14 attempts.
+    """
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {'GEMINI_API_KEY': 'test-key'},
+                                  clear=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # No real sleeping between retries.
+        sleeper = mock.patch('time.sleep', lambda *_: None)
+        sleeper.start()
+        self.addCleanup(sleeper.stop)
+
+    def responder(self, *payloads):
+        """urlopen double that returns each payload in turn."""
+        responses = list(payloads)
+
+        class Resp:
+            def __init__(self, body):
+                self._body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return self._body
+
+        def _open(req, *args, **kwargs):
+            body = responses.pop(0)
+            return Resp(json.dumps({
+                'candidates': [{'content': {'parts': [{'text': body}]}}]
+            }).encode())
+
+        return _open, responses
+
+    def call(self):
+        return gemini.call_gemini_json(system_prompt='s', user_prompt='u')
+
+    def test_a_truncated_response_is_retried_and_succeeds(self):
+        opener, remaining = self.responder(
+            '{"title": "cut off here', '{"title": "ok"}')
+        with mock.patch.object(gemini.urllib.request, 'urlopen', opener):
+            self.assertEqual(self.call(), {'title': 'ok'})
+        self.assertEqual(remaining, [])          # both attempts consumed
+
+    def test_it_recovers_on_the_third_attempt(self):
+        opener, _ = self.responder('nope', 'still nope', '{"ok": true}')
+        with mock.patch.object(gemini.urllib.request, 'urlopen', opener):
+            self.assertEqual(self.call(), {'ok': True})
+
+    def test_three_malformed_responses_raise_a_useful_message(self):
+        opener, _ = self.responder('a', 'b', 'c')
+        with mock.patch.object(gemini.urllib.request, 'urlopen', opener):
+            with self.assertRaises(gemini.GeminiError) as caught:
+                self.call()
+        message = str(caught.exception)
+        self.assertIn('malformed', message)
+        # Actionable: the user can do something about a long plan.
+        self.assertIn('fewer weeks', message)
+
+    def test_a_valid_first_response_makes_no_extra_call(self):
+        opener, remaining = self.responder('{"ok": true}', '{"unused": true}')
+        with mock.patch.object(gemini.urllib.request, 'urlopen', opener):
+            self.assertEqual(self.call(), {'ok': True})
+        self.assertEqual(len(remaining), 1)      # second payload untouched
