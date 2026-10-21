@@ -32,7 +32,9 @@ import json
 from .rules import RULES
 
 # Bump when RULES changes (added/removed rule, or a changed weight).
-SUITE_VERSION = 1
+# 2: added the per-week generation rules (outline tiling, notes map,
+# single-week payload). Each is neutral on the historical fixtures.
+SUITE_VERSION = 2
 
 
 def rules_fingerprint(rules=RULES):

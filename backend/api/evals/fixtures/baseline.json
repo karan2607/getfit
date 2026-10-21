@@ -1,6 +1,6 @@
 {
-  "suite_version": 1,
-  "rules_fingerprint": "352965f31762a4ae94c41221b88509f62cc2936a4a337ea6544b1b60bce298a0",
+  "suite_version": 2,
+  "rules_fingerprint": "45cbbe3194aab24d8eeddbcd08b168197d740be51a22a6223b08e190a00d1e03",
   "_comment": "Exact expected failure counts per fixture per rule. Regenerate with `manage.py eval_plans --update-baseline`, always as its own commit -- bundling it with a code change would launder a regression into the baseline.",
   "plans": {
     "plan01": {
@@ -15,7 +15,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 22,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan02": {
       "prescription_matches_type": 0,
@@ -29,7 +32,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 24,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan03": {
       "prescription_matches_type": 4,
@@ -43,7 +49,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 80,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan04": {
       "prescription_matches_type": 0,
@@ -57,7 +66,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 18,
       "no_banned_names": 1,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan05": {
       "prescription_matches_type": 7,
@@ -71,7 +83,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 40,
       "no_banned_names": 5,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan06": {
       "prescription_matches_type": 2,
@@ -85,7 +100,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 40,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan07": {
       "prescription_matches_type": 0,
@@ -99,7 +117,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 268,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     },
     "plan08": {
       "prescription_matches_type": 0,
@@ -113,7 +134,10 @@
       "notes_without_placeholder_weights": 0,
       "notes_without_progression_rules": 0,
       "no_banned_names": 0,
-      "superset_groups_valid": 0
+      "superset_groups_valid": 0,
+      "program_outline_tiles_the_program": 0,
+      "exercise_notes_map_resolves": 0,
+      "single_week_payload": 0
     }
   }
 }

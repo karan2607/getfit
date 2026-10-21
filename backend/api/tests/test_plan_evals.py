@@ -596,10 +596,18 @@ class GoldenSetTests(SimpleTestCase):
     def test_every_rule_is_exercised_by_the_golden_set(self):
         """
         A rule that never gets to check anything across eight real plans is
-        either dead or misspecified. The superset rule is exempt until WS4
-        lands, since no existing plan can express a superset.
+        either dead or misspecified.
+
+        Exempt: the superset rule (no existing plan can express one) and the
+        three per-week generation rules, which are neutral by design on the
+        whole-plan fixtures -- those predate outlines, notes maps and
+        single-week payloads. Each is covered in both directions by
+        RuleBehaviourTests instead.
         """
-        pending = {'superset_groups_valid'}
+        pending = {'superset_groups_valid',
+                   'program_outline_tiles_the_program',
+                   'exercise_notes_map_resolves',
+                   'single_week_payload'}
         for name, _, _ in RULES:
             if name in pending:
                 continue
@@ -665,3 +673,114 @@ class BaselineMechanicsTests(SimpleTestCase):
         to be lowered twice.
         """
         self.assertFalse(hasattr(GoldenSetTests, 'test_mean_score_floor'))
+
+
+class PerWeekRuleTests(SimpleTestCase):
+    """
+    The three per-week generation rules, both directions.
+
+    They report 0 checks on the historical fixtures by design, so the golden
+    set cannot cover them — this class is their only coverage.
+    """
+
+    def score(self, plan_json, rule):
+        return score_plan(plan_json, {}, rules=only(rule))
+
+    def assert_flags(self, plan_json, rule):
+        card = self.score(plan_json, rule)
+        self.assertTrue(card.findings, msg='%s should have flagged' % rule)
+        return card
+
+    def assert_clean(self, plan_json, rule):
+        card = self.score(plan_json, rule)
+        self.assertFalse(card.findings,
+                         msg='%s wrongly flagged: %s'
+                             % (rule, [f.detail for f in card.findings]))
+        return card
+
+    def assert_not_applicable(self, plan_json, rule):
+        card = self.score(plan_json, rule)
+        self.assertEqual(card.by_rule()[rule].checked, 0)
+
+    def week_plan(self, **extra):
+        payload = {'title': 'T', 'duration_weeks': 8,
+                   'week': [day(1, 'Push', [WARMUP, ex('Barbell Bench Press')])]}
+        payload.update(extra)
+        return payload
+
+    # -- program_outline_tiles_the_program -----------------------------------
+
+    def test_a_valid_outline_passes(self):
+        self.assert_clean(self.week_plan(program_outline=[
+            {'start_week': 1, 'end_week': 4, 'name': 'A'},
+            {'start_week': 5, 'end_week': 8, 'name': 'B'}]),
+            'program_outline_tiles_the_program')
+
+    def test_a_gap_in_the_outline_is_flagged(self):
+        card = self.assert_flags(self.week_plan(program_outline=[
+            {'start_week': 1, 'end_week': 3, 'name': 'A'},
+            {'start_week': 5, 'end_week': 8, 'name': 'B'}]),
+            'program_outline_tiles_the_program')
+        self.assertIn('gap', card.findings[0].detail)
+
+    def test_a_string_range_is_flagged(self):
+        self.assert_flags(self.week_plan(program_outline=[
+            {'start_week': '1-4', 'end_week': '5-8'}]),
+            'program_outline_tiles_the_program')
+
+    def test_no_outline_is_not_applicable(self):
+        self.assert_not_applicable(self.week_plan(),
+                                   'program_outline_tiles_the_program')
+
+    # -- exercise_notes_map_resolves -----------------------------------------
+
+    def test_a_matching_notes_key_passes(self):
+        self.assert_clean(self.week_plan(exercise_notes={
+            'Barbell Bench Press': 'Pause 1s.'}),
+            'exercise_notes_map_resolves')
+
+    def test_a_key_matching_nothing_is_flagged(self):
+        """A dropped form cue is coaching the user never sees."""
+        card = self.assert_flags(self.week_plan(exercise_notes={
+            'Exercise Not In This Plan': 'cue'}),
+            'exercise_notes_map_resolves')
+        self.assertIn('matches no exercise', card.findings[0].detail)
+
+    def test_a_key_in_a_different_spelling_still_passes(self):
+        plan_json = {'title': 'T', 'duration_weeks': 1,
+                     'week': [day(1, 'Push', [ex('Dumbbell Incline Press')])],
+                     'exercise_notes': {'Incline Dumbbell Press': 'cue'}}
+        self.assert_clean(plan_json, 'exercise_notes_map_resolves')
+
+    def test_no_notes_map_is_not_applicable(self):
+        self.assert_not_applicable(self.week_plan(),
+                                   'exercise_notes_map_resolves')
+
+    # -- single_week_payload -------------------------------------------------
+
+    def test_a_clean_single_week_passes(self):
+        self.assert_clean(self.week_plan(), 'single_week_payload')
+
+    def test_duplicate_day_numbers_are_flagged(self):
+        self.assert_flags({'title': 'T', 'week': [day(1), day(1)]},
+                          'single_week_payload')
+
+    def test_both_week_and_weeks_is_flagged(self):
+        self.assert_flags({'title': 'T', 'week': [day(1)],
+                           'weeks': [[day(1)]]}, 'single_week_payload')
+
+    def test_a_whole_plan_payload_is_not_applicable(self):
+        """The eight fixtures are this shape and must stay neutral."""
+        self.assert_not_applicable({'title': 'T', 'weeks': [[day(1)], [day(1)]]},
+                                   'single_week_payload')
+
+    # -- traversal -----------------------------------------------------------
+
+    def test_the_week_shape_is_scored_by_every_rule(self):
+        """
+        iter_weeks had to learn the `week` key, or a per-week payload would
+        silently score as an empty plan and look perfect.
+        """
+        card = score_plan(self.week_plan())
+        self.assertGreater(card.by_rule()['warmup_first'].checked, 0)
+        self.assertGreater(card.by_rule()['rep_scheme_conventional'].checked, 0)

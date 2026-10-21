@@ -27,8 +27,19 @@ from ..views import _PLACEHOLDER_TOKEN_RE, _PROGRESSION_RULE_RE
 # know the difference.
 
 def iter_weeks(plan):
-    """Yield (week_number, [day, ...]) with week numbers starting at 1."""
+    """
+    Yield (week_number, [day, ...]) with week numbers starting at 1.
+
+    Three shapes, matching `views._plan_days`:
+      {"week":  [day, ...]}        one week (per-week generation)
+      {"weeks": [[day, ...], ...]} multiple weeks (legacy whole-plan)
+      {"days":  [day, ...]}        single week, older key
+    """
     if not isinstance(plan, dict):
+        return
+    week = plan.get('week')
+    if isinstance(week, list):
+        yield 1, [d for d in week if isinstance(d, dict)]
         return
     weeks = plan.get('weeks')
     if isinstance(weeks, list):
@@ -478,6 +489,76 @@ def superset_groups_valid(plan, context, find):
     return checked
 
 
+def program_outline_tiles_the_program(plan, context, find):
+    """
+    The phase outline must cover every week exactly once.
+
+    Only scored when an outline is present, so the eight historical fixtures
+    (which predate outlines) report 0 checks and stay neutral.
+    """
+    if not isinstance(plan, dict):
+        return 0
+    outline = plan.get('program_outline')
+    if outline is None:
+        return 0
+    from ..views import validate_program_outline
+    duration = plan.get('duration_weeks') or (context or {}).get('duration_weeks')
+    checked = 1
+    for problem in validate_program_outline(outline, duration):
+        find('program_outline', problem)
+    return checked
+
+
+def exercise_notes_map_resolves(plan, context, find):
+    """
+    Every key in `exercise_notes` must name an exercise that is actually in
+    the payload.
+
+    A key nobody matches is a silently dropped form cue -- the model wrote
+    coaching that never reaches the user. Scored only when the map is present.
+    """
+    if not isinstance(plan, dict):
+        return 0
+    notes = plan.get('exercise_notes')
+    if not isinstance(notes, dict) or not notes:
+        return 0
+
+    from .. import exercise_names
+    present = {
+        exercise_names.canonical(str(exercise.get('name') or ''))
+        for _week, _day, exercise in iter_exercises(plan)
+    }
+    present.discard('')
+    checked = 0
+    for key in notes:
+        checked += 1
+        if exercise_names.canonical(str(key)) not in present:
+            find('exercise_notes', 'key %r matches no exercise in the payload'
+                 % key)
+    return checked
+
+
+def single_week_payload(plan, context, find):
+    """
+    A per-week payload must contain exactly one week.
+
+    Scored only for payloads that declare themselves single-week (a `week`
+    key), so whole-plan fixtures report 0 checks rather than all failing for
+    being the old shape.
+    """
+    if not isinstance(plan, dict) or not isinstance(plan.get('week'), list):
+        return 0
+    if plan.get('weeks'):
+        find('payload', 'has both `week` and `weeks`; which is authoritative?')
+    days = [d for d in plan['week'] if isinstance(d, dict)]
+    if not days:
+        find('payload', '`week` contains no days')
+    numbers = [d.get('day_number') for d in days]
+    if len(set(numbers)) != len(numbers):
+        find('payload', 'duplicate day_number within the week: %s' % numbers)
+    return 1
+
+
 # Ordered worst-consequence-first, which is also the order findings are
 # reported in. `weight` scales a rule's contribution to the overall score:
 # an unenterable prescription blocks the user, an unconventional rep scheme
@@ -497,4 +578,9 @@ RULES = (
     ('notes_without_progression_rules', notes_without_progression_rules, 2.0),
     ('no_banned_names', no_banned_names, 1.0),
     ('superset_groups_valid', superset_groups_valid, 1.0),
+    # Per-week generation. Each reports 0 checks on the whole-plan fixtures,
+    # which predate the format, so they stay neutral on history.
+    ('program_outline_tiles_the_program', program_outline_tiles_the_program, 2.0),
+    ('exercise_notes_map_resolves', exercise_notes_map_resolves, 1.0),
+    ('single_week_payload', single_week_payload, 1.0),
 )
