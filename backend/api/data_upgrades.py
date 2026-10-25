@@ -67,37 +67,35 @@ def _step_2_fix_setlog_field_contract(plan, stdout):
     server-side coercion in workout_session_log_set.
 
     Idempotent: a row already conforming is left untouched.
+
+    Iterates ALL_SET_FIELDS rather than naming columns, so a field added later
+    (speed_kmh, incline_pct, distance_m) is enforced here too. Naming them
+    would have meant a stale speed left on an exercise reclassified away from
+    cardio_machine was never cleared.
     """
     from .models import SetLog
 
+    fields = exercise_types.ALL_SET_FIELDS
     changed = 0
     for day in plan.days.all():
         for exercise in day.exercises.all():
             logs = SetLog.objects.filter(exercise=exercise)
             for log in logs:
+                current = {f: getattr(log, f) for f in fields}
                 coerced = exercise_types.coerce_set_fields(
-                    exercise.measurement_type,
-                    {
-                        'weight_kg': log.weight_kg,
-                        'reps_completed': log.reps_completed,
-                        'duration_seconds': log.duration_seconds,
-                    },
-                )
-                if (coerced['weight_kg'] == log.weight_kg
-                        and coerced['reps_completed'] == log.reps_completed
-                        and coerced['duration_seconds'] == log.duration_seconds):
+                    exercise.measurement_type, current)
+                dropped = [f for f in fields if coerced[f] != current[f]]
+                if not dropped:
                     continue
-                stdout('    setlog %s (%s/%s): w=%s r=%s d=%s -> w=%s r=%s d=%s' % (
-                    str(log.id)[:8], exercise.name[:24], exercise.measurement_type,
-                    log.weight_kg, log.reps_completed, log.duration_seconds,
-                    coerced['weight_kg'], coerced['reps_completed'],
-                    coerced['duration_seconds'],
+                stdout('    setlog %s (%s/%s): %s' % (
+                    str(log.id)[:8], exercise.name[:24],
+                    exercise.measurement_type,
+                    ', '.join('%s %s -> %s' % (f, current[f], coerced[f])
+                              for f in dropped),
                 ))
-                log.weight_kg = coerced['weight_kg']
-                log.reps_completed = coerced['reps_completed']
-                log.duration_seconds = coerced['duration_seconds']
-                log.save(update_fields=[
-                    'weight_kg', 'reps_completed', 'duration_seconds'])
+                for field in dropped:
+                    setattr(log, field, coerced[field])
+                log.save(update_fields=dropped)
                 changed += 1
     return changed
 
@@ -221,6 +219,34 @@ def _step_5_canonicalise_exercise_names(plan, stdout):
     return changed
 
 
+def _step_6_reclassify_for_new_types(plan, stdout):
+    """
+    Move existing exercises onto cardio_machine and weight_distance.
+
+    Why a NEW step rather than an edit to step 1: `data_version` gates by
+    number, so a plan already stamped at 5 never re-runs step 1 no matter how
+    much the classifier changes. That is exactly why `Sled Push` was still
+    stored as `duration` months after the classifier was fixed -- the rule
+    changed and nothing re-read it. Every future classifier change needs its
+    own step number for the same reason.
+
+    Why it also re-runs the contract: steps execute in numeric order, so step 2
+    enforces the OLD contract before this step changes the type, leaving the
+    sets one deploy behind. Reclassifying and re-coercing in the same step
+    closes that window.
+
+    This is safe only because each new contract is a superset of the one it
+    replaces (see exercise_types.REPLACES). Were it not, re-coercing right
+    after reclassifying would null the 17 logged carry and sled durations
+    instead of keeping them.
+
+    Idempotent: both halves write only on a difference.
+    """
+    changed = _step_1_reclassify_measurement_types(plan, stdout)
+    changed += _step_2_fix_setlog_field_contract(plan, stdout)
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
@@ -228,6 +254,8 @@ UPGRADES = {
     3: ('strip placeholder weights from notes', _step_3_strip_placeholder_weights),
     4: ('normalize rep schemes', _step_4_normalize_rep_schemes),
     5: ('canonicalise exercise names', _step_5_canonicalise_exercise_names),
+    6: ('reclassify for cardio_machine / weight_distance',
+        _step_6_reclassify_for_new_types),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0

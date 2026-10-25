@@ -196,3 +196,117 @@ class UpgradeRegistryTests(TestCase):
         self.assertEqual(rows, 0)
         plan.refresh_from_db()
         self.assertEqual(plan.data_version, data_upgrades.LATEST_VERSION)
+
+
+class ReclassifyForNewTypesTests(TestCase):
+    """
+    Step 6: moving existing exercises onto cardio_machine / weight_distance.
+
+    The risk this guards is specific and was measured before writing the step:
+    production holds 7 Farmer's Carry sets with a weight, 7 with seconds, and
+    10 Sled Push sets with seconds. Step 2 nulls any field absent from the new
+    contract, so a `weight_distance` of just weight+distance would have
+    destroyed all 17 durations the moment the type changed.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='step6@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='Pre-step-6', is_active=True)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Conditioning')
+
+        # The types these were stored as before the new ones existed -- the
+        # only correct answers at the time, which is why they are not "bad data".
+        self.carry = Exercise.objects.create(
+            day=self.day, name="Farmer's Walk", sets=3, reps='40 yards',
+            measurement_type=et.WEIGHT_DURATION)
+        self.sled = Exercise.objects.create(
+            day=self.day, name='Metabolic Finisher: Sled Push', sets=3,
+            reps='30 yards', measurement_type=et.DURATION)
+        self.treadmill = Exercise.objects.create(
+            day=self.day, name='Incline Treadmill Walk', sets=1, reps='15 min',
+            measurement_type=et.DURATION)
+        # Must NOT move: a plank is timed work with no machine readout.
+        self.plank = Exercise.objects.create(
+            day=self.day, name='Plank', sets=3, reps='45 sec',
+            measurement_type=et.DURATION)
+
+        self.session = WorkoutSession.objects.create(
+            user=self.user, exercise_day=self.day, day_name='Conditioning')
+        self.carry_log = SetLog.objects.create(
+            workout_session=self.session, exercise=self.carry,
+            exercise_name="Farmer's Walk", set_number=1,
+            weight_kg=40.0, duration_seconds=45, is_completed=True)
+        self.sled_log = SetLog.objects.create(
+            workout_session=self.session, exercise=self.sled,
+            exercise_name='Metabolic Finisher: Sled Push', set_number=1,
+            duration_seconds=38, is_completed=True)
+        self.plank_log = SetLog.objects.create(
+            workout_session=self.session, exercise=self.plank,
+            exercise_name='Plank', set_number=1,
+            duration_seconds=45, is_completed=True)
+
+    def test_the_new_types_are_applied(self):
+        call_command('upgrade_data', verbosity=0)
+        for exercise, expected in (
+            (self.carry, et.WEIGHT_DISTANCE),
+            (self.sled, et.WEIGHT_DISTANCE),
+            (self.treadmill, et.CARDIO_MACHINE),
+            (self.plank, et.DURATION),
+        ):
+            exercise.refresh_from_db()
+            self.assertEqual(exercise.measurement_type, expected,
+                             msg=exercise.name)
+
+    def test_logged_weight_and_duration_both_survive_the_carry_move(self):
+        """THE 17-row risk, as a test."""
+        call_command('upgrade_data', verbosity=0)
+        self.carry_log.refresh_from_db()
+        self.assertEqual(self.carry_log.weight_kg, 40.0)
+        self.assertEqual(self.carry_log.duration_seconds, 45,
+                         'duration must survive weight_duration -> weight_distance')
+        self.sled_log.refresh_from_db()
+        self.assertEqual(self.sled_log.duration_seconds, 38,
+                         'duration must survive duration -> weight_distance')
+        self.plank_log.refresh_from_db()
+        self.assertEqual(self.plank_log.duration_seconds, 45)
+
+    def test_the_new_fields_start_empty_rather_than_invented(self):
+        """
+        A carry prescribed in yards does not gain a distance just because the
+        column now exists -- "40 yards" is what was ASKED for, not what was done.
+        """
+        call_command('upgrade_data', verbosity=0)
+        self.carry_log.refresh_from_db()
+        self.assertIsNone(self.carry_log.distance_m)
+
+    def test_stale_metrics_are_cleared_when_a_type_moves_away(self):
+        """
+        The reason step 2 iterates ALL_SET_FIELDS. A speed logged while an
+        exercise was a cardio machine must not linger after it stops being one.
+        """
+        self.plank_log.speed_kmh = 6.0
+        self.plank_log.incline_pct = 2.0
+        self.plank_log.save(update_fields=['speed_kmh', 'incline_pct'])
+        call_command('upgrade_data', verbosity=0)
+        self.plank_log.refresh_from_db()
+        self.assertIsNone(self.plank_log.speed_kmh)
+        self.assertIsNone(self.plank_log.incline_pct)
+        self.assertEqual(self.plank_log.duration_seconds, 45)
+
+    def test_running_a_second_time_changes_nothing(self):
+        call_command('upgrade_data', verbosity=0)
+        before = {
+            log.id: (log.weight_kg, log.reps_completed, log.duration_seconds,
+                     log.speed_kmh, log.incline_pct, log.distance_m)
+            for log in SetLog.objects.all()
+        }
+        call_command('upgrade_data', '--force', verbosity=0)
+        after = {
+            log.id: (log.weight_kg, log.reps_completed, log.duration_seconds,
+                     log.speed_kmh, log.incline_pct, log.distance_m)
+            for log in SetLog.objects.all()
+        }
+        self.assertEqual(before, after)

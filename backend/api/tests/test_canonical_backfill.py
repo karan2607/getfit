@@ -178,7 +178,10 @@ class CanonicalBackfillTests(TestCase):
         label, func = data_upgrades.UPGRADES[5]
         self.assertEqual(func, data_upgrades._step_5_canonicalise_exercise_names)
         self.assertIn('canonical', label)
-        self.assertEqual(data_upgrades.LATEST_VERSION, 5)
+        # Deliberately not asserting LATEST_VERSION == 5. This step's number is
+        # what matters (plans carry it); the registry's length is not this
+        # test's business, and pinning it meant every later step broke here.
+        self.assertGreaterEqual(data_upgrades.LATEST_VERSION, 5)
 
     def test_upgrade_plan_applies_it_and_bumps_the_version(self):
         self.assertEqual(self.plan.data_version, 0)
