@@ -14,6 +14,8 @@ import PageHeader from '../components/PageHeader'
 import ExerciseDrawer from '../components/ExerciseDrawer'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
 import UpcomingWeeks from '../components/workout/UpcomingWeeks'
+import SupersetCard, { type SupersetMember } from '../components/workout/SupersetCard'
+import SupersetPicker from '../components/workout/SupersetPicker'
 import ConfirmModal from '../components/ConfirmModal'
 import { compressImage } from '../lib/imageUtils'
 
@@ -1028,6 +1030,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [editChatOpen, setEditChatOpen] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [progressFor, setProgressFor] = useState<string | null>(null)
+  const [supersetPickerOpen, setSupersetPickerOpen] = useState(false)
   const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
   // Exercise cards collapse so a 7-exercise day is scannable. Only cards the
   // user has actually tapped are recorded here; everything else falls back to
@@ -1242,6 +1245,46 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     })
   }
 
+  /**
+   * Render units: a superset group becomes ONE card, everything else stays a
+   * standalone entry on the existing renderer.
+   *
+   * Grouping is driven by `planEx.superset_group`, so orphaned logs (whose
+   * Exercise row was SET_NULL by a past plan edit) can never be grouped —
+   * they have no planEx, and the session page groups them by logged name
+   * precisely so their history is not hidden.
+   */
+  type RenderUnit =
+    | { kind: 'single'; key: string; entry: typeof exerciseEntries[number] }
+    | { kind: 'superset'; key: string; entries: typeof exerciseEntries }
+
+  const renderUnits: RenderUnit[] = []
+  for (const entry of exerciseEntries) {
+    const group = entry.planEx?.superset_group ?? null
+    const last = renderUnits[renderUnits.length - 1]
+    if (group !== null && last && last.kind === 'superset'
+        && last.entries[0].planEx?.superset_group === group) {
+      last.entries.push(entry)
+      continue
+    }
+    if (group !== null) {
+      renderUnits.push({ kind: 'superset', key: `ss:${group}:${entry.key}`,
+                         entries: [entry] })
+      continue
+    }
+    renderUnits.push({ kind: 'single', key: entry.key, entry })
+  }
+  // A group that ended up with a single member is not a superset. The server
+  // rejects those, but a hand-edited row should degrade to a normal card
+  // rather than render a one-exercise "superset".
+  for (let i = 0; i < renderUnits.length; i++) {
+    const unit = renderUnits[i]
+    if (unit.kind === 'superset' && unit.entries.length < 2) {
+      renderUnits[i] = { kind: 'single', key: unit.entries[0].key,
+                         entry: unit.entries[0] }
+    }
+  }
+
   const completedSets = mergedLogs.filter((l) => l.is_completed).length
   const totalSets = mergedLogs.length
 
@@ -1329,6 +1372,13 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
         <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
         {progressFor && <ExerciseDetailsModal name={progressFor} onClose={() => setProgressFor(null)} />}
+        {supersetPickerOpen && session.exercise_day && (
+          <SupersetPicker
+            dayId={session.exercise_day.id}
+            onClose={() => setSupersetPickerOpen(false)}
+            onSaved={() => api.workouts.getSession(session.id).then(setSession).catch(() => {})}
+          />
+        )}
         {session.plan_id && session.exercise_day && (
           <WorkoutChatDrawer
             isOpen={editChatOpen}
@@ -1360,7 +1410,17 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
         )}
 
         {exerciseEntries.length > 1 && (
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-end items-center gap-3 mb-2">
+            {/* Only offered while the session is editable and the day is a
+                real plan day — orphaned logs have no day to group. */}
+            {!isCompleted && session.exercise_day && (
+              <button
+                onClick={() => setSupersetPickerOpen(true)}
+                className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors"
+              >
+                ⟲ Supersets
+              </button>
+            )}
             <button
               onClick={() => setAllCards(openCount <= 1)}
               className="text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
@@ -1371,7 +1431,33 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
         )}
 
         <div className="space-y-4 mb-8">
-          {exerciseEntries.map(({ key, name: exerciseName, planEx, logs }) => {
+          {renderUnits.map((ru) => {
+            if (ru.kind === 'superset') {
+              const members: SupersetMember[] = ru.entries.map((e) => ({
+                planEx: e.planEx as Exercise,
+                logs: e.logs,
+                measurementType: getMeasurementType(e.planEx, e.logs[0]),
+              }))
+              const isOpen = ru.key in touchedCards
+                ? touchedCards[ru.key]
+                : ru.entries.some((e) => e.key === firstUnfinishedKey)
+              return (
+                <SupersetCard
+                  key={ru.key}
+                  members={members}
+                  unit={unit}
+                  isCompleted={isCompleted}
+                  isOpen={isOpen}
+                  onToggleOpen={() => toggleCard(ru.key, isOpen)}
+                  setFieldValue={setFieldValue}
+                  isSetCompleted={isSetCompleted}
+                  onFieldChange={handleSetField}
+                  onToggleSet={handleToggle}
+                  onShowProgress={setProgressFor}
+                />
+              )
+            }
+            const { key, name: exerciseName, planEx, logs } = ru.entry
             const doneCount = logs.filter((l) => l.is_completed).length
             const allDone = doneCount === logs.length && logs.length > 0
             const mType = getMeasurementType(planEx, logs[0])
@@ -1417,7 +1503,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                     {isOpen && (
                       <button
-                        onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType })}
+                        onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType, superset_group: null })}
                         className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
                       >
                         How to

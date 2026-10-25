@@ -379,6 +379,25 @@ export const api = {
         method: 'POST', body: JSON.stringify({ notes: notes ?? '' }),
       }),
 
+    /** Replace a day's superset grouping atomically. Empty list clears it. */
+    setDaySupersets: (dayId: string, groups: string[][]) =>
+      request<WorkoutDay>(`/api/workouts/days/${dayId}/supersets/`, {
+        method: 'POST', body: JSON.stringify({ groups }),
+      }),
+
+    /** Only pairings the server's validator accepts, each with a reason. */
+    getSupersetOptions: (dayId: string) =>
+      request<{
+        max_groups: number
+        exercises: Array<{
+          id: string; name: string
+          partners: Array<{
+            id: string; name: string; kind: string
+            reason: string; same_sets: boolean
+          }>
+        }>
+      }>(`/api/workouts/days/${dayId}/superset-options/`),
+
     listExercises: () =>
       request<ExerciseSummary[]>('/api/workouts/exercises/'),
 
@@ -558,6 +577,12 @@ export interface Exercise {
   notes: string
   order: number
   measurement_type: MeasurementType
+  /**
+   * Exercises on the same day sharing a group are performed back to back.
+   * null for almost everything. Members are contiguous in `order` and
+   * server-validated, so the UI can group consecutive matches safely.
+   */
+  superset_group: number | null
 }
 
 export interface WorkoutDay {
