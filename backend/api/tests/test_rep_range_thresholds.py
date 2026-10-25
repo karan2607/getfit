@@ -185,3 +185,53 @@ class NoRegressionTests(APITestCase):
         res = views._analyze_progression(
             logs, measurement_type=et.BODYWEIGHT_REPS, unit='lb')
         self.assertEqual(res['direction'], 'increase')
+
+
+class RepDescriptionTests(APITestCase):
+    """
+    Reported: "14 reps at 115.0lb — inside the 12-15 range → HOLD WEIGHT...
+    I think 14 might be avg of last session. If so, it should mention that."
+
+    It was the mean, rendered as a bare figure, so 15/14/13 read as though
+    every set hit 14.
+    """
+
+    def test_uniform_sets_read_as_a_single_number(self):
+        self.assertEqual(views._describe_reps([14, 14, 14])[0], '14 reps')
+
+    def test_varying_sets_name_the_actual_numbers(self):
+        description, average = views._describe_reps([15, 14, 13])
+        self.assertEqual(description, '15/14/13 reps (avg 14)')
+        self.assertEqual(average, 14.0)
+
+    def test_the_average_is_still_returned_for_the_threshold_logic(self):
+        """The decrease threshold compares against the mean, not the string."""
+        self.assertEqual(views._describe_reps([12, 6])[1], 9.0)
+
+    def test_incomplete_sets_are_ignored(self):
+        self.assertEqual(views._describe_reps([15, 14, 13, 0])[0],
+                         '15/14/13 reps (avg 14)')
+
+    def test_a_single_set_reads_plainly(self):
+        self.assertEqual(views._describe_reps([12])[0], '12 reps')
+
+    def test_no_logged_reps_does_not_raise(self):
+        self.assertEqual(views._describe_reps([])[0], '0 reps')
+        self.assertEqual(views._describe_reps([0, 0])[0], '0 reps')
+
+    def test_the_summary_says_avg_when_sets_differ(self):
+        """End to end through _analyze_progression."""
+        logs = []
+        # The NEWEST session is the one described, so the varying set goes last.
+        for day, reps in ((1, [13, 13, 13]), (8, [15, 14, 13])):
+            for number, rep in enumerate(reps, start=1):
+                logs.append({
+                    'workout_session__started_at': dt.datetime(2026, 10, day, 10),
+                    'set_number': number, 'weight_kg': 52.16,
+                    'reps_completed': rep, 'duration_seconds': None,
+                })
+        result = views._analyze_progression(
+            logs, target_reps=(12, 15), measurement_type='weight_reps',
+            unit='lb')
+        self.assertIn('avg', result['summary'])
+        self.assertIn('15/14/13', result['summary'])

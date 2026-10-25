@@ -2159,6 +2159,26 @@ def _session_date(value):
     return str(value)[:10]
 
 
+def _describe_reps(reps):
+    """
+    Describe a session's reps without implying every set was identical.
+
+    The advice used to render the MEAN as a bare figure, so sets of 15/14/13
+    came out as "14 reps at 115lb" -- reported as "I think 14 might be avg of
+    last session. If so, it should mention that." It was, and it should.
+
+    Uniform sets read as before; varying sets name the actual numbers.
+    """
+    worked = [int(r) for r in reps if r]
+    if not worked:
+        return '0 reps', 0.0
+    average = sum(worked) / float(len(worked))
+    if len(set(worked)) == 1:
+        return '%d reps' % worked[0], average
+    return ('%s reps (avg %.0f)' % ('/'.join(str(r) for r in worked), average),
+            average)
+
+
 def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg'):
     """
     Group SetLog history by session date and detect a progression signal.
@@ -2281,7 +2301,7 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
                 f"{fmt(recent['value'])}{streak} → INCREASE WEIGHT"),
         }
 
-    recent_avg = sum(recent['reps']) / max(len([r for r in recent['reps'] if r]), 1)
+    recent_desc, recent_avg = _describe_reps(recent['reps'])
 
     # One badly-missed session is enough.
     #
@@ -2291,7 +2311,7 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     # Falling >25% short of the BOTTOM of the range is unambiguous on its own.
     if not recent['hit_all'] and recent_avg < target_low * 0.75:
         summary = (
-            f"Only {recent_avg:.0f} reps at {fmt(recent['value'])} last session "
+            f"Only {recent_desc} at {fmt(recent['value'])} last session "
             f"(target {target_str}) → DECREASE WEIGHT")
         if best_at_target is not None and best_at_target < recent['value']:
             summary += (
@@ -2312,7 +2332,7 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': (
-                f"{recent_avg:.0f} reps at {fmt(recent['value'])} — inside the "
+                f"{recent_desc} at {fmt(recent['value'])} — inside the "
                 f"{target_str} range → HOLD WEIGHT, ADD REPS until "
                 f"{target_high}"),
         }
@@ -2830,6 +2850,10 @@ _MOVEMENT_WORDS = {'curl', 'press', 'row', 'pull', 'push', 'squat', 'deadlift', 
 # "side lateral raise" for a plain dumbbell lateral raise.
 _FLIPPING_MODIFIERS = {
     'reverse', 'rear', 'lying', 'incline', 'decline', 'behind', 'front',
+    # Direction reverses which muscles do the work. Reported: "Backward
+    # walking treadmill has regular treadmill images" -- it was matching
+    # `walking, treadmill` at 0.80 and showing someone walking forwards.
+    'backward', 'backwards', 'forward', 'forwards',
 }
 
 # Implements. A key naming different equipment to the query is a different
@@ -2839,6 +2863,17 @@ _FLIPPING_MODIFIERS = {
 _EQUIPMENT_WORDS = {
     'dumbbell', 'barbell', 'cable', 'machine', 'sled', 'kettlebell', 'smith',
     'band', 'bands', 'lever', 'sledgehammer',
+    # Cardio machines are equipment too. Without these, disqualifying
+    # `walking, treadmill` for a BACKWARD walk let the next candidate through
+    # -- `sled overhead backward walk`, which is a different machine entirely
+    # and a worse illustration than the one being rejected.
+    #
+    # NOT 'rowing'/'rower': those stem to 'row', which is already a MOVEMENT
+    # word, and treating it as equipment silently re-ranked every row exercise
+    # (Single Arm Cable Row moved from a seated cable row to a kneeling high
+    # pulley row). The rowing machine is already covered by 'machine'.
+    'treadmill', 'elliptical', 'bike', 'bicycle',
+    'stairmaster', 'stairmill', 'prowler',
 }
 
 _KB_STOP = {'the', 'a', 'an', 'with', 'on', 'in', 'of', 'to', 'and', 'or',
@@ -3029,14 +3064,19 @@ def _images_for_exercise(name: str, kb_key=None) -> list:
 
 
 _KB_ALIASES = {
-    'bird dog': 'superman',
-    'bird-dog': 'superman',
-    'birddog': 'superman',
+    # NOTE: no 'dead bug' alias. The KB contains "dead bug" verbatim, so the
+    # alias was overriding a perfect exact match and illustrating a supine
+    # opposite-limb drill with photos of a prone superman. Reported as "Dead
+    # bug shows wrong images".
+    #
+    # And no 'bird dog' alias either, for the same reason the pec-deck alias
+    # exists: a bird dog is a quadruped opposite-limb hold, not a superman.
+    # There is no bird-dog entry in the KB, so the honest result is NO images
+    # rather than the wrong ones.
     # NOTE: no 'pallof press' alias -- the KB contains "pallof press" verbatim,
     # so exact matching already finds it. The old alias pointed at
     # "cable pull through", which is not a KB key at all, so it silently did
     # nothing (and would have been the wrong exercise anyway).
-    'dead bug': 'superman',
     # The KB has no "pec deck" key. Fuzzy matching scored "reverse machine
     # flyes" highest (shared "machine" + "flye" tokens), so a CHEST exercise was
     # illustrated with REAR-DELT photos. "butterfly" is this machine's standard

@@ -14,6 +14,15 @@ import { useAuth } from '../hooks/useAuth'
  * anyone else. That restriction is what makes the automation safe: the queue
  * can only ever contain content written by a trusted operator.
  */
+/**
+ * Bottom-LEFT on purpose.
+ *
+ * This is global (mounted in App), while the AI chat FABs are per-page and
+ * bottom-right. On the right it collided with them -- reported as "Feedback
+ * button is over ai chat button on workouts page". Picking the opposite corner
+ * removes the whole class of collision rather than tuning offsets every time a
+ * page adds a FAB.
+ */
 export default function FeedbackButton() {
   const { user } = useAuth()
   const { showToast } = useToast()
@@ -68,7 +77,7 @@ export default function FeedbackButton() {
         onClick={() => setOpen(true)}
         aria-label="Send feedback"
         title="Send feedback"
-        className="fixed right-4 bottom-20 sm:bottom-6 z-30 w-12 h-12 rounded-full bg-gray-900 hover:bg-gray-800 text-white shadow-lg flex items-center justify-center transition-colors active:scale-95"
+        className="fixed left-4 bottom-20 sm:bottom-6 z-30 w-12 h-12 rounded-full bg-gray-900 hover:bg-gray-800 text-white shadow-lg flex items-center justify-center transition-colors active:scale-95"
       >
         <span className="text-lg leading-none">✱</span>
       </button>

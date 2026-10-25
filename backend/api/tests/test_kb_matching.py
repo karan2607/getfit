@@ -234,3 +234,84 @@ class CandidateShortlistTests(SimpleTestCase):
             resolved, _ = views._resolve_kb_key(name)
             if cands and resolved:
                 self.assertEqual(cands[0], resolved, msg=name)
+
+
+class ReportedImageRegressionTests(SimpleTestCase):
+    """
+    Two image bugs reported from the queue, both of them mine.
+
+    "Dead bug shows wrong images" — the KB contains `dead bug` verbatim, and
+    my own alias to `superman` was overriding that exact match. A dead bug is
+    supine opposite-limb; a superman is prone simultaneous. Different exercise,
+    different position.
+
+    "Backward walking treadmill has regular treadmill images" — it fuzzy-matched
+    `walking, treadmill` at 0.80 and illustrated someone walking forwards.
+    """
+
+    def test_dead_bug_resolves_to_its_own_kb_entry(self):
+        key, score = views._resolve_kb_key('Dead Bug')
+        self.assertEqual(key, 'dead bug')
+        self.assertEqual(score, 1.0)
+
+    def test_dead_bug_is_no_longer_aliased(self):
+        """An alias must never shadow an exact KB key."""
+        self.assertIsNone(views._alias_for('Dead Bug'))
+
+    def test_no_alias_shadows_an_exact_kb_key(self):
+        """
+        The general form of that bug. If a variant is spelled exactly like a
+        KB entry, the alias table must not redirect it somewhere else.
+        """
+        kb = views._load_exercise_kb()
+        for variant, target in views._KB_ALIASES.items():
+            if variant in kb:
+                self.assertEqual(
+                    target, variant,
+                    msg='alias %r shadows the exact KB key of the same name'
+                        % variant)
+
+    def test_backward_walking_gets_no_image_rather_than_a_forward_one(self):
+        """A wrong illustration is worse than none."""
+        key, _score = views._resolve_kb_key('Backward Walking (Treadmill)')
+        self.assertIsNone(key)
+
+    def test_forward_treadmill_walking_still_matches(self):
+        """The fix must not cost the correct case."""
+        self.assertEqual(views._resolve_kb_key('Walking Treadmill')[0],
+                         'walking, treadmill')
+        self.assertEqual(views._resolve_kb_key('Incline Treadmill Walk')[0],
+                         'walking, treadmill')
+
+    def test_a_backward_sled_walk_still_matches_its_own_entry(self):
+        """'backward' on both sides is agreement, not a conflict."""
+        self.assertEqual(
+            views._resolve_kb_key('Sled Overhead Backward Walk')[0],
+            'sled overhead backward walk')
+
+    def test_a_treadmill_exercise_never_matches_a_sled_one(self):
+        """
+        The trap this fix walked into: disqualifying the treadmill match let
+        `sled overhead backward walk` through at 0.57 -- a different machine
+        and a worse illustration than the one being rejected.
+        """
+        for name in ('Backward Walking (Treadmill)', 'Backward Treadmill Walk'):
+            key, _score = views._resolve_kb_key(name)
+            self.assertNotIn('sled', str(key or ''))
+
+    def test_row_is_not_treated_as_equipment(self):
+        """
+        Adding 'rowing' to the equipment words made 'row' an equipment stem --
+        but 'row' is already a MOVEMENT word, and it silently re-ranked every
+        row exercise.
+        """
+        self.assertNotIn(views._kb_stem('row'), views._EQUIPMENT_STEMS)
+        self.assertEqual(views._resolve_kb_key('Single Arm Cable Row')[0],
+                         'seated one-arm cable pulley rows')
+
+    def test_bird_dog_gets_no_image_rather_than_a_superman(self):
+        """A quadruped opposite-limb hold is not a prone superman."""
+        self.assertIsNone(views._resolve_kb_key('Bird-Dog')[0])
+
+    def test_superman_itself_still_matches(self):
+        self.assertEqual(views._resolve_kb_key('Superman')[0], 'superman')
