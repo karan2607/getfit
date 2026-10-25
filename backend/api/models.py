@@ -124,9 +124,16 @@ class ApiKey(models.Model):
     """
 
     SCOPE_LOGGING = 'logging'
+    SCOPE_FEEDBACK = 'feedback'
     SCOPE_FULL = 'full'
     SCOPE_CHOICES = [
         (SCOPE_LOGGING, 'Health, diet and workout logging'),
+        # For the autonomous feedback runner, whose entire job is reading the
+        # queue and writing back status. It previously used a DRF session
+        # token, which logout() deletes -- the same failure that killed the
+        # phone agent. A dedicated scope keeps it least-privilege: it cannot
+        # touch health, diet, plans or the account.
+        (SCOPE_FEEDBACK, 'Feedback queue only'),
         (SCOPE_FULL, 'Full account access'),
     ]
 

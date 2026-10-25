@@ -437,3 +437,91 @@ class ManagementEndpointTests(APITestCase):
         listed = self.client.get(self.url).data
         row = next(r for r in listed if r['id'] == str(key.id))
         self.assertIsNotNone(row['last_used_at'])
+
+
+class FeedbackScopeTests(APITestCase):
+    """
+    The scope for the autonomous queue runner.
+
+    The runner previously authenticated with a DRF session token, which
+    `logout()` deletes — so the web app's 30-minute idle timeout silently
+    killed it, the same failure as the phone agent. It needs the feedback
+    endpoints and nothing else, so `logging` (which denies feedback) and `full`
+    (which grants everything) were both wrong.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            email='fb@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.key = ApiKey.objects.create(
+            user=self.user, label='queue runner', scope=ApiKey.SCOPE_FEEDBACK)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.key.key)
+
+    def test_it_can_read_the_queue(self):
+        self.assertEqual(self.client.get(reverse('feedback')).status_code, 200)
+
+    def test_it_can_write_back_a_status(self):
+        res = self.client.post(reverse('feedback'), {'body': 'from a test'},
+                               format='json')
+        self.assertIn(res.status_code, (200, 201), getattr(res, 'data', None))
+        item_id = res.data['id']
+        res = self.client.patch(reverse('feedback-detail', args=[item_id]),
+                                {'status': 'done'}, format='json')
+        self.assertEqual(res.status_code, 200, getattr(res, 'data', None))
+
+    def test_it_cannot_reach_health(self):
+        self.assertEqual(
+            self.client.get(reverse('health-summary')).status_code, 403)
+
+    def test_it_cannot_reach_workouts_or_diet(self):
+        self.assertEqual(
+            self.client.get(reverse('workout-plans')).status_code, 403)
+        self.assertEqual(
+            self.client.get(reverse('meal-logs')).status_code, 403)
+
+    def test_it_cannot_change_the_password(self):
+        """Least privilege: a key in a plaintext file on a laptop."""
+        res = self.client.post(reverse('password-change'), {
+            'current_password': 'x', 'new_password': 'attacker-chosen-123',
+        }, format='json')
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(User.objects.get(pk=self.user.pk).check_password('x'))
+
+    def test_it_cannot_reach_the_admin_endpoints(self):
+        self.assertEqual(
+            self.client.get(reverse('admin-users')).status_code, 403)
+
+    def test_it_cannot_reach_mcp(self):
+        res = self.client.post(reverse('mcp'), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list', 'params': {}},
+            format='json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_a_logging_key_still_cannot_reach_feedback(self):
+        """The two scopes must not have leaked into each other."""
+        logging_key = ApiKey.objects.create(
+            user=self.user, label='phone', scope=ApiKey.SCOPE_LOGGING)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + logging_key.key)
+        self.assertEqual(self.client.get(reverse('feedback')).status_code, 403)
+
+    def test_the_scope_is_still_gated_by_the_superuser_check(self):
+        """
+        The scope widens nothing on its own — the feedback views enforce
+        superuser themselves.
+        """
+        plain = User.objects.create_user(email='fb2@test.local', password='x')
+        UserProfile.objects.create(user=plain, preferred_unit='lb')
+        key = ApiKey.objects.create(user=plain, label='runner',
+                                    scope=ApiKey.SCOPE_FEEDBACK)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + key.key)
+        self.assertEqual(self.client.get(reverse('feedback')).status_code, 403)
+
+    def test_the_scope_is_accepted_at_creation(self):
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        res = self.client.post(reverse('api-keys'),
+                               {'label': 'runner', 'scope': 'feedback'},
+                               format='json')
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['scope'], ApiKey.SCOPE_FEEDBACK)

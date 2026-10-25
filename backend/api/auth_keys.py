@@ -116,6 +116,9 @@ LOGGING_SCOPE_DENIED = (
     'diet/plans/generate/',
 )
 
+# A `feedback` key may reach ONLY this. It is for the autonomous queue runner.
+FEEDBACK_SCOPE_ALLOWED = ('feedback/',)
+
 SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 
@@ -138,6 +141,13 @@ def scope_allows(api_key, path, method):
         return True
 
     tail = _tail(path)
+
+    # The feedback runner: queue access and nothing else. Note this is still
+    # gated by the view's own superuser check, so the scope widens nothing on
+    # its own.
+    if api_key.scope == ApiKey.SCOPE_FEEDBACK:
+        return any(tail.startswith(prefix)
+                   for prefix in FEEDBACK_SCOPE_ALLOWED)
 
     if any(tail.startswith(denied) for denied in LOGGING_SCOPE_DENIED):
         return False

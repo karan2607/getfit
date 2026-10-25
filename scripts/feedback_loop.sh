@@ -7,7 +7,9 @@
 # This script owns the queue mechanics; Claude owns the code changes.
 #
 # Setup (once):
-#   printf '%s' '<your-40-char-app-token>' > ~/.getfit-loop-token
+#   Use an INTEGRATION KEY, not the app's session token. Create one in
+#   Profile -> Password -> Integration keys with scope "feedback", then:
+#     printf '%s' '<43-char integration key>' > ~/.getfit-loop-token
 #   chmod 600 ~/.getfit-loop-token
 #
 # The token must belong to a SUPERUSER — the queue endpoints return 403
@@ -56,11 +58,11 @@ api() {
   local method="$1" path="$2" body="${3:-}"
   if [[ -n "$body" ]]; then
     curl -sS -X "$method" "$API$path" \
-      -H "Authorization: Token $TOKEN" \
+      -H "Authorization: Bearer $TOKEN" \
       -H 'Content-Type: application/json' \
       -d "$body"
   else
-    curl -sS -X "$method" "$API$path" -H "Authorization: Token $TOKEN"
+    curl -sS -X "$method" "$API$path" -H "Authorization: Bearer $TOKEN"
   fi
 }
 
@@ -213,16 +215,20 @@ run_pass() {
   items="$(api GET '/api/feedback/?status=new' || true)"
 
   if ! printf '%s' "$items" | jq -e 'type == "array"' >/dev/null 2>&1; then
-    # Call out an auth failure explicitly. Changing your app password
-    # regenerates the API token, which silently 401s every pass from then on --
-    # it cost several days of the loop doing nothing before anyone noticed.
+    # Call out an auth failure explicitly.
+    #
+    # This loop used to authenticate with the app's SESSION token, which
+    # logout() deletes -- and the web app auto-logs-out after 30 minutes idle.
+    # So leaving a browser tab open silently 401'd every pass from then on. It
+    # cost several days of the loop doing nothing, twice. It now uses a
+    # feedback-scoped integration key, which no session action can revoke.
     if printf '%s' "$items" | grep -qi 'invalid token\|not authenticated\|credentials'; then
-      log "AUTH FAILED: the token in $TOKEN_FILE is no longer valid."
-      log "  Changing your password regenerates it. Refresh with:"
-      log "    curl -s -X POST $API/api/auth/login/ -H 'Content-Type: application/json' \\"
-      log "      -d '{\"email\":\"YOUR_EMAIL\",\"password\":\"YOUR_PASSWORD\"}' \\"
-      log "      | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])' \\"
-      log "      > $TOKEN_FILE && chmod 600 $TOKEN_FILE"
+      log "AUTH FAILED: the key in $TOKEN_FILE was rejected."
+      log "  Create a replacement in the app: Profile -> Password ->"
+      log "  Integration keys, scope \"feedback\". Then:"
+      log "    printf '%s' '<new key>' > $TOKEN_FILE && chmod 600 $TOKEN_FILE"
+      log "  Do NOT paste a login token here: those are session credentials"
+      log "  that logout() deletes, which is what kept killing this loop."
       return 1
     fi
     log "queue fetch failed: $(printf '%s' "$items" | head -c 200)"
