@@ -23,7 +23,10 @@ against a threshold.
 changes RULES without re-baselining, the fingerprint no longer matches and the
 test says so explicitly, instead of the mean quietly sagging.
 
-Bump SUITE_VERSION whenever RULES changes, and re-baseline in its own commit.
+Bump SUITE_VERSION whenever RULES changes OR whenever the vocabulary a rule
+judges against changes -- a new measurement type moves scores without touching
+RULES at all, so the fingerprint alone would not notice. Re-baseline in its own
+commit.
 """
 
 import hashlib
@@ -31,10 +34,16 @@ import json
 
 from .rules import RULES
 
-# Bump when RULES changes (added/removed rule, or a changed weight).
+# Bump when RULES changes (added/removed rule, or a changed weight), or when
+# the vocabulary the rules judge against changes.
 # 2: added the per-week generation rules (outline tiling, notes map,
 # single-week payload). Each is neutral on the historical fixtures.
-SUITE_VERSION = 2
+# 3: cardio_machine and weight_distance. RULES is untouched, so the fingerprint
+# is unchanged -- but measurement_type_agrees now has two more types to compare
+# against, and every fixture predates them, so their treadmills and carries
+# claim the type that was correct when they were generated. The new findings
+# are real and are what the reclassification step fixes in production.
+SUITE_VERSION = 3
 
 
 def rules_fingerprint(rules=RULES):

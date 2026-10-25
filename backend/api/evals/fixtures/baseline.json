@@ -1,5 +1,5 @@
 {
-  "suite_version": 2,
+  "suite_version": 3,
   "rules_fingerprint": "45cbbe3194aab24d8eeddbcd08b168197d740be51a22a6223b08e190a00d1e03",
   "_comment": "Exact expected failure counts per fixture per rule. Regenerate with `manage.py eval_plans --update-baseline`, always as its own commit -- bundling it with a code change would launder a regression into the baseline.",
   "plans": {
@@ -57,7 +57,7 @@
     "plan04": {
       "prescription_matches_type": 0,
       "injury_constraints_respected": 0,
-      "measurement_type_agrees": 0,
+      "measurement_type_agrees": 1,
       "canonical_exercise_names": 8,
       "session_volume": 0,
       "warmup_first": 5,
@@ -74,7 +74,7 @@
     "plan05": {
       "prescription_matches_type": 7,
       "injury_constraints_respected": 0,
-      "measurement_type_agrees": 7,
+      "measurement_type_agrees": 21,
       "canonical_exercise_names": 42,
       "session_volume": 7,
       "warmup_first": 7,
@@ -91,7 +91,7 @@
     "plan06": {
       "prescription_matches_type": 2,
       "injury_constraints_respected": 0,
-      "measurement_type_agrees": 0,
+      "measurement_type_agrees": 6,
       "canonical_exercise_names": 4,
       "session_volume": 0,
       "warmup_first": 0,
@@ -108,7 +108,7 @@
     "plan07": {
       "prescription_matches_type": 0,
       "injury_constraints_respected": 0,
-      "measurement_type_agrees": 0,
+      "measurement_type_agrees": 15,
       "canonical_exercise_names": 88,
       "session_volume": 0,
       "warmup_first": 0,
@@ -125,7 +125,7 @@
     "plan08": {
       "prescription_matches_type": 0,
       "injury_constraints_respected": 0,
-      "measurement_type_agrees": 0,
+      "measurement_type_agrees": 12,
       "canonical_exercise_names": 8,
       "session_volume": 0,
       "warmup_first": 0,
