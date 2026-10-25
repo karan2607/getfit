@@ -177,6 +177,7 @@ class SetLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'exercise_id', 'exercise_name', 'set_number',
             'reps_completed', 'weight_kg', 'duration_seconds',
+            'speed_kmh', 'incline_pct', 'distance_m',
             'measurement_type', 'is_completed', 'notes',
         ]
         read_only_fields = ['id', 'exercise_id', 'measurement_type']

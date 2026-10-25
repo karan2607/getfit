@@ -282,23 +282,29 @@ def _tool_log_set(user, args):
     )
     log.exercise_name = exercise.name
 
-    incoming = {
-        'weight_kg': log.weight_kg,
-        'reps_completed': log.reps_completed,
-        'duration_seconds': log.duration_seconds,
-    }
-    # `weight` is accepted in the user's unit and converted here.
+    # Start from what is stored so a partial update stays partial, then
+    # overlay only what the caller sent. Built by iterating the contract, so a
+    # new metric in exercise_types needs no change here.
+    incoming = {field: getattr(log, field)
+                for field in exercise_types.ALL_SET_FIELDS}
+    for field in exercise_types.ALL_SET_FIELDS:
+        if field in args:
+            incoming[field] = args[field]
+
+    # Three arguments are accepted in the USER's unit and converted to the
+    # canonical one, so an agent never has to know what we store.
     if 'weight' in args:
         incoming['weight_kg'] = _weight_in(args['weight'], unit)
-    if 'reps_completed' in args:
-        incoming['reps_completed'] = args['reps_completed']
-    if 'duration_seconds' in args:
-        incoming['duration_seconds'] = args['duration_seconds']
+    if 'speed' in args and args['speed'] is not None:
+        incoming['speed_kmh'] = (float(args['speed']) * 1.609344
+                                 if unit == 'lb' else float(args['speed']))
+    if 'distance' in args and args['distance'] is not None:
+        incoming['distance_m'] = (float(args['distance']) / 1.0936133
+                                  if unit == 'lb' else float(args['distance']))
 
     coerced = exercise_types.coerce_set_fields(exercise.measurement_type, incoming)
-    log.weight_kg = coerced['weight_kg']
-    log.reps_completed = coerced['reps_completed']
-    log.duration_seconds = coerced['duration_seconds']
+    for field in exercise_types.ALL_SET_FIELDS:
+        setattr(log, field, coerced[field])
     if 'is_completed' in args:
         log.is_completed = bool(args['is_completed'])
     log.save()
@@ -309,7 +315,10 @@ def _tool_log_set(user, args):
         'ignored_fields': [
             f for f in exercise_types.ALL_SET_FIELDS
             if not exercise_types.uses_field(exercise.measurement_type, f)
-            and (f in args or (f == 'weight_kg' and 'weight' in args))
+            and (f in args
+                 or (f == 'weight_kg' and 'weight' in args)
+                 or (f == 'speed_kmh' and 'speed' in args)
+                 or (f == 'distance_m' and 'distance' in args))
         ],
     }
 
@@ -895,6 +904,11 @@ TOOLS = {
             'weight': _NUM,
             'reps_completed': _INT,
             'duration_seconds': _INT,
+            # Cardio and carry metrics. speed is in the user's unit (mph for
+            # lb, km/h for kg); distance in yards for lb, metres for kg.
+            'speed': _NUM,
+            'incline_pct': _NUM,
+            'distance': _NUM,
             'is_completed': _BOOL,
         }, ['session_id', 'exercise_id', 'set_number']),
         'handler': _tool_log_set,

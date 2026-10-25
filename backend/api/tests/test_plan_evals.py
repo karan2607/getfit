@@ -14,6 +14,7 @@ and a plan that looks similar but is legitimate.
 import glob
 import json
 import os
+import re
 
 from django.test import SimpleTestCase
 
@@ -107,11 +108,29 @@ class RuleBehaviourTests(SimpleTestCase):
                        et.BODYWEIGHT_REPS)])]), 'prescription_matches_type')
         self.assertIn('logged in reps', card.findings[0].detail)
 
-    def test_carry_prescribed_in_yards_is_flagged(self):
-        """Also shipped: Farmer's Carry at "40 yards", logged in seconds."""
+    def test_carry_prescribed_in_yards_is_now_valid(self):
+        """
+        The INVERSE of what this used to assert, deliberately.
+
+        "Farmer's Carry: 40 yards" was flagged because the type could only
+        store seconds, so the prescription was unenterable -- two feedback
+        items (0114ace1, 40ea89ce) sat escalated on exactly that. weight_distance
+        has a distance_m field, so yards is now the right prescription and
+        flagging it would be the bug.
+        """
+        self.assert_clean(plan([day(1, 'Full', [
+            WARMUP, ex("Metabolic Finisher: Farmer's Carry", 3, '40 yards',
+                       et.WEIGHT_DISTANCE)])]), 'prescription_matches_type')
+
+    def test_a_carry_still_claimed_as_weight_duration_is_flagged(self):
+        """
+        The guard on the above: the prescription stopped being wrong, so the
+        TYPE is what is wrong now. measurement_type_agrees has to catch it, or
+        a stale plan silently keeps a carry with no distance field.
+        """
         self.assert_flags(plan([day(1, 'Full', [
             WARMUP, ex("Metabolic Finisher: Farmer's Carry", 3, '40 yards',
-                       et.WEIGHT_DURATION)])]), 'prescription_matches_type')
+                       et.WEIGHT_DURATION)])]), 'measurement_type_agrees')
 
     def test_amrap_is_accepted_for_rep_work(self):
         self.assert_clean(plan([day(1, 'Full', [
@@ -494,14 +513,32 @@ class GoldenSetTests(SimpleTestCase):
     PRE_CANONICAL_RULES = PRE_CANONICAL_RULES
 
     def test_the_two_most_recent_plans_are_clean_on_the_earlier_rules(self):
+        """
+        The one allowance: a fixture captured before cardio_machine and
+        weight_distance existed cannot have used them, so plan07's treadmills
+        claim 'duration' -- which was the ONLY correct answer at the time.
+        Those findings are filtered out by shape, not suppressed by rule, so
+        every other measurement_type_agrees violation still fails this test.
+        Step 6 fixes the equivalent rows in production.
+        """
+        superseded = {old: new for new, old in et.REPLACES.items()}
+        stale_type = re.compile(
+            r"claimed '(%s)' but the name classifies as '(%s)'"
+            % ('|'.join(superseded), '|'.join(superseded.values())))
+
+        def is_stale_type_only(detail):
+            match = stale_type.search(detail)
+            return bool(match) and superseded[match.group(1)] == match.group(2)
+
         for label in ('plan07', 'plan08'):
             _, plan_json, context = next(
                 c for c in self.cases if c[0] == label)
             card = score_plan(plan_json, context, label=label,
                               rules=self.PRE_CANONICAL_RULES)
-            self.assertEqual(card.score, 1.0,
+            real = [f for f in card.findings if not is_stale_type_only(f.detail)]
+            self.assertEqual(real, [],
                              msg='%s regressed: %s' % (
-                                 label, [f.detail for f in card.findings][:5]))
+                                 label, [f.detail for f in real][:5]))
 
     def test_the_canonical_rule_finds_the_live_plans_name_collisions(self):
         """

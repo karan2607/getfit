@@ -401,12 +401,21 @@ class SetLog(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.SET_NULL, null=True, blank=True)
     exercise_name = models.CharField(max_length=150)   # denormalized — survives plan edits
     set_number = models.PositiveIntegerField()
-    # Which of these three carry meaning depends on the parent Exercise's
+    # Which of these carry meaning depends on the parent Exercise's
     # measurement_type. See api/exercise_types.FIELD_CONTRACT -- it is enforced on
     # write by coerce_set_fields(), so fields that do not apply are always NULL.
     reps_completed = models.PositiveIntegerField(null=True, blank=True)
     weight_kg = models.FloatField(null=True, blank=True)   # always kilograms
     duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    # Cardio and carry metrics. Stored canonically and converted for display,
+    # the same way weight_kg is, so the number in the database never depends on
+    # which unit the user happens to prefer.
+    #   speed_kmh    km/h  (shown as mph for lb users)
+    #   incline_pct  percent
+    #   distance_m   metres (shown in the unit the prescription uses: yd/ft)
+    speed_kmh = models.FloatField(null=True, blank=True)
+    incline_pct = models.FloatField(null=True, blank=True)
+    distance_m = models.FloatField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 

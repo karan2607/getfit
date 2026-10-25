@@ -62,10 +62,54 @@ class PrescriptionMatchesTypeTests(APITestCase):
         self.assertTrue(et.prescription_matches_type(et.WEIGHT_REPS, '')[0])
         self.assertTrue(et.prescription_matches_type(et.WEIGHT_REPS, None)[0])
 
+    def test_distance_types_accept_a_distance_or_a_time(self):
+        """
+        The two items escalated for months (0114ace1, 40ea89ce): a carry is
+        prescribed in yards, which used to be unenterable AND flagged as a
+        mismatch. weight_distance keeps time too, so "45 sec" stays valid.
+        """
+        for reps in ('40 yards', '30 yd', '50 feet', '100 metres', '20m',
+                     '45 sec', '1 min'):
+            self.assertTrue(
+                et.prescription_matches_type(et.WEIGHT_DISTANCE, reps)[0],
+                msg=reps)
+
+    def test_bare_m_means_metres_for_carries_and_minutes_for_machines(self):
+        """
+        "20m" is ambiguous in general, so the shared distance rule demands
+        "metre"/"meter". Per type it is not ambiguous at all: a 20-minute
+        farmer's carry does not exist, and a 20-metre treadmill set does not
+        either. Only weight_distance reads a bare m as metres.
+        """
+        self.assertTrue(et.prescription_matches_type(et.WEIGHT_DISTANCE, '20m')[0])
+        self.assertTrue(
+            et.prescription_matches_type(et.CARDIO_MACHINE, '20 m')[0])
+        # ...and on rep work it is still a mismatch either way.
+        self.assertFalse(et.prescription_matches_type(et.WEIGHT_REPS, '20 min')[0])
+
+    def test_distance_types_still_reject_a_bare_rep_count(self):
+        ok, expected = et.prescription_matches_type(et.WEIGHT_DISTANCE, '12')
+        self.assertFalse(ok)
+        self.assertEqual(expected, 'distance or time')
+
+    def test_a_distance_is_still_wrong_for_rep_and_timed_work(self):
+        """The guard: widening it for carries must not widen it everywhere."""
+        for mtype in (et.WEIGHT_REPS, et.BODYWEIGHT_REPS, et.DURATION,
+                      et.WEIGHT_DURATION, et.CARDIO_MACHINE):
+            self.assertFalse(
+                et.prescription_matches_type(mtype, '40 yards')[0], msg=mtype)
+
     def test_every_measurement_type_is_handled(self):
+        """
+        No type may fall through without an expectation -- that is what makes
+        the UI able to say which unit the inputs want. Adding a type with a new
+        expectation label means teaching the frontend about it too, so the set
+        is listed explicitly rather than derived.
+        """
         for mtype in et.ALL_TYPES:
             ok, expected = et.prescription_matches_type(mtype, '10')
-            self.assertIn(expected, ('reps', 'time', None), msg=mtype)
+            self.assertIn(expected, ('reps', 'time', 'distance or time', None),
+                          msg=mtype)
 
 
 class PromptForbidsMismatchTests(APITestCase):

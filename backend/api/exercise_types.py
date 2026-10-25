@@ -24,8 +24,17 @@ WEIGHT_DURATION = 'weight_duration'
 DURATION = 'duration'
 WARMUP = 'warmup'
 BODYWEIGHT_REPS = 'bodyweight_reps'
+# Cardio machines: time is the prescription, but speed and incline are what
+# actually describe the effort. Reported as "Treadmill should also track speed"
+# and "should also have a column to add incline".
+CARDIO_MACHINE = 'cardio_machine'
+# Loaded carries and sled work, where the prescription is a DISTANCE. Two
+# feedback items sat escalated for months because "30 yards" had nowhere to be
+# logged, so the only options were to mis-prescribe it as seconds or drop it.
+WEIGHT_DISTANCE = 'weight_distance'
 
-ALL_TYPES = (WEIGHT_REPS, WEIGHT_DURATION, DURATION, WARMUP, BODYWEIGHT_REPS)
+ALL_TYPES = (WEIGHT_REPS, WEIGHT_DURATION, DURATION, WARMUP, BODYWEIGHT_REPS,
+             CARDIO_MACHINE, WEIGHT_DISTANCE)
 
 DEFAULT_TYPE = WEIGHT_REPS
 
@@ -44,9 +53,36 @@ FIELD_CONTRACT = {
     DURATION:        ('duration_seconds',),
     BODYWEIGHT_REPS: ('reps_completed',),
     WARMUP:          (),
+    # Both of these are deliberately SUPERSETS of the type they replace --
+    # see REPLACES below. That is not a style choice: reclassifying an exercise
+    # runs the SetLog field contract over its history, and any field missing
+    # from the new contract is NULLED. A `weight + distance` carry would have
+    # destroyed 17 already-logged durations in production.
+    CARDIO_MACHINE:  ('duration_seconds', 'speed_kmh', 'incline_pct'),
+    WEIGHT_DISTANCE: ('weight_kg', 'duration_seconds', 'distance_m'),
 }
 
-ALL_SET_FIELDS = ('weight_kg', 'reps_completed', 'duration_seconds')
+# Which existing type each new type takes over from. Every new contract must
+# contain its predecessor's fields, and a test asserts it, so reclassification
+# is lossless by construction rather than by review.
+REPLACES = {
+    CARDIO_MACHINE: DURATION,
+    WEIGHT_DISTANCE: WEIGHT_DURATION,
+}
+
+# Stored as floats. Rounding speed to 4 km/h or an incline to 2% would quietly
+# destroy the precision these fields exist to capture.
+_FLOAT_SET_FIELDS = frozenset((
+    'weight_kg', 'speed_kmh', 'incline_pct', 'distance_m'))
+
+ALL_SET_FIELDS = (
+    'weight_kg', 'reps_completed', 'duration_seconds',
+    # Canonical units, converted for display exactly as weight_kg is:
+    #   speed_kmh    km/h, shown as mph for lb users
+    #   incline_pct  percent, no conversion
+    #   distance_m   metres, shown in the unit the PRESCRIPTION uses (yd/ft)
+    'speed_kmh', 'incline_pct', 'distance_m',
+)
 
 # What a progress chart should plot, and in what unit, for each type.
 #   metric: which contract field drives the chart
@@ -57,6 +93,13 @@ CHART_CONTRACT = {
     DURATION:        {'metric': 'duration_seconds', 'unit': 'seconds'},
     BODYWEIGHT_REPS: {'metric': 'reps_completed', 'unit': 'reps'},
     WARMUP:          {'metric': None, 'unit': None},
+    # Cardio progression stays on TIME, matching the existing duration
+    # behaviour. Speed and incline are recorded detail, not the progression
+    # driver -- revisiting that is a coaching decision to make once there is
+    # real speed data to look at.
+    CARDIO_MACHINE:  {'metric': 'duration_seconds', 'unit': 'seconds'},
+    # A carry progresses on load, like the weight_duration it replaces.
+    WEIGHT_DISTANCE: {'metric': 'weight_kg', 'unit': 'mass'},
 }
 
 
@@ -107,7 +150,7 @@ _RULES = [
     # right?". It does: you load plates on a sled exactly as you load a trap bar
     # for a carry, and `_LOADED` already treats "sled" as a loaded implement.
     # A farmer's HOLD is the same movement as a farmer's walk standing still.
-    (WEIGHT_DURATION, [
+    (WEIGHT_DISTANCE, [
         r"\bfarmer'?s?\s+(walk|carry|hold)",
         r"\bfarmer\s?-?\s?s? hold\b",
         r'\bsuitcase\s+(walk|carry|hold)',
@@ -123,6 +166,25 @@ _RULES = [
         r'(push|pull|drag|walk|sprint)(e?s)?\b',
         r'\bprowler\b',          # only ever the sled; there is no machine
     ], []),
+
+    # Cardio machines. Pulled out of DURATION so speed and incline have
+    # somewhere to go. Everything here is a machine with a readout; holds
+    # (plank, wall sit) and generic cardio stay DURATION below.
+    (CARDIO_MACHINE, [
+        r'\btreadmill\b',
+        r'\belliptical\b',
+        r'\bstairmaster\b',
+        r'\bstair\s?(climb|master|mill)',
+        r'\bpower stairs\b',
+        r'\bstationary\b',
+        r'\bair bike\b',
+        r'\brecumbent bike\b',
+        r'\bspin bike\b',
+        r'\bexercise bike\b',
+        r'\browing machine\b',
+        r'\bski erg\b',
+        r'\bassault bike\b',
+    ], [r'\bclean\b', r'\bsnatch\b']),
 
     # Bodyweight rep work. Excludes the loaded/machine variants.
     (BODYWEIGHT_REPS, [
@@ -159,18 +221,8 @@ _RULES = [
         r'\bpassive hang\b',
         r'\bone handed hang\b',
         # Cardio machines and conditioning.
-        r'\btreadmill\b',
-        r'\belliptical\b',
-        r'\bstairmaster\b',
-        r'\bpower stairs\b',
-        r'\bstair\s?(climb|master|mill)',
-        r'\bstationary\b',
-        r'\bair bike\b',
-        r'\brecumbent bike\b',
         r'\bbicycling\b',
         r'\bcycling\b',
-        r'\bspin bike\b',
-        r'\browing machine\b',
         r'\bjump\s?-?\s?rope\b',
         r'\bskipping\b',
         r'\bbattle ropes?\b',
@@ -449,10 +501,34 @@ def prescription_matches_type(measurement_type, reps):
         # Must be a rep count. A time or distance is the contradiction.
         return (not (has_time or has_distance)), 'reps'
 
-    if measurement_type in (DURATION, WEIGHT_DURATION):
+    if measurement_type == WEIGHT_DISTANCE:
+        # A DISTANCE is now the expected prescription, which is the whole
+        # point of this type existing. "Farmer's Carry: 40 yards" and
+        # "Sled Push: 30 yards" were escalated for months because distance had
+        # nowhere to be logged, so the prescription was flagged as a mismatch
+        # with no way to fix it. A time is also fine -- carries are legitimately
+        # prescribed either way. A bare rep count is not.
+        #
+        # Bare "m" is read as metres HERE ONLY. It is genuinely ambiguous with
+        # minutes, which is why the shared regex above demands "metre"/"meter";
+        # but a 20-minute farmer's carry does not exist, so for this type
+        # "Sled Push: 20m" is a distance. On CARDIO_MACHINE it stays minutes.
+        if re.search(r'\b\d+\s*m\b', text, re.I):
+            has_distance = True
+        if has_distance or has_time:
+            return True, 'distance or time'
+        return (not has_reps), 'distance or time'
+
+    if measurement_type in (DURATION, WEIGHT_DURATION, CARDIO_MACHINE):
         # Must be a time. A distance, or a bare rep count, is the contradiction.
         if has_distance:
             return False, 'time'
+        # The mirror of the weight_distance case above: bare "m" is ambiguous in
+        # general, but a 20-metre plank or treadmill set is not a thing, so here
+        # it means minutes. Without this "Treadmill: 20m" reads as a bare rep
+        # count and gets flagged with nothing for the user to fix.
+        if re.search(r'\b\d+\s*m\b', text, re.I):
+            return True, 'time'
         if has_reps:
             return False, 'time'
         return True, 'time'
@@ -483,8 +559,8 @@ def coerce_set_fields(measurement_type, values):
             out[field] = None
             continue
         try:
-            if field == 'weight_kg':
-                out[field] = float(raw)
+            if field in _FLOAT_SET_FIELDS:
+                out[field] = max(0.0, float(raw))
             else:
                 out[field] = max(0, int(round(float(raw))))
         except (TypeError, ValueError):

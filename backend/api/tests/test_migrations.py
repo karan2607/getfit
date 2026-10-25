@@ -61,7 +61,7 @@ class BackfillMeasurementTypeTests(TestCase):
             (stretch, et.WARMUP),
             (plank, et.DURATION),
             (bench, et.WEIGHT_REPS),
-            (carry, et.WEIGHT_DURATION),
+            (carry, et.WEIGHT_DISTANCE),
             (pushup, et.BODYWEIGHT_REPS),
         ):
             obj.refresh_from_db()

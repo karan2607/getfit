@@ -251,7 +251,8 @@ def _is_conditioning_day(exercises):
         return False
     return all(
         exercise_types.classify(e.get('name'), e.get('reps'))
-        in (exercise_types.DURATION, exercise_types.WEIGHT_DURATION)
+        in (exercise_types.DURATION, exercise_types.WEIGHT_DURATION,
+            exercise_types.CARDIO_MACHINE, exercise_types.WEIGHT_DISTANCE)
         for e in working
     )
 

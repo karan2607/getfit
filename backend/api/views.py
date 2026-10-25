@@ -1966,9 +1966,10 @@ def workout_session_log_set(request, session_id):
             incoming[field] = request.data[field]
 
     coerced = exercise_types.coerce_set_fields(exercise.measurement_type, incoming)
-    log.weight_kg = coerced['weight_kg']
-    log.reps_completed = coerced['reps_completed']
-    log.duration_seconds = coerced['duration_seconds']
+    # Assigned by iterating the contract rather than naming fields, so adding
+    # a metric to exercise_types.ALL_SET_FIELDS does not need a change here.
+    for _field in exercise_types.ALL_SET_FIELDS:
+        setattr(log, _field, coerced[_field])
 
     if 'is_completed' in request.data:
         log.is_completed = bool(request.data['is_completed'])
@@ -2119,6 +2120,23 @@ def _target_rep_range(reps):
     return min(nums), max(nums)
 
 
+def _format_metric_bits(log, unit):
+    """Optional cardio/carry detail, appended when present."""
+    bits = []
+    speed = log.get('speed_kmh')
+    if speed:
+        bits.append('%.1f %s' % (speed / 1.609344, 'mph') if unit == 'lb'
+                    else '%.1f km/h' % speed)
+    incline = log.get('incline_pct')
+    if incline:
+        bits.append('%.1f%% incline' % incline)
+    distance = log.get('distance_m')
+    if distance:
+        bits.append('%.0f yd' % (distance * 1.0936133) if unit == 'lb'
+                    else '%.0f m' % distance)
+    return (' (' + ', '.join(bits) + ')') if bits else ''
+
+
 def _format_set_for_prompt(log, measurement_type, unit):
     """
     Render one SetLog for an AI prompt using the right field and unit.
@@ -2127,6 +2145,14 @@ def _format_set_for_prompt(log, measurement_type, unit):
     plank was described to the model as "180kg x ?" while the user's profile said
     lb -- the direct cause of nonsensical "start Xlb" advice.
     """
+    if measurement_type == exercise_types.CARDIO_MACHINE:
+        return '%ss%s' % (log.get('duration_seconds') or '?',
+                          _format_metric_bits(log, unit))
+    if measurement_type == exercise_types.WEIGHT_DISTANCE:
+        return '%s%s%s' % (
+            _to_display_weight(log.get('weight_kg'), unit) or '?', unit,
+            _format_metric_bits(log, unit) or ' for %ss' % (
+                log.get('duration_seconds') or '?'))
     if measurement_type == exercise_types.DURATION:
         return '%ss' % (log.get('duration_seconds') or '?')
     if measurement_type == exercise_types.WEIGHT_DURATION:
@@ -2199,7 +2225,15 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
         return {'direction': None, 'summary': None}
 
     # Which field carries the progression signal for this exercise type.
-    if measurement_type in (exercise_types.DURATION, exercise_types.WEIGHT_DURATION):
+    #
+    # The two new types mirror the ones they replace exactly, so reclassifying
+    # an exercise cannot change the advice it was already giving:
+    #   cardio_machine  <- duration        (progress on time)
+    #   weight_distance <- weight_duration (progress on time)
+    if measurement_type in (exercise_types.DURATION,
+                            exercise_types.WEIGHT_DURATION,
+                            exercise_types.CARDIO_MACHINE,
+                            exercise_types.WEIGHT_DISTANCE):
         metric_field, metric_label = 'duration_seconds', ' sec'
     elif measurement_type == exercise_types.BODYWEIGHT_REPS:
         metric_field, metric_label = 'reps_completed', 'reps'
@@ -2429,6 +2463,7 @@ def _exercise_history(user, exercise_name, measurement_type, limit=30):
         .values(
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
+            'speed_kmh', 'incline_pct', 'distance_m',
         )[:limit]
     )
     return logs, metric
@@ -2474,7 +2509,8 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
     out['coaching_note'] = prog.get('summary')
 
     if measurement_type in (exercise_types.WEIGHT_REPS,
-                            exercise_types.WEIGHT_DURATION):
+                            exercise_types.WEIGHT_DURATION,
+                            exercise_types.WEIGHT_DISTANCE):
         body = 'lower' if re.search(
             r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
             exercise_name, re.I) else 'upper'
@@ -2500,7 +2536,8 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
             target_hint = f' Build to {high} reps before adding load.' if high else ''
             out['recommended_weight'] = f'Stay at {last}{unit}.{target_hint}'
 
-    elif measurement_type == exercise_types.DURATION:
+    elif measurement_type in (exercise_types.DURATION,
+                              exercise_types.CARDIO_MACHINE):
         if direction == 'increase':
             step = _duration_increment(int(last))
             out['recommended_target'] = (
@@ -2808,6 +2845,7 @@ def workout_exercise_history(request, exercise_name):
         .values(
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
+            'speed_kmh', 'incline_pct', 'distance_m',
         )
     )
     return Response({

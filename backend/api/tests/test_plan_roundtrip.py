@@ -87,7 +87,7 @@ class PlanRoundTripTests(APITestCase):
             'Barbell Bench Press': et.WEIGHT_REPS,
             'Plank': et.DURATION,
             'Push-ups': et.BODYWEIGHT_REPS,
-            "Farmer's Walk": et.WEIGHT_DURATION,
+            "Farmer's Walk": et.WEIGHT_DISTANCE,
         }
 
     # -- tests ------------------------------------------------------------
@@ -149,7 +149,7 @@ class PlanRoundTripTests(APITestCase):
         self.assertEqual(res.status_code, 200, res.data)
         self.assertEqual(self.types_by_name(plan), {
             'Plank': et.DURATION,
-            'Treadmill': et.DURATION,
+            'Treadmill': et.CARDIO_MACHINE,
             'Push-ups': et.BODYWEIGHT_REPS,
         })
 

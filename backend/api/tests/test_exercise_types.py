@@ -40,58 +40,87 @@ class ClassifyNameTests(SimpleTestCase):
         ])
 
     def test_duration_work(self):
+        """
+        Holds and unmetered conditioning. Machines moved to CARDIO_MACHINE so
+        speed and incline have somewhere to go -- these are the ones that
+        must NOT move with them.
+        """
         self.assert_classify([
             ('Plank', et.DURATION),
             ('Side Plank', et.DURATION),
             ('Wall Sit', et.DURATION),
             ('Dead Hang', et.DURATION),
-            ('Treadmill', et.DURATION),
-            ('Running, Treadmill', et.DURATION),
-            ('Elliptical Trainer', et.DURATION),
-            ('Stationary Bike', et.DURATION),
             ('Jump Rope', et.DURATION),
             ('Battle Ropes', et.DURATION),
             ('Bear Crawl', et.DURATION),
-            ('Stairmaster', et.DURATION),
             ('Isometric Chest Squeeze', et.DURATION),
+            ('Running', et.DURATION),
+            ('Sprints', et.DURATION),
         ])
 
-    def test_loaded_carries_are_weight_duration(self):
+    def test_cardio_machines_are_their_own_type(self):
+        """
+        Reported: "Treadmill should also track speed" and "should also have a
+        column to add incline". A machine has a readout, so it gets a type
+        whose contract includes speed and incline.
+        """
         self.assert_classify([
-            ("Farmer's Walk", et.WEIGHT_DURATION),
-            ("Farmers Carry", et.WEIGHT_DURATION),
-            ('Yoke Walk', et.WEIGHT_DURATION),
-            ('Suitcase Carry', et.WEIGHT_DURATION),
-            ('Rickshaw Carry', et.WEIGHT_DURATION),
+            ('Treadmill', et.CARDIO_MACHINE),
+            ('Running, Treadmill', et.CARDIO_MACHINE),
+            ('Incline Treadmill Walk', et.CARDIO_MACHINE),
+            ('Treadmill HIIT', et.CARDIO_MACHINE),
+            ('Elliptical Trainer', et.CARDIO_MACHINE),
+            ('Stationary Bike', et.CARDIO_MACHINE),
+            ('Recumbent Bike', et.CARDIO_MACHINE),
+            ('Air Bike', et.CARDIO_MACHINE),
+            ('Stairmaster', et.CARDIO_MACHINE),
+            ('Rowing Machine', et.CARDIO_MACHINE),
         ])
 
-    def test_sled_and_prowler_work_is_weight_duration(self):
+    def test_loaded_carries_are_weight_distance(self):
+        """
+        Carries are prescribed in DISTANCE ("Farmer's Carry: 40 yards"), which
+        had nowhere to be logged -- two feedback items sat escalated for months
+        because of it. WEIGHT_DISTANCE keeps duration too, so reclassifying
+        does not drop already-logged carry times.
+        """
+        self.assert_classify([
+            ("Farmer's Walk", et.WEIGHT_DISTANCE),
+            ("Farmers Carry", et.WEIGHT_DISTANCE),
+            ('Yoke Walk', et.WEIGHT_DISTANCE),
+            ('Suitcase Carry', et.WEIGHT_DISTANCE),
+            ('Rickshaw Carry', et.WEIGHT_DISTANCE),
+        ])
+
+    def test_sled_and_prowler_work_is_weight_distance(self):
         """
         Reported: "Sled push should also ask for weight right?" — yes. A sled is
         loaded with plates exactly as a trap bar is loaded for a carry, so
-        seconds alone is half the log. These used to classify as DURATION.
+        seconds alone is half the log. These used to classify as DURATION, then
+        WEIGHT_DURATION, and are now WEIGHT_DISTANCE -- a sled push is
+        prescribed in yards.
         """
         self.assert_classify([
-            ('Sled Push', et.WEIGHT_DURATION),
-            ('Metabolic Finisher: Sled Push', et.WEIGHT_DURATION),
-            ('Metabolic Finisher: Sled Push (Light)', et.WEIGHT_DURATION),
-            ('Sled Drag', et.WEIGHT_DURATION),
-            ('Sled Pull', et.WEIGHT_DURATION),
-            ('Backward Sled Drag', et.WEIGHT_DURATION),
-            ('Sled Overhead Backward Walk', et.WEIGHT_DURATION),
-            ('Prowler Push', et.WEIGHT_DURATION),
-            ('Prowler', et.WEIGHT_DURATION),
+            ('Sled Push', et.WEIGHT_DISTANCE),
+            ('Metabolic Finisher: Sled Push', et.WEIGHT_DISTANCE),
+            ('Metabolic Finisher: Sled Push (Light)', et.WEIGHT_DISTANCE),
+            ('Sled Drag', et.WEIGHT_DISTANCE),
+            ('Sled Pull', et.WEIGHT_DISTANCE),
+            ('Backward Sled Drag', et.WEIGHT_DISTANCE),
+            ('Sled Overhead Backward Walk', et.WEIGHT_DISTANCE),
+            ('Prowler Push', et.WEIGHT_DISTANCE),
+            ('Prowler', et.WEIGHT_DISTANCE),
             # Plurals: a plan can legitimately say "Sled Pushes".
-            ('Sled Pushes', et.WEIGHT_DURATION),
-            ('Sled Drags', et.WEIGHT_DURATION),
+            ('Sled Pushes', et.WEIGHT_DISTANCE),
+            ('Sled Drags', et.WEIGHT_DISTANCE),
         ])
 
-    def test_farmers_hold_is_weight_duration_like_the_walk(self):
+    def test_farmers_hold_is_weight_distance_like_the_walk(self):
         """A farmer's hold is a farmer's walk standing still — still loaded."""
         self.assert_classify([
-            ("Farmer's Hold", et.WEIGHT_DURATION),
-            ('Farmers Hold', et.WEIGHT_DURATION),
-            ('Suitcase Hold', et.WEIGHT_DURATION),
+            ("Farmer's Hold", et.WEIGHT_DISTANCE),
+            ('Farmers Hold', et.WEIGHT_DISTANCE),
+            ('Suitcase Hold', et.WEIGHT_DISTANCE),
         ])
 
     def test_the_sled_machine_is_not_a_sled_push(self):
@@ -222,7 +251,7 @@ class NormalizeTests(SimpleTestCase):
 
     def test_confident_name_rule_overrides_the_ai(self):
         self.assertEqual(et.normalize('weight_reps', 'Plank'), et.DURATION)
-        self.assertEqual(et.normalize('weight_reps', 'Treadmill'), et.DURATION)
+        self.assertEqual(et.normalize('weight_reps', 'Treadmill'), et.CARDIO_MACHINE)
         self.assertEqual(et.normalize('weight_reps', 'Push-ups'), et.BODYWEIGHT_REPS)
         self.assertEqual(et.normalize('duration', 'Barbell Bench Press', reps='8-12'),
                          et.WEIGHT_REPS)
@@ -234,7 +263,7 @@ class NormalizeTests(SimpleTestCase):
 
     def test_invalid_value_falls_back_to_classifier(self):
         for junk in ('cardio', 'reps', 'WEIGHT_REPS', 'time', 42, True, {}):
-            self.assertEqual(et.normalize(junk, 'Treadmill'), et.DURATION)
+            self.assertEqual(et.normalize(junk, 'Treadmill'), et.CARDIO_MACHINE)
             self.assertEqual(et.normalize(junk, 'Zercher Squat'), et.WEIGHT_REPS)
 
     def test_valid_ai_value_accepted_when_rules_have_no_opinion(self):
@@ -255,35 +284,108 @@ class NormalizeTests(SimpleTestCase):
 class FieldContractTests(SimpleTestCase):
     """coerce_set_fields enforces which fields may hold a value per type."""
 
+    def assert_contract(self, mtype, supplied, expected_kept):
+        """
+        Assert the CONTRACT rather than a literal dict.
+
+        These used to compare against a hardcoded 3-key dict, so adding
+        speed/incline/distance broke all five at once without any of them
+        actually being wrong. Asserting the property means the next metric
+        does not break them either.
+        """
+        out = et.coerce_set_fields(mtype, supplied)
+        self.assertEqual(set(out), set(et.ALL_SET_FIELDS),
+                         msg='coerce must return every field')
+        for field in et.ALL_SET_FIELDS:
+            if field in expected_kept:
+                self.assertEqual(out[field], expected_kept[field],
+                                 msg='%s should keep %s' % (mtype, field))
+            else:
+                self.assertIsNone(out[field],
+                                  msg='%s must null %s' % (mtype, field))
+
     def test_duration_rejects_weight_and_reps(self):
-        out = et.coerce_set_fields(et.DURATION, {
-            'weight_kg': 27.216, 'reps_completed': 99, 'duration_seconds': 60})
-        self.assertEqual(out, {
-            'weight_kg': None, 'reps_completed': None, 'duration_seconds': 60})
+        self.assert_contract(
+            et.DURATION,
+            {'weight_kg': 27.216, 'reps_completed': 99, 'duration_seconds': 60},
+            {'duration_seconds': 60})
 
     def test_weight_reps_rejects_duration(self):
-        out = et.coerce_set_fields(et.WEIGHT_REPS, {
-            'weight_kg': 60.0, 'reps_completed': 10, 'duration_seconds': 999})
-        self.assertEqual(out, {
-            'weight_kg': 60.0, 'reps_completed': 10, 'duration_seconds': None})
+        self.assert_contract(
+            et.WEIGHT_REPS,
+            {'weight_kg': 60.0, 'reps_completed': 10, 'duration_seconds': 999},
+            {'weight_kg': 60.0, 'reps_completed': 10})
 
     def test_weight_duration_keeps_weight_and_time_not_reps(self):
-        out = et.coerce_set_fields(et.WEIGHT_DURATION, {
-            'weight_kg': 30.0, 'reps_completed': 45, 'duration_seconds': 45})
-        self.assertEqual(out, {
-            'weight_kg': 30.0, 'reps_completed': None, 'duration_seconds': 45})
+        self.assert_contract(
+            et.WEIGHT_DURATION,
+            {'weight_kg': 30.0, 'reps_completed': 45, 'duration_seconds': 45},
+            {'weight_kg': 30.0, 'duration_seconds': 45})
 
     def test_bodyweight_rejects_weight(self):
-        out = et.coerce_set_fields(et.BODYWEIGHT_REPS, {
-            'weight_kg': 50.0, 'reps_completed': 15, 'duration_seconds': None})
-        self.assertEqual(out, {
-            'weight_kg': None, 'reps_completed': 15, 'duration_seconds': None})
+        self.assert_contract(
+            et.BODYWEIGHT_REPS,
+            {'weight_kg': 50.0, 'reps_completed': 15, 'duration_seconds': None},
+            {'reps_completed': 15})
 
     def test_warmup_rejects_everything_numeric(self):
-        out = et.coerce_set_fields(et.WARMUP, {
-            'weight_kg': 20, 'reps_completed': 12, 'duration_seconds': 30})
-        self.assertEqual(out, {
-            'weight_kg': None, 'reps_completed': None, 'duration_seconds': None})
+        self.assert_contract(
+            et.WARMUP,
+            {'weight_kg': 20, 'reps_completed': 12, 'duration_seconds': 30},
+            {})
+
+    def test_cardio_machine_keeps_time_speed_and_incline(self):
+        """Reported: "Treadmill should also track speed" / add incline."""
+        self.assert_contract(
+            et.CARDIO_MACHINE,
+            {'duration_seconds': 1500, 'speed_kmh': 5.6, 'incline_pct': 3.5,
+             'weight_kg': 99, 'reps_completed': 9},
+            {'duration_seconds': 1500, 'speed_kmh': 5.6, 'incline_pct': 3.5})
+
+    def test_weight_distance_keeps_weight_distance_and_time(self):
+        """
+        Time is in this contract ON PURPOSE. weight_distance takes over from
+        weight_duration, and reclassifying runs the contract over existing
+        history -- dropping duration_seconds would have nulled 17 already
+        logged carry/sled durations in production.
+        """
+        self.assert_contract(
+            et.WEIGHT_DISTANCE,
+            {'weight_kg': 40.0, 'distance_m': 27.4, 'duration_seconds': 45,
+             'reps_completed': 9},
+            {'weight_kg': 40.0, 'distance_m': 27.4, 'duration_seconds': 45})
+
+    def test_every_new_contract_is_a_superset_of_the_one_it_replaces(self):
+        """
+        The property that makes reclassification lossless BY CONSTRUCTION.
+
+        _step_2_fix_setlog_field_contract nulls any field absent from the new
+        contract, so a narrower contract would silently destroy logged history
+        the moment an exercise was reclassified.
+        """
+        self.assertTrue(et.REPLACES, 'REPLACES should not be empty')
+        for new_type, old_type in et.REPLACES.items():
+            new_fields = set(et.FIELD_CONTRACT[new_type])
+            old_fields = set(et.FIELD_CONTRACT[old_type])
+            self.assertTrue(
+                old_fields <= new_fields,
+                msg='%s drops %s from %s -- reclassifying would destroy data'
+                    % (new_type, sorted(old_fields - new_fields), old_type))
+
+    def test_floats_are_not_rounded_to_integers(self):
+        """Rounding a 3.5% incline to 4, or 5.6 km/h to 6, defeats the point."""
+        out = et.coerce_set_fields(
+            et.CARDIO_MACHINE, {'speed_kmh': 5.64, 'incline_pct': 3.5,
+                                'duration_seconds': 10})
+        self.assertAlmostEqual(out['speed_kmh'], 5.64)
+        self.assertAlmostEqual(out['incline_pct'], 3.5)
+
+    def test_negative_metrics_floor_at_zero(self):
+        out = et.coerce_set_fields(
+            et.CARDIO_MACHINE, {'speed_kmh': -3, 'incline_pct': -1,
+                                'duration_seconds': 10})
+        self.assertEqual(out['speed_kmh'], 0.0)
+        self.assertEqual(out['incline_pct'], 0.0)
 
     def test_integers_are_coerced_and_floored_at_zero(self):
         out = et.coerce_set_fields(et.DURATION, {'duration_seconds': '60.7'})
@@ -343,9 +445,13 @@ class KnowledgeBaseSanityTests(SimpleTestCase):
             counts[t] = counts.get(t, 0) + 1
         # Every stretch in the KB should be warmup; there are ~50 of them.
         self.assertGreater(counts.get(et.WARMUP, 0), 30, counts)
-        self.assertGreater(counts.get(et.DURATION, 0), 15, counts)
+        self.assertGreater(counts.get(et.DURATION, 0), 10, counts)
         self.assertGreater(counts.get(et.BODYWEIGHT_REPS, 0), 30, counts)
-        self.assertGreater(counts.get(et.WEIGHT_DURATION, 0), 2, counts)
+        # The machines left DURATION for CARDIO_MACHINE, and the carries/sleds
+        # left WEIGHT_DURATION for WEIGHT_DISTANCE, so both new types must be
+        # non-empty -- an empty one means a rule stopped matching.
+        self.assertGreater(counts.get(et.CARDIO_MACHINE, 0), 5, counts)
+        self.assertGreater(counts.get(et.WEIGHT_DISTANCE, 0), 5, counts)
         # The bulk are ordinary lifts; if this collapses, a rule is over-matching.
         self.assertGreater(counts.get(et.WEIGHT_REPS, 0), 500, counts)
 
@@ -355,7 +461,11 @@ class KnowledgeBaseSanityTests(SimpleTestCase):
         self.assertEqual(wrong, [])
 
     def test_no_treadmill_or_plank_is_typed_as_a_lift(self):
+        """Both are timed work; they just land in different timed types now."""
         wrong = [n for n in self.names
-                 if ('treadmill' in n.lower() or n.lower() == 'plank')
-                 and et.classify(n) != et.DURATION]
+                 if 'treadmill' in n.lower()
+                 and et.classify(n) != et.CARDIO_MACHINE]
+        self.assertEqual(wrong, [])
+        wrong = [n for n in self.names
+                 if n.lower() == 'plank' and et.classify(n) != et.DURATION]
         self.assertEqual(wrong, [])
