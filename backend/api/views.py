@@ -3915,16 +3915,32 @@ def _stale_date_warning(supplied, resolved, user=None):
     )
 
 
-def _coerce_health_fields(payload):
+def _coerce_health_fields(payload, allow_clear=False):
     """
     Cast and range-check the daily summary fields.
 
-    Returns (stored, problems). Only keys actually present and valid are
-    returned, so a partial payload never nulls out previously-synced values.
+    Returns (stored, problems).
+
+    `allow_clear=False` (the SYNC path) treats an explicit null exactly like an
+    absent key, so a partial payload can never wipe previously-synced values.
+    That matters: an Apple Shortcut that sends only steps must not blank out
+    sleep and heart rate.
+
+    `allow_clear=True` (the EDIT path) distinguishes the two, so a wrong value
+    can actually be cleared rather than only overwritten. That was the gap
+    behind "Sometimes wrong data is being sent which needs correction" -- you
+    could replace a bad number but never remove it.
+
+    Same absent-vs-null distinction `workout_session_log_set` already uses for
+    set fields.
     """
     stored, problems = {}, []
     for key, cast in _HEALTH_DAILY_FIELDS:
-        if payload.get(key) is None:
+        if key not in payload:
+            continue
+        if payload.get(key) is None or payload.get(key) == '':
+            if allow_clear:
+                stored[key] = None
             continue
         try:
             value = cast(_clean_number(payload[key]))
@@ -5168,3 +5184,91 @@ def _has_back_limitation(user):
         return False
     return bool(re.search(r'\b(lower\s+)?back\b|\blumbar\b|\bspine\b|\bdisc\b',
                           notes))
+
+
+# ---------------------------------------------------------------------------
+# Correcting health data
+# ---------------------------------------------------------------------------
+# Sync is append/merge by design -- a partial Shortcut payload must never wipe
+# previously synced values. Correction is a different intent, so it gets a
+# different endpoint: here an explicit null CLEARS a field.
+#
+# Reported as "Let's allow updates to health endpoint. Sometimes wrong data is
+# being sent which needs correction." Before this, a wrong number could be
+# overwritten but never removed, and a bogus day or workout row could not be
+# deleted at all.
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def health_summary_detail(request, date):
+    """
+    Correct or remove one day's health summary.
+
+    PATCH: only the keys present in the body are touched. An explicit null
+    clears that field; an absent key leaves it alone. DELETE drops the day.
+    """
+    day = parse_date(str(date))
+    if day is None:
+        return Response({'detail': 'date must be ISO format (YYYY-MM-DD).'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    summary = HealthDailySummary.objects.filter(
+        user=request.user, date=day).first()
+    if summary is None:
+        return Response({'detail': 'No health data for %s.' % day.isoformat()},
+                        status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        summary.delete()
+        logger.info('health summary %s deleted for %s', day, request.user.email)
+        return Response({'detail': 'Deleted %s.' % day.isoformat(),
+                         'date': day.isoformat()})
+
+    stored, problems = _coerce_health_fields(request.data, allow_clear=True)
+    if problems:
+        return Response({'detail': '; '.join(problems)},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if not stored:
+        return Response(
+            {'detail': 'Nothing to update. Send at least one of: %s.'
+                       % ', '.join(key for key, _cast in _HEALTH_DAILY_FIELDS)},
+            status=status.HTTP_400_BAD_REQUEST)
+
+    for key, value in stored.items():
+        setattr(summary, key, value)
+    summary.save(update_fields=list(stored))
+    logger.info('health summary %s corrected for %s: %s',
+                day, request.user.email, sorted(stored))
+
+    return Response({
+        'date': summary.date.isoformat(),
+        'steps': summary.steps,
+        'active_calories': summary.active_calories,
+        'resting_calories': summary.resting_calories,
+        'resting_heart_rate': summary.resting_heart_rate,
+        'sleep_hours': summary.sleep_hours,
+        'cleared': sorted(k for k, v in stored.items() if v is None),
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def health_workout_detail(request, workout_id):
+    """
+    Remove one synced workout.
+
+    Scoped by user, and matched on the DB id rather than the provider's
+    `terra_workout_id` -- that column is only unique per user, so matching on
+    it alone would be ambiguous across accounts.
+    """
+    workout = HealthWorkout.objects.filter(
+        user=request.user, pk=workout_id).first()
+    if workout is None:
+        return Response({'detail': 'Workout not found.'},
+                        status=status.HTTP_404_NOT_FOUND)
+    label = workout.activity_type
+    workout.delete()
+    logger.info('health workout %s (%s) deleted for %s',
+                workout_id, label, request.user.email)
+    return Response({'detail': 'Deleted %s.' % label, 'id': str(workout_id)})

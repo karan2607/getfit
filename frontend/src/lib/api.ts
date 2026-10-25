@@ -506,6 +506,26 @@ export const api = {
     getWorkouts: () =>
       request<HealthWorkout[]>('/api/health/workouts/'),
 
+    /**
+     * Correct one day. Send `null` for a field to CLEAR it; omit the key to
+     * leave it alone. The sync endpoint deliberately does the opposite and
+     * ignores nulls, so a partial Shortcut payload can never wipe data.
+     */
+    updateSummary: (date: string, fields: Partial<Record<
+      'steps' | 'active_calories' | 'resting_calories'
+      | 'resting_heart_rate' | 'sleep_hours', number | null>>) =>
+      request<HealthDailySummary & { cleared: string[] }>(
+        `/api/health/summary/${date}/`,
+        { method: 'PATCH', body: JSON.stringify(fields) }),
+
+    deleteSummary: (date: string) =>
+      request<{ detail: string; date: string }>(
+        `/api/health/summary/${date}/`, { method: 'DELETE' }),
+
+    deleteWorkout: (id: string) =>
+      request<{ detail: string; id: string }>(
+        `/api/health/workouts/${id}/`, { method: 'DELETE' }),
+
     disconnect: () =>
       request<void>('/api/health/connect/', { method: 'DELETE' }),
 

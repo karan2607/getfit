@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { api, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion } from '../lib/api'
+import { api, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion, type HealthDailySummary } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
 import HealthTrends from '../components/health/HealthTrends'
+import DailyEditor from '../components/health/DailyEditor'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -28,10 +29,27 @@ function fmtDistance(m: number | null) {
 
 // ── Workout Row ───────────────────────────────────────────────────────────────
 
-function WorkoutRow({ workout }: { workout: HealthWorkout }) {
+function WorkoutRow({ workout, onDeleted }: {
+  workout: HealthWorkout
+  onDeleted?: () => void
+}) {
+  const { showToast } = useToast()
   const dist = fmtDistance(workout.distance_meters)
+
+  async function remove() {
+    if (!window.confirm(
+      `Delete this ${workout.activity_type} workout? This cannot be undone.`)) return
+    try {
+      await api.health.deleteWorkout(workout.id)
+      showToast('Workout deleted')
+      onDeleted?.()
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    }
+  }
+
   return (
-    <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3">
+    <div className="group flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3">
       <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-lg flex-shrink-0">🏃</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate">{workout.activity_type}</p>
@@ -45,6 +63,16 @@ function WorkoutRow({ workout }: { workout: HealthWorkout }) {
           {dist && <span className="text-xs text-blue-500">{dist}</span>}
         </div>
       </div>
+      {/* A bogus synced workout had no way out before. */}
+      {onDeleted && (
+        <button
+          onClick={remove}
+          title="Delete this workout"
+          className="text-gray-300 hover:text-red-600 text-sm flex-shrink-0 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+        >
+          ✕
+        </button>
+      )}
     </div>
   )
 }
@@ -365,6 +393,7 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
 }) {
   const { showToast } = useToast()
   const [workouts, setWorkouts] = useState<HealthWorkout[]>([])
+  const [summaries, setSummaries] = useState<HealthDailySummary[]>([])
   const [recovery, setRecovery] = useState<HealthRecovery | null>(null)
   const [balance, setBalance] = useState<HealthCalorieBalance | null>(null)
   const [suggestion, setSuggestion] = useState<HealthActivitySuggestion | null>(null)
@@ -374,13 +403,15 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
   const [syncing, setSyncing] = useState(false)
 
   async function fetchAll() {
-    const [w, r, b, a] = await Promise.all([
+    const [w, r, b, a, s] = await Promise.all([
       api.health.getWorkouts(),
       api.health.getRecovery(),
       api.health.getCalorieBalance(),
       api.health.getActivitySuggestion(),
+      api.health.getSummary(),
     ])
     setWorkouts(w); setRecovery(r); setBalance(b); setSuggestion(a)
+    setSummaries(s)
   }
 
   useEffect(() => {
@@ -469,6 +500,10 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
             <HealthTrends latestSummaryDate={latestSummaryDate} />
           </div>
 
+          {/* Next to the trends and the stale-data warning on purpose: that
+              warning tells you something is wrong, this is the fix. */}
+          <DailyEditor summaries={summaries} onChanged={() => { fetchAll().catch(() => {}) }} />
+
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
             Recent Workouts from {providerLabel}
           </p>
@@ -478,7 +513,10 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
             </div>
           ) : (
             <div className="space-y-2">
-              {workouts.map((w) => <WorkoutRow key={w.id} workout={w} />)}
+              {workouts.map((w) => (
+                <WorkoutRow key={w.id} workout={w}
+                            onDeleted={() => { fetchAll().catch(() => {}) }} />
+              ))}
             </div>
           )}
         </>

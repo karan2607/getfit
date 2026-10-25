@@ -73,6 +73,12 @@ urlpatterns = [
     path('health/summary/', views.health_summary, name='health-summary'),
     path('health/series/', views.health_series, name='health-series'),
     path('health/workouts/', views.health_workouts, name='health-workouts'),
+    # Correcting data. Separate from the sync endpoints on purpose: here an
+    # explicit null CLEARS a field, whereas sync must never wipe.
+    path('health/summary/<str:date>/', views.health_summary_detail,
+         name='health-summary-detail'),
+    path('health/workouts/<int:workout_id>/', views.health_workout_detail,
+         name='health-workout-detail'),
     path('health/shortcuts/sync/', views.health_shortcuts_sync, name='health-shortcuts-sync'),
     path('health/recovery/', views.health_recovery, name='health-recovery'),
     path('health/calorie-balance/', views.health_calorie_balance, name='health-calorie-balance'),

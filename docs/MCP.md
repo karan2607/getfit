@@ -163,3 +163,32 @@ curl -s -X POST "$BASE/api/mcp/" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
        "params":{"name":"get_workout_plan","arguments":{}}}' | jq '.result.structuredContent'
 ```
+
+
+## Correcting health data
+
+`log_health_day` is a MERGE: fields you omit are left alone, so a partial sync
+can never wipe values recorded earlier the same day. That is deliberate, and it
+means a wrong value can be overwritten but not removed.
+
+For corrections use these instead:
+
+| tool | what it does |
+|---|---|
+| `update_health_day` | Same fields as `log_health_day`, but passing **null** CLEARS that field. Fails if the day has no data yet. |
+| `delete_health_day` | Removes a whole day that should not exist. |
+| `delete_health_workout` | Removes one workout by the `external_id` it was logged with. |
+
+```bash
+# clear a bad step count without touching sleep or heart rate
+curl -s -X POST "$GETFIT_API/api/mcp/" \
+  -H "Authorization: Bearer $GETFIT_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+        "name":"update_health_day",
+        "arguments":{"date":"2026-10-20","steps":null}}}'
+```
+
+The equivalent REST endpoints are `PATCH /api/health/summary/<date>/`,
+`DELETE /api/health/summary/<date>/` and
+`DELETE /api/health/workouts/<id>/`. All are covered by the `logging` key
+scope.

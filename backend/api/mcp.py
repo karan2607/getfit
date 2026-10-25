@@ -626,6 +626,76 @@ _INT = {'type': 'integer'}
 _NUM = {'type': 'number'}
 _BOOL = {'type': 'boolean'}
 
+
+def _tool_update_health_day(user, args):
+    """
+    Correct a day that was synced wrong.
+
+    The difference from `log_health_day` is the whole point: there, an omitted
+    or null field is left alone so a partial sync cannot wipe earlier values.
+    Here, passing null CLEARS the field. An agent that sent a bad number needs
+    to be able to remove it, not just overwrite it.
+    """
+    from .views import _coerce_health_fields, _HEALTH_DAILY_FIELDS
+
+    day = _mcp_date(args, user=user)
+    summary = HealthDailySummary.objects.filter(user=user, date=day).first()
+    if summary is None:
+        raise McpError('no health data for %s' % day.isoformat())
+
+    payload = {key: args[key] for key, _cast in _HEALTH_DAILY_FIELDS
+               if key in args}
+    if not payload:
+        raise McpError('supply at least one of: %s'
+                       % ', '.join(k for k, _c in _HEALTH_DAILY_FIELDS))
+
+    stored, problems = _coerce_health_fields(payload, allow_clear=True)
+    if problems:
+        raise McpError('; '.join(problems))
+
+    for key, value in stored.items():
+        setattr(summary, key, value)
+    summary.save(update_fields=list(stored))
+    return {
+        'date': day.isoformat(),
+        'updated': sorted(stored),
+        'cleared': sorted(k for k, v in stored.items() if v is None),
+        'steps': summary.steps,
+        'active_calories': summary.active_calories,
+        'resting_calories': summary.resting_calories,
+        'resting_heart_rate': summary.resting_heart_rate,
+        'sleep_hours': summary.sleep_hours,
+    }
+
+
+def _tool_delete_health_day(user, args):
+    """Remove a whole day that should not have been recorded."""
+    day = _mcp_date(args, user=user)
+    deleted, _detail = HealthDailySummary.objects.filter(
+        user=user, date=day).delete()
+    if not deleted:
+        raise McpError('no health data for %s' % day.isoformat())
+    return {'date': day.isoformat(), 'deleted': True}
+
+
+def _tool_delete_health_workout(user, args):
+    """
+    Remove one synced workout.
+
+    Matched on `external_id` scoped to the caller, which is the id an agent
+    knows. That column is unique per USER, not globally, so the user filter is
+    load-bearing rather than defensive.
+    """
+    external_id = str(args.get('external_id') or '').strip()
+    if not external_id:
+        raise McpError('external_id is required')
+    deleted, _detail = HealthWorkout.objects.filter(
+        user=user, terra_workout_id=external_id).delete()
+    if not deleted:
+        raise McpError('no workout with external_id %r' % external_id)
+    return {'external_id': external_id, 'deleted': True}
+
+
 TOOLS = {
     'get_profile': {
         'description': 'Get the signed-in user\'s profile: body stats, goal, '
@@ -734,6 +804,38 @@ TOOLS = {
             'sleep_hours': _NUM,
         }),
         'handler': _tool_log_health_day,
+        'writes': True,
+    },
+    'update_health_day': {
+        'description': 'Correct a day that was recorded wrong. Unlike '
+                       'log_health_day, passing null for a field CLEARS it, so '
+                       'a bad value can be removed and not merely overwritten. '
+                       'Only the fields you pass are touched. Fails if the day '
+                       'has no data yet -- use log_health_day for that.',
+        'schema': _obj({
+            'date': _STR,
+            'steps': _INT,
+            'active_calories': _NUM,
+            'resting_calories': _NUM,
+            'resting_heart_rate': _NUM,
+            'sleep_hours': _NUM,
+        }),
+        'handler': _tool_update_health_day,
+        'writes': True,
+    },
+    'delete_health_day': {
+        'description': 'Delete a whole day of health metrics. Use when a sync '
+                       'wrote a day that should not exist at all -- for a '
+                       'single wrong field prefer update_health_day.',
+        'schema': _obj({'date': _STR}),
+        'handler': _tool_delete_health_day,
+        'writes': True,
+    },
+    'delete_health_workout': {
+        'description': 'Delete one synced workout by the external_id it was '
+                       'logged with. Scoped to the calling user.',
+        'schema': _obj({'external_id': _STR}, required=['external_id']),
+        'handler': _tool_delete_health_workout,
         'writes': True,
     },
     'log_health_workout': {
