@@ -43,7 +43,12 @@ from .rules import RULES
 # against, and every fixture predates them, so their treadmills and carries
 # claim the type that was correct when they were generated. The new findings
 # are real and are what the reclassification step fixes in production.
-SUITE_VERSION = 3
+# 4: added no_merged_exercise_names (weight 3.0). Neutral on all eight
+# historical fixtures -- the reported merge lives in the live plan, not in a
+# captured fixture -- so this re-baseline changes the fingerprint and nothing
+# else. That is the ideal shape for a new rule: it proves the golden set was
+# already clean on the defect rather than quietly absorbing it.
+SUITE_VERSION = 4
 
 
 def rules_fingerprint(rules=RULES):

@@ -1,6 +1,6 @@
 {
-  "suite_version": 3,
-  "rules_fingerprint": "45cbbe3194aab24d8eeddbcd08b168197d740be51a22a6223b08e190a00d1e03",
+  "suite_version": 4,
+  "rules_fingerprint": "707e45b08b2bc14dbd4688adcd7f30138f6cfa7f7f61d1ea3049642e37b663db",
   "_comment": "Exact expected failure counts per fixture per rule. Regenerate with `manage.py eval_plans --update-baseline`, always as its own commit -- bundling it with a code change would launder a regression into the baseline.",
   "plans": {
     "plan01": {
@@ -16,6 +16,7 @@
       "notes_without_progression_rules": 22,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -33,6 +34,7 @@
       "notes_without_progression_rules": 24,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -50,6 +52,7 @@
       "notes_without_progression_rules": 80,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -67,6 +70,7 @@
       "notes_without_progression_rules": 18,
       "no_banned_names": 1,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -84,6 +88,7 @@
       "notes_without_progression_rules": 40,
       "no_banned_names": 5,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -101,6 +106,7 @@
       "notes_without_progression_rules": 40,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -118,6 +124,7 @@
       "notes_without_progression_rules": 268,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -135,6 +142,7 @@
       "notes_without_progression_rules": 0,
       "no_banned_names": 0,
       "superset_groups_valid": 0,
+      "no_merged_exercise_names": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
