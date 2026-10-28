@@ -387,6 +387,61 @@ class RuleBehaviourTests(SimpleTestCase):
         card = self.score(plan([solid_day()]), 'superset_groups_valid')
         self.assertEqual(card.by_rule()['superset_groups_valid'].checked, 0)
 
+    # -- no_merged_exercise_names -------------------------------------------
+
+    def test_a_merged_exercise_name_is_flagged(self):
+        """
+        The reported plan (c3d46391). One entry, one weight column, one reps
+        column -- for two exercises. The user summed them (95 lb x 22) because
+        there was nowhere to put the second.
+        """
+        card = self.assert_flags(plan([day(1, 'Push', [
+            WARMUP,
+            ex('Overhead Press', 3, '8'),
+            ex('Barbell Bench Press + Push-ups (Superset)', 4, '12 + 10')])]),
+            'no_merged_exercise_names')
+        self.assertIn('cannot be logged', card.findings[0].detail)
+
+    def test_merged_reps_are_flagged_even_with_an_ordinary_name(self):
+        """Either half of the shape is a defect on its own."""
+        self.assert_flags(plan([day(1, 'Push', [
+            WARMUP, ex('Barbell Bench Press', 4, '12 + 10')])]),
+            'no_merged_exercise_names')
+
+    def test_a_real_superset_is_clean(self):
+        """The correct form: two entries sharing a group, each loggable."""
+        self.assert_clean(plan([day(1, 'Pull', [
+            WARMUP,
+            ex('Deadlift', 3, '5'),
+            ex('Leg Extension', 3, '12', superset_group=1),
+            ex('Leg Curl', 3, '12', superset_group=1)])]),
+            'no_merged_exercise_names')
+
+    def test_names_that_legitimately_contain_a_plus_are_clean(self):
+        """
+        The false-positive guard. Real KB names carry plus signs and
+        parentheses, and flagging them would make the rule useless noise.
+        """
+        self.assert_clean(plan([day(1, 'Push', [
+            WARMUP,
+            ex('High-to-Low Cable Crossover', 3, '12-15'),
+            ex('Push Up to Side Plank', 3, '10', et.BODYWEIGHT_REPS),
+            ex('Backward Walking (Treadmill)', 1, '10 min',
+               et.CARDIO_MACHINE)])]),
+            'no_merged_exercise_names')
+
+    def test_a_merged_warmup_block_is_exempt(self):
+        """
+        "World's greatest stretch + arm circles" is one mobility block with
+        nothing to log, so the merge costs the user nothing.
+        """
+        self.assert_clean(plan([day(1, 'Full', [
+            ex('Warmup & Mobility', 1,
+               "World's greatest stretch 5x each + arm circles 20x",
+               et.WARMUP),
+            ex('Barbell Squat', 3, '5')])]),
+            'no_merged_exercise_names')
+
 
 class TraversalTests(SimpleTestCase):
     """Both accepted plan shapes, and malformed input."""

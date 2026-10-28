@@ -15,7 +15,14 @@ nothing.
 import re
 
 from .. import exercise_types
-from ..views import _PLACEHOLDER_TOKEN_RE, _PROGRESSION_RULE_RE
+from ..views import (
+    _PLACEHOLDER_TOKEN_RE, _PROGRESSION_RULE_RE,
+    # The same pattern the save-path splitter uses, imported rather than
+    # retyped: a rule that disagreed with the splitter about what "merged"
+    # means would flag plans the server had already fixed, or miss ones it had
+    # not.
+    _MERGED_SPLIT_RE as _MERGED_NAME_RE,
+)
 
 
 # --------------------------------------------------------------------------
@@ -490,6 +497,51 @@ def superset_groups_valid(plan, context, find):
     return checked
 
 
+def no_merged_exercise_names(plan, context, find):
+    """
+    No exercise may bundle two movements into one entry.
+
+    Reported (c3d46391): the plan held ONE exercise named
+    "Barbell Bench Press + Push-ups (Superset)" with reps "12 + 10". A merged
+    entry has one weight column and one reps column for two exercises, so the
+    second cannot be logged at all -- the user summed them instead, 95 lb x 22,
+    polluting bench history and recording no push-up volume.
+
+    The save path now splits these and the chat prompt now carries the superset
+    rules, but a prompt is a request and not a guarantee. This rule is what
+    makes a regression visible on the golden set instead of in production.
+
+    Both halves of the shape are checked, because either alone is a defect: a
+    merged NAME is unloggable, and merged REPS ("12 + 10") is unenterable even
+    when the name looks ordinary.
+
+    Warmups are exempt: "World's greatest stretch + arm circles" is a legitimate
+    single mobility block with no sets to log.
+    """
+    checked = 0
+    for week_number, day in iter_days(plan):
+        exercises = day.get('exercises')
+        if not isinstance(exercises, list):
+            continue
+        for exercise in exercises:
+            if not isinstance(exercise, dict):
+                continue
+            name = str(exercise.get('name') or '')
+            if exercise_types.is_warmup_name(name):
+                continue
+            checked += 1
+            reps = str(exercise.get('reps') or '')
+            if _MERGED_NAME_RE.search(name):
+                find(where(week_number, day),
+                     '%s bundles two exercises into one entry -- the second '
+                     'cannot be logged' % name)
+            elif _MERGED_NAME_RE.search(reps):
+                find(where(week_number, day),
+                     '%s has merged reps %r -- one input column, two '
+                     'prescriptions' % (name, reps))
+    return checked
+
+
 def program_outline_tiles_the_program(plan, context, find):
     """
     The phase outline must cover every week exactly once.
@@ -579,6 +631,10 @@ RULES = (
     ('notes_without_progression_rules', notes_without_progression_rules, 2.0),
     ('no_banned_names', no_banned_names, 1.0),
     ('superset_groups_valid', superset_groups_valid, 1.0),
+    # Weighted 3.0 like prescription_matches_type: both make a prescription
+    # impossible to enter, which is the worst class of defect here -- it pushes
+    # the user into logging something false.
+    ('no_merged_exercise_names', no_merged_exercise_names, 3.0),
     # Per-week generation. Each reports 0 checks on the whole-plan fixtures,
     # which predate the format, so they stay neutral on history.
     ('program_outline_tiles_the_program', program_outline_tiles_the_program, 2.0),

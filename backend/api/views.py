@@ -351,9 +351,17 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                     'name': day.name,
                     'focus': day.focus or '',
                     'is_rest_day': day.is_rest_day,
+                    # measurement_type and superset_group are included
+                    # DELIBERATELY, and their absence was a live data-loss bug:
+                    # chat outputs the COMPLETE plan back, so any field missing
+                    # here was silently dropped on every edit. Supersets came
+                    # back ungrouped and timed exercises came back as lifts.
                     'exercises': [
                         {'name': ex.name, 'sets': ex.sets, 'reps': ex.reps,
-                         'rest_seconds': ex.rest_seconds, 'notes': ex.notes or ''}
+                         'rest_seconds': ex.rest_seconds, 'notes': ex.notes or '',
+                         'measurement_type': ex.measurement_type,
+                         **({'superset_group': ex.superset_group}
+                            if ex.superset_group is not None else {})}
                         for ex in day.exercises.all()
                     ],
                 })
@@ -372,6 +380,11 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                     day_exercises = [
                         f'  - {ex.name}: {ex.sets} sets × {ex.reps}'
                         + (f', {ex.rest_seconds}s rest' if ex.rest_seconds else '')
+                        # The day listing is what the model edits from when the
+                        # user clicks Edit on one day, so an existing group has
+                        # to be visible HERE too, not only in the JSON above.
+                        + (f' [superset_group {ex.superset_group}]'
+                           if ex.superset_group is not None else '')
                         + (f' | {ex.notes}' if ex.notes else '')
                         for ex in day_obj.exercises.order_by('order')
                     ]
@@ -392,8 +405,13 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                 'output the COMPLETE updated plan as a "workout-plan" code block using the weeks[][] format. '
                 'Include ALL weeks in the output — never omit weeks or collapse to a single week. '
                 'If the user asks to change duration_weeks, adjust the number of sub-arrays in weeks accordingly. '
-                'Preserve existing week structure unless the user explicitly asks to change it.'
-                f'{day_focus_text}'
+                'Preserve existing week structure unless the user explicitly asks to change it. '
+                'Every exercise above carries "measurement_type", and some carry '
+                '"superset_group". PRESERVE BOTH VERBATIM on exercises you are not '
+                'changing — dropping them silently reclassifies timed work as lifts '
+                'and ungroups supersets.\n\n'
+                + SUPERSET_PROMPT_RULES
+                + f'{day_focus_text}'
             )
         except Exception:
             pass
@@ -404,7 +422,10 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
             'The user wants to refine this plan before saving it. '
             'When they describe changes, output the COMPLETE updated plan as a "workout-plan" code block using the weeks[][] format. '
             'Include ALL weeks in the output — never collapse to a single week. '
-            'If the user asks to change duration_weeks, update the number of sub-arrays accordingly.'
+            'If the user asks to change duration_weeks, update the number of sub-arrays accordingly. '
+            'Preserve each exercise\'s "measurement_type" and "superset_group" verbatim '
+            'unless you are deliberately changing that exercise.\n\n'
+            + SUPERSET_PROMPT_RULES
         )
 
     # Diet plan context (when chatting from a diet plan detail page)
@@ -636,6 +657,39 @@ def _auto_title(session: ChatSession, first_user_message: str) -> str:
 # Workout Planner
 # ---------------------------------------------------------------------------
 
+# Shared by whole-plan generation, single-week generation AND the chat plan
+# editor. Module level because it used to live only inside
+# _workout_system_prompt, which chat does not use -- so when a user asked chat
+# for a superset, the model had never been told the field existed and merged two
+# exercises into one name with reps "12 + 10" instead. That is the defect this
+# constant exists to prevent recurring: one copy, three call sites.
+SUPERSET_PROMPT_RULES = (
+    'SUPERSETS (optional, and only where they earn their place):\n'
+    'A superset is two exercises done back to back. Mark them with the same\n'
+    '"superset_group" integer on both; omit the field entirely otherwise.\n'
+    'NEVER merge two exercises into one entry. "Bench Press + Push-ups" as a\n'
+    'single name, or reps written as "12 + 10", is always wrong: there is then\n'
+    'only one set of inputs, so the second exercise cannot be logged at all.\n'
+    'Two entries sharing a superset_group is the ONLY correct form.\n'
+    'Rules, all enforced server-side -- a group that breaks one is silently\n'
+    'ungrouped, so there is no point guessing:\n'
+    '  - at most 2 groups per day, and most days should have none\n'
+    '  - never the day\'s first working exercise: that is the primary lift\n'
+    '    and is done fresh and heavy\n'
+    '  - both members need the SAME number of sets (it is N rounds of both)\n'
+    '  - pair ANTAGONISTS (push with pull: bench press + row, curl with\n'
+    '    triceps extension, leg extension + leg curl) or a lift with\n'
+    '    non-competing core work. The resting muscle recovers while the\n'
+    '    other works, so nothing is compromised and the session is shorter.\n'
+    '  - NEVER two exercises that train the same muscle as compounds\n'
+    '    (bench press + push-ups is wrong -- both push, both chest, each\n'
+    '    ruins the other), and never two heavy compounds back to back\n'
+    '  - never two timed holds (plank + side plank saves no time)\n'
+    'Favour them on fat-loss and metabolic blocks where density is the\n'
+    'point. On strength blocks, leave the main work unpaired.\n\n'
+)
+
+
 def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
     """
     The coaching doctrine, shared by whole-plan and single-week generation.
@@ -721,25 +775,7 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
         '  Knee: quad stretch 30s each, clamshells 15x, terminal knee extensions 15x\n'
         '  Shoulder: doorframe stretch 30s, wall slides 10x, thoracic rotation 10x each\n\n'
 
-        'SUPERSETS (optional, and only where they earn their place):\n'
-        'A superset is two exercises done back to back. Mark them with the same\n'
-        '"superset_group" integer on both; omit the field entirely otherwise.\n'
-        'Rules, all enforced server-side -- a group that breaks one is silently\n'
-        'ungrouped, so there is no point guessing:\n'
-        '  - at most 2 groups per day, and most days should have none\n'
-        '  - never the day\'s first working exercise: that is the primary lift\n'
-        '    and is done fresh and heavy\n'
-        '  - both members need the SAME number of sets (it is N rounds of both)\n'
-        '  - pair ANTAGONISTS (push with pull: bench press + row, curl with\n'
-        '    triceps extension, leg extension + leg curl) or a lift with\n'
-        '    non-competing core work. The resting muscle recovers while the\n'
-        '    other works, so nothing is compromised and the session is shorter.\n'
-        '  - NEVER two exercises that train the same muscle as compounds\n'
-        '    (bench press + push-ups is wrong -- both push, both chest, each\n'
-        '    ruins the other), and never two heavy compounds back to back\n'
-        '  - never two timed holds (plank + side plank saves no time)\n'
-        'Favour them on fat-loss and metabolic blocks where density is the\n'
-        'point. On strength blocks, leave the main work unpaired.\n\n'
+        + SUPERSET_PROMPT_RULES +
 
         'EXERCISE SELECTION (priority order):\n'
         '1. Primary compound: squat/hinge/horizontal push/vertical pull/loaded carry\n'
@@ -1125,6 +1161,104 @@ def _plan_days(data):
 MAX_SUPERSET_GROUPS_PER_DAY = 2
 
 
+# A merged exercise: "Barbell Bench Press + Push-ups (Superset)".
+#
+# The trailing marker is optional and is stripped before splitting, so
+# "A + B", "A + B (Superset)" and "A + B (superset)" all match.
+_MERGED_MARKER_RE = re.compile(r'\s*\((?:super\s*set|superset|circuit)\)\s*$', re.I)
+_MERGED_SPLIT_RE = re.compile(r'\s+\+\s+')
+
+
+def _split_merged_exercises(day_name, exercises):
+    """
+    Turn a merged "A + B" exercise into two real entries sharing a group.
+
+    Why this exists: a merged entry has ONE set of inputs, so the second
+    exercise cannot be logged at all. The user hit this and compensated by
+    summing the reps -- 95 lb x 22 on a bench+push-up entry -- which polluted
+    bench history and recorded no push-up volume whatsoever.
+
+    The root cause was the chat prompt (fixed separately: it now carries
+    superset_group and the rules). This is the belt to that braces, because a
+    prose prohibition in a prompt is not a guarantee.
+
+    Splitting is CONSERVATIVE. It happens only when the shape is unambiguous:
+
+      "Bench Press + Push-ups"      reps "12 + 10"  -> 12 and 10
+      "Bench Press + Barbell Row"   reps "8-12"     -> 8-12 each (no "+")
+      "Bench Press + Push-ups"      reps "12 + 10 + 8"  -> left alone, logged
+
+    Mismatched part counts are left merged on purpose: inventing a prescription
+    is worse than reporting one that is hard to log.
+
+    The split pair gets a fresh group number and is then judged by
+    `_validate_superset_groups` like any other -- so a bad pairing
+    (bench + push-ups is both-push, both-chest) ends up as two SEPARATE
+    exercises rather than one unloggable entry. That is still a strict
+    improvement: both halves become loggable either way.
+
+    `measurement_type` is deliberately dropped from the halves. The merged
+    entry carried one type for two exercises, so it was wrong for at least one
+    of them -- push-ups are bodyweight_reps, not the weight_reps the merge
+    claimed. Dropping it lets each half be classified from its own name.
+
+    Returns (exercises, problems).
+    """
+    if not isinstance(exercises, list):
+        return exercises, []
+
+    used_groups = {
+        ex.get('superset_group') for ex in exercises
+        if isinstance(ex, dict) and ex.get('superset_group') is not None
+    }
+    next_group = 1
+
+    def fresh_group():
+        nonlocal next_group
+        while next_group in used_groups:
+            next_group += 1
+        used_groups.add(next_group)
+        return next_group
+
+    out = []
+    problems = []
+    for ex in exercises:
+        if not isinstance(ex, dict):
+            out.append(ex)
+            continue
+
+        raw_name = str(ex.get('name') or '')
+        base = _MERGED_MARKER_RE.sub('', raw_name).strip()
+        parts = [p.strip() for p in _MERGED_SPLIT_RE.split(base) if p.strip()]
+        if len(parts) < 2:
+            out.append(ex)
+            continue
+
+        reps = str(ex.get('reps') or '').strip()
+        rep_parts = [r.strip() for r in _MERGED_SPLIT_RE.split(reps) if r.strip()]
+        if len(rep_parts) == 1:
+            rep_parts = rep_parts * len(parts)       # "8-12" means 8-12 each
+        if len(rep_parts) != len(parts):
+            problems.append(
+                '%s: cannot split %r -- %d names but %d rep values'
+                % (day_name, raw_name, len(parts), len(rep_parts)))
+            out.append(ex)
+            continue
+
+        group = fresh_group()
+        for part_name, part_reps in zip(parts, rep_parts):
+            member = dict(ex)
+            member.pop('measurement_type', None)
+            member['name'] = part_name
+            member['reps'] = part_reps
+            member['superset_group'] = group
+            out.append(member)
+        problems.append('%s: split merged %r into %s'
+                        % (day_name, raw_name, ' + '.join(repr(p) for p in parts)))
+
+    return out, problems
+
+
 def _validate_superset_groups(day_name, exercises, has_back_limitation=False):
     """
     Check a day's superset groups. Returns (clean_exercises, problems).
@@ -1275,6 +1409,15 @@ def _validate_plan_json(data: dict) -> None:
             exercises = day.get('exercises', [])
             if not isinstance(exercises, list):
                 raise ValueError('exercises must be a list')
+            # Merged "A + B" entries are split FIRST, so each half then goes
+            # through normal per-exercise validation and gets its own
+            # measurement type -- which is the whole point, since the merged
+            # entry's single type was wrong for at least one half.
+            exercises, merge_problems = _split_merged_exercises(
+                str(day.get('name') or 'day'), exercises)
+            day['exercises'] = exercises
+            for problem in merge_problems:
+                logger.warning('merged exercise: %s', problem)
             # Exercise-level validation. This was previously absent entirely,
             # which made a missing 'name' a KeyError -> 500 during plan creation.
             for idx, ex_data in enumerate(exercises):
