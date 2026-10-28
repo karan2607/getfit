@@ -99,7 +99,72 @@ def profile_for(name):
         'mechanic': record.get('mechanic'),
         'primary': frozenset(record['primary']),
         'secondary': frozenset(record.get('secondary') or []),
+        'equipment': record.get('equipment') or '',
     }
+
+
+# NO station-contention rule, deliberately -- I wrote one and removed it.
+#
+# "Two exercises needing the same apparatus cannot be supersetted" sounds
+# obviously true and is false. It rejected `Barbell Bench Press + Barbell Row`,
+# which is the textbook antagonist superset AND one of the examples the
+# generation prompt recommends: one barbell serves both, you bench it and then
+# pick it up and row it. It also rejected `Leg Extension + Leg Curl`, the other
+# recommended example, because both resolve to machines.
+#
+# Fuzzy KB resolution made it worse: `Leg Extension` matches an exercise-ball
+# record, so the rejection reasons were wrong as well as unwanted. A rule that
+# rejects the canonical examples the prompt teaches is worse than no rule --
+# the model would follow the prompt and be silently ungrouped every time.
+#
+# What survives is availability, which is the part that was actually asked for:
+# don't pair equipment the user does not have.
+
+# What each gym type actually has. 'other' and an absent value are UNKNOWN and
+# never rejected -- 122 upstream records say "other" and 77 say nothing, so
+# treating unknown as unavailable would reject a sixth of the library.
+_EQUIPMENT_AVAILABLE = {
+    'bodyweight': frozenset(('body only',)),
+    'home gym': frozenset((
+        'body only', 'dumbbell', 'kettlebells', 'bands', 'barbell',
+        'medicine ball', 'exercise ball', 'foam roll', 'e-z curl bar',
+    )),
+    # 'full gym' has everything, so it is absent on purpose rather than listed.
+}
+
+
+def equipment_for(name):
+    """The equipment an exercise needs, or '' when unknown."""
+    profile = profile_for(name)
+    return profile['equipment'] if profile else ''
+
+
+def _equipment_problem(a, b, gym):
+    """
+    Equipment the user does not have, or None when the pair is fine.
+
+    Split out of superset_verdict so the ordering of the existing muscle rules
+    is left exactly as it was -- this adds a dimension rather than reshuffling
+    one.
+
+    `gym` is a WorkoutPlan.equipment value ('bodyweight' | 'home gym' |
+    'full gym'); anything else, including '', means unknown and skips the
+    availability half entirely.
+    """
+    a_equip, b_equip = a['equipment'], b['equipment']
+    available = _EQUIPMENT_AVAILABLE.get(gym)
+    if available is not None:
+        missing = sorted({
+            equip for equip in (a_equip, b_equip)
+            if equip and equip not in available
+            # Unknown values are not "missing", they are unverified.
+            and equip != 'other'
+        })
+        if missing:
+            return ('unavailable',
+                    'needs %s, which a %s does not have'
+                    % (' and '.join(missing), gym))
+    return None
 
 
 # Verdict kinds, best first.
@@ -110,12 +175,17 @@ EXHAUST = 'exhaust'
 ACCEPTED_KINDS = (ANTAGONIST, NON_COMPETING, EXHAUST)
 
 
-def superset_verdict(name_a, name_b, has_back_limitation=False):
+def superset_verdict(name_a, name_b, has_back_limitation=False, gym=''):
     """
     May these two be supersetted? Returns (ok, kind, reason).
 
     `kind` is one of ACCEPTED_KINDS when ok, otherwise a short rejection code
     suitable for logging and for showing in the manual pairing picker.
+
+    `gym` is the plan's equipment value. It adds one rejection -- equipment the
+    user does not have -- on top of the muscle rules, which are unchanged.
+    Omitting it reproduces the previous behaviour exactly, which is what every
+    pre-existing caller gets.
     """
     if not name_a or not name_b:
         return False, 'missing', 'an exercise name is missing'
@@ -156,6 +226,13 @@ def superset_verdict(name_a, name_b, has_back_limitation=False):
         return (False, 'two_compounds',
                 'two compound lifts that are not an antagonist pair')
 
+    # After the muscle rules deliberately: when a pair is wrong on BOTH counts,
+    # "both push, both chest" is the more useful thing to tell the user than
+    # "you don't own a cable machine".
+    problem = _equipment_problem(a, b, gym)
+    if problem:
+        return (False,) + problem
+
     if has_back_limitation:
         a_spinal = bool((a['primary'] | a['secondary']) & _SPINAL)
         b_spinal = bool((b['primary'] | b['secondary']) & _SPINAL)
@@ -180,12 +257,13 @@ def superset_verdict(name_a, name_b, has_back_limitation=False):
     return False, 'overlap', 'shared muscles: %s' % ', '.join(sorted(shared))
 
 
-def can_superset(name_a, name_b, has_back_limitation=False):
-    ok, _kind, _reason = superset_verdict(name_a, name_b, has_back_limitation)
+def can_superset(name_a, name_b, has_back_limitation=False, gym=''):
+    ok, _kind, _reason = superset_verdict(
+        name_a, name_b, has_back_limitation, gym)
     return ok
 
 
-def valid_partners(name, candidates, has_back_limitation=False):
+def valid_partners(name, candidates, has_back_limitation=False, gym=''):
     """
     Which of `candidates` may pair with `name`, best kind first.
 
@@ -194,7 +272,8 @@ def valid_partners(name, candidates, has_back_limitation=False):
     """
     out = []
     for candidate in candidates:
-        ok, kind, reason = superset_verdict(name, candidate, has_back_limitation)
+        ok, kind, reason = superset_verdict(
+            name, candidate, has_back_limitation, gym)
         if ok:
             out.append({'name': candidate, 'kind': kind, 'reason': reason})
     order = {kind: index for index, kind in enumerate(ACCEPTED_KINDS)}

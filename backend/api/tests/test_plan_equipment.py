@@ -168,3 +168,122 @@ class WeekPromptCarriesEquipmentTests(APITestCase):
             self.profile, days_per_week=4, duration_weeks=8,
             equipment='home gym', preferred_unit='lb')
         self.assertIn('Equipment: home gym', user)
+
+
+class EquipmentAvailabilityVerdictTests(APITestCase):
+    """
+    The pairing rule: don't superset equipment the user does not have.
+
+    There is deliberately NO station-contention rule. I wrote one -- "two
+    exercises needing the same apparatus cannot be supersetted" -- and removed
+    it, because it rejected BOTH canonical examples the generation prompt
+    recommends. Those rejections are the regression tests below.
+    """
+
+    def verdict(self, a, b, gym=''):
+        from api import exercise_muscles as em
+        return em.superset_verdict(a, b, gym=gym)
+
+    def test_the_prompts_own_examples_are_accepted_at_a_full_gym(self):
+        """
+        THE regression. The prompt teaches "bench press + row" and
+        "leg extension + leg curl" as model antagonist pairs. A rule that
+        rejects them is worse than no rule: the model follows the prompt and
+        gets silently ungrouped every time.
+        """
+        for a, b in (('Barbell Bench Press', 'Barbell Row'),
+                     ('Leg Extension', 'Leg Curl')):
+            ok, kind, reason = self.verdict(a, b, gym='full gym')
+            self.assertTrue(ok, msg='%s + %s rejected: %s' % (a, b, reason))
+            self.assertEqual(kind, 'antagonist')
+
+    def test_two_barbell_lifts_are_fine_because_one_barbell_serves_both(self):
+        """You bench it, then pick it up and row it. This is how it is done."""
+        self.assertTrue(self.verdict(
+            'Barbell Bench Press', 'Barbell Row', gym='full gym')[0])
+
+    def test_a_bodyweight_user_is_not_offered_barbell_work(self):
+        ok, kind, reason = self.verdict(
+            'Barbell Bench Press', 'Barbell Row', gym='bodyweight')
+        self.assertFalse(ok)
+        self.assertEqual(kind, 'unavailable')
+        self.assertIn('barbell', reason)
+
+    def test_a_home_gym_is_not_offered_machine_work(self):
+        ok, kind, _reason = self.verdict(
+            'Leg Extension', 'Leg Curl', gym='home gym')
+        self.assertFalse(ok)
+        self.assertEqual(kind, 'unavailable')
+
+    def test_bodyweight_pairs_pass_for_a_bodyweight_user(self):
+        self.assertTrue(self.verdict('Push-ups', 'Plank', gym='bodyweight')[0])
+
+    def test_an_unknown_gym_type_changes_nothing(self):
+        """
+        Every pre-existing caller omits `gym`, and every plan created before
+        the column existed has ''. Both must behave exactly as before.
+        """
+        from api import exercise_muscles as em
+        for a, b in (('Barbell Bench Press', 'Barbell Row'),
+                     ('Barbell Bench Press', 'Push-ups'),
+                     ('Push-ups', 'Plank')):
+            self.assertEqual(em.superset_verdict(a, b),
+                             em.superset_verdict(a, b, gym=''),
+                             msg='%s + %s' % (a, b))
+
+    def test_muscle_rejections_still_win_over_equipment_ones(self):
+        """
+        Ordering matters for what the user is told: "both push, both chest" is
+        more useful than "you don't own that".
+        """
+        ok, kind, _reason = self.verdict(
+            'Barbell Bench Press', 'Push-ups', gym='bodyweight')
+        self.assertFalse(ok)
+        self.assertEqual(kind, 'two_compounds')
+
+    def test_unknown_equipment_is_never_treated_as_missing(self):
+        """
+        122 upstream records say "other" and 77 say nothing. Treating unknown
+        as unavailable would reject a sixth of the library on a false premise.
+        """
+        from api import exercise_muscles as em
+        a = {'equipment': 'other', 'primary': frozenset(), 'secondary': frozenset()}
+        b = {'equipment': '', 'primary': frozenset(), 'secondary': frozenset()}
+        self.assertIsNone(em._equipment_problem(a, b, 'bodyweight'))
+
+
+class EquipmentKnowledgeBaseTests(APITestCase):
+    """The regenerated KB. The import must be additive, not a rewrite."""
+
+    def setUp(self):
+        from api import exercise_muscles as em
+        self.kb = em._load()
+
+    def test_the_record_count_is_unchanged(self):
+        self.assertEqual(len(self.kb), 876)
+
+    def test_most_records_now_carry_equipment(self):
+        """77 upstream records have no equipment value; the rest must."""
+        with_equip = sum(1 for v in self.kb.values() if v.get('equipment'))
+        self.assertGreater(with_equip, 750)
+
+    def test_the_required_fields_are_still_present(self):
+        """
+        profile_for returns None without BOTH force and primary, so a
+        regenerated file that lost either would silently disable every
+        superset verdict rather than fail loudly.
+        """
+        usable = sum(1 for v in self.kb.values()
+                     if v.get('force') and v.get('primary'))
+        self.assertGreater(usable, 700)
+
+    def test_equipment_values_are_from_the_known_vocabulary(self):
+        from api import exercise_muscles as em
+        known = set()
+        for available in em._EQUIPMENT_AVAILABLE.values():
+            known |= set(available)
+        # Everything a full gym has, plus the unknown marker.
+        known |= {'machine', 'cable', 'other'}
+        unknown = {v['equipment'] for v in self.kb.values()
+                   if v.get('equipment')} - known
+        self.assertEqual(unknown, set(), msg='unmapped equipment values')

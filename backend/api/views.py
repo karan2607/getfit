@@ -1264,7 +1264,8 @@ def _split_merged_exercises(day_name, exercises):
     return out, problems
 
 
-def _validate_superset_groups(day_name, exercises, has_back_limitation=False):
+def _validate_superset_groups(day_name, exercises, has_back_limitation=False,
+                              gym=''):
     """
     Check a day's superset groups. Returns (clean_exercises, problems).
 
@@ -1329,7 +1330,7 @@ def _validate_superset_groups(day_name, exercises, has_back_limitation=False):
         for i in range(len(names)):
             for j in range(i + 1, len(names)):
                 ok, kind, reason = exercise_muscles.superset_verdict(
-                    names[i], names[j], has_back_limitation)
+                    names[i], names[j], has_back_limitation, gym)
                 if not ok:
                     bad = '%s rejected %r + %r: %s (%s)' % (
                         label, names[i], names[j], kind, reason)
@@ -1476,7 +1477,8 @@ def _validate_plan_json(data: dict) -> None:
             # UNGROUPED in place -- a bad pairing should cost the superset, not
             # the workout.
             cleaned, superset_problems = _validate_superset_groups(
-                str(day.get('name') or 'day'), exercises)
+                str(day.get('name') or 'day'), exercises,
+                gym=_accepted_equipment(data.get('equipment')))
             day['exercises'] = cleaned
             for problem in superset_problems:
                 logger.warning('superset rejected: %s', problem)
@@ -5297,7 +5299,8 @@ def workout_day_supersets(request, day_id):
         for i in range(len(members)):
             for j in range(i + 1, len(members)):
                 ok, kind, reason = exercise_muscles.superset_verdict(
-                    members[i].name, members[j].name, has_back_limitation)
+                    members[i].name, members[j].name, has_back_limitation,
+                    day.plan.equipment)
                 if not ok:
                     return Response(
                         {'detail': '%s + %s is not a good superset: %s.'
@@ -5370,7 +5373,8 @@ def workout_day_superset_options(request, day_id):
         partners = []
         for other in candidates:
             ok, kind, reason = exercise_muscles.superset_verdict(
-                exercise.name, other.name, has_back_limitation)
+                exercise.name, other.name, has_back_limitation,
+                day.plan.equipment)
             if ok:
                 partners.append({'id': str(other.id), 'name': other.name,
                                  'kind': kind, 'reason': reason,
