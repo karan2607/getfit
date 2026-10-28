@@ -15,6 +15,9 @@ import ExerciseDrawer from '../components/ExerciseDrawer'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
 import UpcomingWeeks from '../components/workout/UpcomingWeeks'
 import SupersetCard, { type SupersetMember } from '../components/workout/SupersetCard'
+import {
+  groupIntoUnits, compositeLabel, compositeRounds, compositeRest,
+} from '../lib/composites'
 import SupersetPicker from '../components/workout/SupersetPicker'
 import ConfirmModal from '../components/ConfirmModal'
 import { compressImage } from '../lib/imageUtils'
@@ -523,11 +526,30 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                             </div>
                             {!day.is_rest_day && (
                               <div className="pl-7 space-y-0.5">
-                                {day.exercises.map((ex, i) => (
-                                  <div key={i} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
-                                    <span>{ex.name}</span>
-                                    <span className="text-gray-400 ml-2 whitespace-nowrap">{ex.sets} × {ex.reps}</span>
-                                  </div>
+                                {groupIntoUnits(day.exercises).map((unit, i) => (
+                                  unit.kind === 'composite' ? (
+                                    /* A bracket down the left edge: the compact
+                                       list has no room for a card, but the
+                                       grouping still has to be visible here —
+                                       this is the first place the user reads
+                                       the plan. */
+                                    <div key={i} className="border-l-2 border-brand-200 pl-2 my-1">
+                                      <p className="text-[10px] font-bold text-brand-500 uppercase tracking-wide">
+                                        {compositeLabel(unit.items.length)}
+                                      </p>
+                                      {unit.items.map((ex, j) => (
+                                        <div key={j} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
+                                          <span>{ex.name}</span>
+                                          <span className="text-gray-400 ml-2 whitespace-nowrap">{ex.sets} × {ex.reps}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div key={i} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
+                                      <span>{unit.item.name}</span>
+                                      <span className="text-gray-400 ml-2 whitespace-nowrap">{unit.item.sets} × {unit.item.reps}</span>
+                                    </div>
+                                  )
                                 ))}
                               </div>
                             )}
@@ -607,6 +629,78 @@ function ExerciseCard({ exercise, onClick }: { exercise: Exercise; onClick: (e: 
         )}
       </div>
     </button>
+  )
+}
+
+/**
+ * A composite (superset / triset) in the PLAN views.
+ *
+ * Supersets used to be invisible until you started the workout: the plan
+ * listed every member as its own independent card, so the only place a
+ * grouping showed up was the live session. That is too late — the plan view is
+ * where you check the plan is right.
+ *
+ * Each member keeps its own `sets × reps` line, because they genuinely differ
+ * (bench 4×12 weighted, push-ups 4×10 bodyweight) and a single shared figure
+ * would be a lie about one of them. Rest is shown ONCE, on the header, because
+ * it belongs to the round rather than to any member.
+ */
+function CompositeCard({ exercises, onClick }: {
+  exercises: Exercise[]
+  onClick: (e: Exercise) => void
+}) {
+  const rounds = compositeRounds(exercises.map((e) => e.sets))
+  const rest = compositeRest(exercises.map((e) => e.rest_seconds ?? null))
+
+  return (
+    <div className="flex-shrink-0 w-56 bg-white rounded-xl shadow-sm border-2 border-brand-200 flex flex-col overflow-hidden">
+      <div className="px-3 py-2 bg-brand-50/70 border-b border-brand-100">
+        <p className="text-[10px] font-bold text-brand-500 uppercase tracking-widest">
+          ⟲ {compositeLabel(exercises.length)} · {rounds} round{rounds === 1 ? '' : 's'}
+        </p>
+        {rest != null && (
+          <p className="text-[10px] text-gray-400">
+            {rest}s rest after each round
+          </p>
+        )}
+      </div>
+      <div className="divide-y divide-gray-50">
+        {exercises.map((exercise) => (
+          <button
+            key={exercise.id}
+            onClick={() => onClick(exercise)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          >
+            <span className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2 min-w-0">
+              {exercise.name}
+            </span>
+            <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap flex-shrink-0">
+              {exercise.sets} × {exercise.reps}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Plan-view exercise list: composites become one card, the rest stay as they were. */
+function DayExerciseRow({ exercises, onClick }: {
+  exercises: Exercise[]
+  onClick: (e: Exercise) => void
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+      {groupIntoUnits(exercises).map((unit) => (
+        unit.kind === 'composite' ? (
+          <CompositeCard key={`ss:${unit.group}:${unit.items[0].id}`}
+                         exercises={unit.items} onClick={onClick} />
+        ) : (
+          <ExerciseCard key={unit.item.id} exercise={unit.item}
+                        onClick={onClick} />
+        )
+      ))}
+    </div>
   )
 }
 
@@ -884,11 +978,8 @@ function PlanDetail({ planId }: { planId: string }) {
                 {day.is_rest_day ? (
                   <RestDayCard />
                 ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                    {day.exercises.map((ex) => (
-                      <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
-                    ))}
-                  </div>
+                  <DayExerciseRow exercises={day.exercises}
+                                  onClick={setSelectedExercise} />
                 )}
               </div>
             ))}
@@ -938,11 +1029,8 @@ function PlanDetail({ planId }: { planId: string }) {
                         {day.is_rest_day ? (
                           <RestDayCard />
                         ) : (
-                          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                            {day.exercises.map((ex) => (
-                              <ExerciseCard key={ex.id} exercise={ex} onClick={setSelectedExercise} />
-                            ))}
-                          </div>
+                          <DayExerciseRow exercises={day.exercises}
+                                          onClick={setSelectedExercise} />
                         )}
                       </div>
                     ))}
@@ -1254,36 +1342,22 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
    * they have no planEx, and the session page groups them by logged name
    * precisely so their history is not hidden.
    */
+  // Shared with the three PLAN surfaces via lib/composites, so a grouping is
+  // read the same way everywhere. It used to be inline here, which is why the
+  // plan views had no notion of supersets at all.
   type RenderUnit =
     | { kind: 'single'; key: string; entry: typeof exerciseEntries[number] }
     | { kind: 'superset'; key: string; entries: typeof exerciseEntries }
 
-  const renderUnits: RenderUnit[] = []
-  for (const entry of exerciseEntries) {
-    const group = entry.planEx?.superset_group ?? null
-    const last = renderUnits[renderUnits.length - 1]
-    if (group !== null && last && last.kind === 'superset'
-        && last.entries[0].planEx?.superset_group === group) {
-      last.entries.push(entry)
-      continue
-    }
-    if (group !== null) {
-      renderUnits.push({ kind: 'superset', key: `ss:${group}:${entry.key}`,
-                         entries: [entry] })
-      continue
-    }
-    renderUnits.push({ kind: 'single', key: entry.key, entry })
-  }
-  // A group that ended up with a single member is not a superset. The server
-  // rejects those, but a hand-edited row should degrade to a normal card
-  // rather than render a one-exercise "superset".
-  for (let i = 0; i < renderUnits.length; i++) {
-    const unit = renderUnits[i]
-    if (unit.kind === 'superset' && unit.entries.length < 2) {
-      renderUnits[i] = { kind: 'single', key: unit.entries[0].key,
-                         entry: unit.entries[0] }
-    }
-  }
+  const renderUnits: RenderUnit[] = groupIntoUnits(
+    exerciseEntries, (entry) => entry.planEx,
+  ).map((unit) => (
+    unit.kind === 'composite'
+      ? { kind: 'superset' as const,
+          key: `ss:${unit.group}:${unit.items[0].key}`,
+          entries: unit.items }
+      : { kind: 'single' as const, key: unit.item.key, entry: unit.item }
+  ))
 
   const completedSets = mergedLogs.filter((l) => l.is_completed).length
   const totalSets = mergedLogs.length

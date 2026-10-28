@@ -3,6 +3,7 @@ import {
   type SetField, type WeightUnit, type TimeUnit,
   fieldsFor, fieldLabel, toDisplayField, formatDuration, timeUnitFor,
 } from '../../lib/units'
+import { compositeLabel, compositeRounds, compositeRest } from '../../lib/composites'
 
 /**
  * A superset, rendered round by round.
@@ -50,16 +51,19 @@ export default function SupersetCard({
   // Rounds = the most sets any member has. They are validated server-side to
   // be equal, but a legacy or hand-edited row could differ, and a missing
   // member should leave a gap rather than break the card.
-  const rounds = Math.max(...members.map((m) => m.logs.length), 0)
+  const rounds = compositeRounds(members.map((m) => m.logs.length))
   const allLogs = members.flatMap((m) => m.logs)
   const doneCount = allLogs.filter((l) => isSetCompleted(l)).length
   const allDone = allLogs.length > 0 && doneCount === allLogs.length
-  const rest = members[members.length - 1]?.planEx.rest_seconds ?? null
+  const rest = compositeRest(members.map((m) => m.planEx.rest_seconds ?? null))
 
   function roundComplete(round: number) {
     const logs = members.map((m) => m.logs[round]).filter(Boolean) as SetLog[]
     return logs.length > 0 && logs.every((l) => isSetCompleted(l))
   }
+
+  const roundsDone = Array.from({ length: rounds }, (_, r) => r)
+    .filter((r) => roundComplete(r)).length
 
   return (
     <div className={`bg-white rounded-2xl border-2 overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-brand-200'}`}>
@@ -75,15 +79,32 @@ export default function SupersetCard({
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-brand-500 uppercase tracking-widest">
-                ⟲ Superset · {rounds} round{rounds === 1 ? '' : 's'}
+                ⟲ {compositeLabel(members.length)} · {rounds} round{rounds === 1 ? '' : 's'}
+                {rest != null && ` · ${rest}s rest after each round`}
               </p>
-              <p className="font-bold text-gray-900 text-sm truncate">
-                {members.map((m) => m.planEx.name).join('  +  ')}
-              </p>
+              {/* Each member on its OWN line with its OWN sets x reps. The
+                  header used to be just "A  +  B", so a collapsed card showed
+                  no prescription at all -- and a shared figure would be wrong
+                  for at least one member (bench 4x12 weighted vs push-ups
+                  4x10 bodyweight). */}
+              {members.map((member) => (
+                <div key={member.planEx.id}
+                     className="flex items-baseline justify-between gap-2">
+                  <p className="font-bold text-gray-900 text-sm truncate">
+                    {member.planEx.name}
+                  </p>
+                  <p className="text-[11px] font-semibold text-gray-500 whitespace-nowrap flex-shrink-0">
+                    {member.planEx.sets} × {member.planEx.reps}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
+          {/* Rounds completed, NOT sets. This read "0/8" for a 2-member
+              4-round superset -- members x rounds, a number that corresponds
+              to nothing the user is doing. You do rounds. */}
           <span className={`text-xs font-semibold flex-shrink-0 ${allDone ? 'text-emerald-600' : 'text-gray-400'}`}>
-            {doneCount}/{allLogs.length}
+            {allDone ? 'done' : `Round ${Math.min(roundsDone + 1, rounds)}/${rounds}`}
           </span>
         </div>
       </div>
@@ -187,10 +208,12 @@ export default function SupersetCard({
                 })}
               </div>
 
-              {/* Rest belongs to the round boundary, not to either member. */}
-              {rest != null && round < rounds - 1 && (
+              {/* Rest is stated once on the header. Repeating it under every
+                  round was the same fact N times. What is useful per round is
+                  which round comes next. */}
+              {rest != null && round < rounds - 1 && roundComplete(round) && (
                 <p className="text-[11px] text-gray-400 text-center mt-2.5">
-                  ⏱ {rest}s rest, then round {round + 2}
+                  ⏱ rest, then round {round + 2}
                 </p>
               )}
             </div>

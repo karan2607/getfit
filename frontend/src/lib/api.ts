@@ -389,12 +389,16 @@ export const api = {
     getSupersetOptions: (dayId: string) =>
       request<{
         max_groups: number
+        max_members: number
         exercises: Array<{
           id: string; name: string
-          partners: Array<{
-            id: string; name: string; kind: string
-            reason: string; same_sets: boolean
-          }>
+          partners: SupersetPartner[]
+          /**
+           * Pairings the server REFUSES, with the reason. Returned rather
+           * than omitted: the user can see the exercise is on the day, so an
+           * absence reads as a bug. "Both push, both chest" is an answer.
+           */
+          rejected: SupersetPartner[]
         }>
       }>(`/api/workouts/days/${dayId}/superset-options/`),
 
@@ -690,6 +694,15 @@ export type PreviewDay = {
     // but sending it preserves any deliberate value.
     measurement_type?: MeasurementType
   }>
+}
+
+export interface SupersetPartner {
+  id: string
+  name: string
+  /** An accepted kind (antagonist/non_competing/exhaust) or a rejection code. */
+  kind: string
+  reason: string
+  same_sets: boolean
 }
 
 export interface WorkoutPlanPreview {

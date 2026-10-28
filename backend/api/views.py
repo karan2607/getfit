@@ -1165,6 +1165,14 @@ def _plan_days(data):
 # "Mid-to-High does not exist" and production contained it anyway).
 MAX_SUPERSET_GROUPS_PER_DAY = 2
 
+# Members per group. Two is a superset, three a triset, four a giant set.
+# Beyond four it is a circuit, which is a different thing with different rest
+# handling, so it is refused rather than half-supported.
+#
+# The generation prompt still teaches PAIRS only -- bigger groups are something
+# the user or the agent builds deliberately, not something the model invents.
+MAX_SUPERSET_MEMBERS = 4
+
 
 # A merged exercise: "Barbell Bench Press + Push-ups (Superset)".
 #
@@ -5259,6 +5267,11 @@ def workout_day_supersets(request, day_id):
         if not isinstance(group, list) or len(group) < 2:
             return Response({'detail': 'each group needs at least two exercises.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        if len(group) > MAX_SUPERSET_MEMBERS:
+            return Response(
+                {'detail': 'at most %d exercises per group; beyond that it is '
+                           'a circuit, not a superset.' % MAX_SUPERSET_MEMBERS},
+                status=status.HTTP_400_BAD_REQUEST)
         members = []
         for raw_id in group:
             exercise = by_id.get(str(raw_id))
@@ -5371,19 +5384,25 @@ def workout_day_superset_options(request, day_id):
             and not (first_working is not None and other.id == first_working.id)
         ]
         partners = []
+        rejected = []
         for other in candidates:
             ok, kind, reason = exercise_muscles.superset_verdict(
                 exercise.name, other.name, has_back_limitation,
                 day.plan.equipment)
-            if ok:
-                partners.append({'id': str(other.id), 'name': other.name,
-                                 'kind': kind, 'reason': reason,
-                                 'same_sets': other.sets == exercise.sets})
+            entry = {'id': str(other.id), 'name': other.name,
+                     'kind': kind, 'reason': reason,
+                     'same_sets': other.sets == exercise.sets}
+            (partners if ok else rejected).append(entry)
         if partners:
+            # Rejections are RETURNED, not hidden. Silently omitting a partner
+            # looks like a bug to the user -- they can see the exercise is on
+            # the day, so the question is why it is not offered. "Both push,
+            # both chest, each ruins the other" is an answer; an absence is not.
             out.append({'id': str(exercise.id), 'name': exercise.name,
-                        'partners': partners})
+                        'partners': partners, 'rejected': rejected})
     return Response({'exercises': out,
-                     'max_groups': MAX_SUPERSET_GROUPS_PER_DAY})
+                     'max_groups': MAX_SUPERSET_GROUPS_PER_DAY,
+                     'max_members': MAX_SUPERSET_MEMBERS})
 
 
 def _has_back_limitation(user):

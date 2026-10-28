@@ -485,3 +485,144 @@ class BackLimitationTests(APITestCase):
     def test_a_user_with_no_profile_does_not_raise(self):
         user = User.objects.create_user(email='ss8@test.local', password='x')
         self.assertFalse(views._has_back_limitation(user))
+
+
+class GroupSizeTests(APITestCase):
+    """
+    Trisets and giant sets. 3+ members already worked server-side -- the
+    pairwise verdict loop never assumed two -- so what was missing was an upper
+    bound and a picker that could build one.
+
+    Bigger groups are something the USER or the agent builds deliberately. The
+    generation prompt still teaches pairs only, so the model does not invent
+    them.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='sssize@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb',
+                                   personal_notes='')
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        plan = WorkoutPlan.objects.create(user=self.user, title='P',
+                                          duration_weeks=1, current_week=1)
+        self.day = WorkoutDay.objects.create(plan=plan, day_number=1,
+                                             week_number=1, name='Full')
+        # Deliberately non-competing so pairwise checks pass and the SIZE rule
+        # is what the assertions are actually measuring.
+        for order, (name, mtype) in enumerate([
+            ('Warmup & Mobility', et.WARMUP),
+            ('Barbell Back Squat', et.WEIGHT_REPS),       # first working
+            ('Dumbbell Bicep Curl', et.WEIGHT_REPS),
+            ('Overhead Dumbbell Triceps Extension', et.WEIGHT_REPS),
+            ('Plank', et.DURATION),
+            ('Calf Raises', et.WEIGHT_REPS),
+            ('Crunches', et.BODYWEIGHT_REPS),
+        ]):
+            Exercise.objects.create(day=self.day, name=name, sets=3,
+                                    reps='8-12', measurement_type=mtype,
+                                    order=order)
+
+    def ids(self, *names):
+        return [str(Exercise.objects.get(day=self.day, name=n).id)
+                for n in names]
+
+    def post(self, groups):
+        return self.client.post(
+            reverse('workout-day-supersets', args=[self.day.id]),
+            {'groups': groups}, format='json')
+
+    def test_a_group_of_one_is_still_refused(self):
+        res = self.post([self.ids('Dumbbell Bicep Curl')])
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('two', res.data['detail'])
+
+    def test_a_group_beyond_the_cap_is_refused_as_a_circuit(self):
+        """
+        Five exercises back to back is a circuit, which has different rest
+        handling. Refused rather than half-supported.
+        """
+        res = self.post([self.ids(
+            'Dumbbell Bicep Curl', 'Overhead Dumbbell Triceps Extension',
+            'Plank', 'Calf Raises', 'Crunches')])
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('circuit', res.data['detail'])
+
+    def test_the_cap_matches_what_the_picker_is_told(self):
+        """
+        The picker builds up to max_members. If the endpoint's cap and the
+        advertised cap disagreed, the UI would let the user build a group the
+        server then rejects.
+        """
+        res = self.client.get(
+            reverse('workout-day-superset-options', args=[self.day.id]))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['max_members'], views.MAX_SUPERSET_MEMBERS)
+
+    def test_pairwise_rules_still_apply_to_every_pair_in_a_triset(self):
+        """
+        A triset is only as valid as its worst pair. Squat is the first working
+        exercise, so including it must fail for that reason -- proving the
+        per-member rules are not skipped just because the group is bigger.
+        """
+        res = self.post([self.ids(
+            'Barbell Back Squat', 'Dumbbell Bicep Curl', 'Plank')])
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('fresh', res.data['detail'])
+
+
+class RejectionsAreExplainedTests(APITestCase):
+    """
+    The picker shows WHY a pairing is refused.
+
+    Silently omitting a partner looks like a bug: the user can see the exercise
+    is on the day, so the question is why it is not offered. "Both push, both
+    chest, each ruins the other" is an answer; an absence is not.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='ssrej@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb',
+                                   personal_notes='')
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        plan = WorkoutPlan.objects.create(user=self.user, title='P',
+                                          duration_weeks=1, current_week=1)
+        self.day = WorkoutDay.objects.create(plan=plan, day_number=1,
+                                             week_number=1, name='Push')
+        for order, (name, mtype) in enumerate([
+            ('Warmup & Mobility', et.WARMUP),
+            ('Barbell Back Squat', et.WEIGHT_REPS),
+            ('Barbell Bench Press', et.WEIGHT_REPS),
+            ('Push-ups', et.BODYWEIGHT_REPS),
+            ('Chest-Supported T-Bar Row', et.WEIGHT_REPS),
+        ]):
+            Exercise.objects.create(day=self.day, name=name, sets=3,
+                                    reps='8-12', measurement_type=mtype,
+                                    order=order)
+
+    def options(self):
+        res = self.client.get(
+            reverse('workout-day-superset-options', args=[self.day.id]))
+        self.assertEqual(res.status_code, 200, res.data)
+        return {e['name']: e for e in res.data['exercises']}
+
+    def test_the_reported_bad_pairing_appears_with_a_reason(self):
+        bench = self.options()['Barbell Bench Press']
+        rejected = {p['name']: p for p in bench['rejected']}
+        self.assertIn('Push-ups', rejected,
+                      msg='a refused partner must be reported, not hidden')
+        self.assertTrue(rejected['Push-ups']['reason'])
+        self.assertTrue(rejected['Push-ups']['kind'])
+
+    def test_accepted_and_rejected_do_not_overlap(self):
+        for entry in self.options().values():
+            accepted = {p['id'] for p in entry['partners']}
+            refused = {p['id'] for p in entry['rejected']}
+            self.assertEqual(accepted & refused, set(), msg=entry['name'])
+
+    def test_a_good_partner_is_still_offered(self):
+        """The guard: explaining rejections must not break acceptance."""
+        bench = self.options()['Barbell Bench Press']
+        self.assertIn('Chest-Supported T-Bar Row',
+                      {p['name'] for p in bench['partners']})
