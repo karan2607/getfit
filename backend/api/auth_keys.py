@@ -24,6 +24,12 @@ The default `logging` scope is deliberately unable to escalate: it cannot
 change the password, mint reset links, reach the admin endpoints, or delete a
 plan. Anything not explicitly allowed is denied, so a new endpoint is closed
 until someone decides otherwise.
+
+`readonly` is narrower still: safe methods only, so it cannot write anything at
+all. It exists so an unattended agent can VERIFY a claim about stored data
+instead of trusting the text it was handed. Note that a key only ever reaches
+its own owner's rows -- every view filters on `request.user` -- so a scope
+widens which endpoints are reachable, never whose data.
 """
 
 import logging
@@ -119,6 +125,24 @@ LOGGING_SCOPE_DENIED = (
 # A `feedback` key may reach ONLY this. It is for the autonomous queue runner.
 FEEDBACK_SCOPE_ALLOWED = ('feedback/',)
 
+# A `readonly` key may READ these and nothing else.
+#
+# Why this scope exists: the feedback runner escalated an item in order to
+# protect logged sets the user had ALREADY corrected. All it had was the
+# submission text and a feedback-scoped key, so it could not check whether the
+# claim about the data was still true -- it had to trust a stale description.
+#
+# Narrower than `logging` on purpose. `logging` can WRITE health, diet and
+# workout data; this cannot write anything, which is the whole point of handing
+# it to an unattended agent.
+READONLY_SCOPE_ALLOWED = (
+    'health/',
+    'workouts/',
+    'sessions/',
+    'diet/',
+    'profile/',
+)
+
 SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 
@@ -148,6 +172,16 @@ def scope_allows(api_key, path, method):
     if api_key.scope == ApiKey.SCOPE_FEEDBACK:
         return any(tail.startswith(prefix)
                    for prefix in FEEDBACK_SCOPE_ALLOWED)
+
+    # Read-only: safe methods, allow-listed prefixes, nothing else. Both
+    # conditions are checked here rather than relying on the views, because
+    # `logging` already proved that a method rule living in one branch is easy
+    # to miss.
+    if api_key.scope == ApiKey.SCOPE_READONLY:
+        if method not in SAFE_METHODS:
+            return False
+        return any(tail.startswith(prefix)
+                   for prefix in READONLY_SCOPE_ALLOWED)
 
     if any(tail.startswith(denied) for denied in LOGGING_SCOPE_DENIED):
         return False

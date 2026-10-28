@@ -525,3 +525,162 @@ class FeedbackScopeTests(APITestCase):
                                format='json')
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data['scope'], ApiKey.SCOPE_FEEDBACK)
+
+
+class ReadonlyScopeTests(APITestCase):
+    """
+    The `readonly` scope.
+
+    Why it exists: the feedback runner escalated an item in order to protect
+    22-rep bench sets the user had ALREADY corrected. All it had was the
+    submission text and a feedback-scoped key, so it could not check whether
+    the claim about the data was still true. This scope lets an unattended
+    agent look, and nothing else.
+
+    New authentication surface, so these are weighted towards what must NOT be
+    possible.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='ro@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.key = ApiKey.objects.create(
+            user=self.user, label='verifier', scope=ApiKey.SCOPE_READONLY)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.key.key)
+
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='Mine', current_week=1)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Push')
+
+    # -- what it CAN do -----------------------------------------------------
+
+    def test_it_can_read_its_own_plans(self):
+        """The capability the escalation needed and did not have."""
+        res = self.client.get(reverse('workout-plans'))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([p['title'] for p in res.data], ['Mine'])
+
+    def test_it_can_read_a_plan_detail_including_exercises(self):
+        Exercise.objects.create(day=self.day, name='Push-ups', sets=3,
+                                reps='15')
+        res = self.client.get(
+            reverse('workout-plan-detail', args=[self.plan.id]))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            [e['name'] for e in res.data['days'][0]['exercises']],
+            ['Push-ups'])
+
+    def test_it_can_read_the_profile(self):
+        res = self.client.get(reverse('profile'))
+        self.assertEqual(res.status_code, 200)
+
+    # -- what it must NOT do ------------------------------------------------
+
+    def test_it_cannot_write_anything(self):
+        """
+        The defining property. A write of ANY shape must fail, which is what
+        makes this safe to hand to an unattended agent.
+        """
+        cases = [
+            ('post', reverse('workout-plans'), {'title': 'New'}),
+            ('patch', reverse('profile'), {'preferred_unit': 'kg'}),
+            ('delete', reverse('workout-plan-detail', args=[self.plan.id]), None),
+            ('put', reverse('workout-plan-detail', args=[self.plan.id]),
+             {'title': 'Renamed', 'days': []}),
+        ]
+        for method, url, body in cases:
+            call = getattr(self.client, method)
+            res = call(url, body, format='json') if body else call(url)
+            self.assertEqual(res.status_code, 403,
+                             msg='%s %s should be denied' % (method.upper(), url))
+        # ...and nothing actually changed.
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.title, 'Mine')
+        self.assertEqual(WorkoutPlan.objects.filter(user=self.user).count(), 1)
+
+    def test_it_cannot_log_health_data(self):
+        """Narrower than `logging` on purpose: that scope writes, this reads."""
+        res = self.client.post(reverse('health-summary'),
+                               {'date': '2026-10-28', 'steps': 1000},
+                               format='json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_it_cannot_reach_an_unlisted_endpoint(self):
+        """Allow-list: an endpoint added tomorrow is closed until listed."""
+        res = self.client.get(reverse('api-keys'))
+        self.assertEqual(res.status_code, 403)
+
+    def test_it_cannot_generate_a_plan(self):
+        """Expensive, and a write however it is framed."""
+        res = self.client.post(reverse('workout-plan-generate'),
+                               {'days_per_week': 3, 'duration_weeks': 4},
+                               format='json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_it_cannot_change_the_password(self):
+        res = self.client.post(reverse('password-change'),
+                               {'current_password': 'x',
+                                'new_password': 'yyyyyyyyyy1'}, format='json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_it_cannot_see_another_users_data(self):
+        """
+        A scope decides which ENDPOINTS are reachable, never whose rows. Every
+        view filters on request.user, and this is the test that says so.
+        """
+        other = User.objects.create_user(email='ro2@test.local', password='x')
+        other_plan = WorkoutPlan.objects.create(
+            user=other, title='Theirs', current_week=1)
+
+        res = self.client.get(reverse('workout-plans'))
+        self.assertEqual([p['title'] for p in res.data], ['Mine'])
+
+        res = self.client.get(
+            reverse('workout-plan-detail', args=[other_plan.id]))
+        self.assertEqual(res.status_code, 404)
+
+    def test_a_revoked_readonly_key_cannot_read(self):
+        self.key.revoked_at = timezone.now()
+        self.key.save(update_fields=['revoked_at'])
+        res = self.client.get(reverse('workout-plans'))
+        self.assertEqual(res.status_code, 401)
+
+    # -- it does not disturb the other scopes -------------------------------
+
+    def test_the_other_scopes_are_unchanged(self):
+        """
+        A regression guard. Adding a scope must not quietly re-open or close
+        anything for the keys already in use.
+        """
+        logging_key = ApiKey.objects.create(
+            user=self.user, label='phone', scope=ApiKey.SCOPE_LOGGING)
+        feedback_key = ApiKey.objects.create(
+            user=self.user, label='loop', scope=ApiKey.SCOPE_FEEDBACK)
+
+        # logging still writes health, still cannot reach feedback.
+        self.assertTrue(scope_allows(logging_key, '/api/health/sync/', 'POST'))
+        self.assertFalse(scope_allows(logging_key, '/api/feedback/', 'GET'))
+        # feedback still reaches only the queue.
+        self.assertTrue(scope_allows(feedback_key, '/api/feedback/', 'GET'))
+        self.assertFalse(scope_allows(feedback_key, '/api/workouts/plans/', 'GET'))
+        # readonly reads workouts but writes nothing.
+        self.assertTrue(scope_allows(self.key, '/api/workouts/plans/', 'GET'))
+        self.assertFalse(scope_allows(self.key, '/api/workouts/plans/', 'POST'))
+        self.assertFalse(scope_allows(self.key, '/api/feedback/', 'GET'))
+
+    def test_every_unsafe_method_is_denied_across_every_allowed_prefix(self):
+        """
+        Exhaustive rather than representative: the allow-list is the security
+        boundary, so "safe methods only" is asserted over the whole cross
+        product instead of a sample.
+        """
+        from api.auth_keys import READONLY_SCOPE_ALLOWED
+        for prefix in READONLY_SCOPE_ALLOWED:
+            path = '/api/' + prefix
+            for method in ('GET', 'HEAD', 'OPTIONS'):
+                self.assertTrue(scope_allows(self.key, path, method),
+                                msg='%s %s' % (method, path))
+            for method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+                self.assertFalse(scope_allows(self.key, path, method),
+                                 msg='%s %s' % (method, path))

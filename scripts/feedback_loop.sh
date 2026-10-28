@@ -12,6 +12,15 @@
 #     printf '%s' '<43-char integration key>' > ~/.getfit-loop-token
 #   chmod 600 ~/.getfit-loop-token
 #
+#   OPTIONAL but recommended: a second key with scope "readonly", at
+#     ~/.getfit-readonly-token
+#   The agent uses it to VERIFY claims a submission makes about stored data.
+#   Without it, a report like "bench history has 22-rep sets" has to be taken
+#   on trust -- which cost a real item: it was escalated to protect sets the
+#   user had already corrected. The key cannot write anything (safe methods
+#   only, own rows only), which is what makes it safe to leave on disk for an
+#   unattended agent.
+#
 # The token must belong to a SUPERUSER — the queue endpoints return 403
 # otherwise. Override the backend URL with GETFIT_API if it changes.
 #
@@ -47,6 +56,14 @@ TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
 if [[ -z "$TOKEN" ]]; then
   log "ERROR: $TOKEN_FILE is empty."
   exit 1
+fi
+
+# Optional read-only key. Absent is fine and the loop behaves as before, just
+# without the ability to check its assumptions.
+READONLY_TOKEN_FILE="${GETFIT_READONLY_TOKEN_FILE:-$HOME/.getfit-readonly-token}"
+READONLY_TOKEN=""
+if [[ -r "$READONLY_TOKEN_FILE" ]]; then
+  READONLY_TOKEN="$(tr -d '[:space:]' < "$READONLY_TOKEN_FILE")"
 fi
 
 for bin in curl jq claude git; do
@@ -130,6 +147,29 @@ process_item() {
   local before
   before="$(git -C "$REPO" rev-parse HEAD)"
 
+  local verify_block=""
+  if [[ -n "$READONLY_TOKEN" ]]; then
+    verify_block="$(cat <<EOF
+
+VERIFY BEFORE YOU ACT:
+A submission describes the problem as the user saw it, possibly days ago, and
+possibly after they already worked around it. Do NOT treat its claims about
+stored data as facts. You have a READ-ONLY API key -- it cannot write anything
+-- so check first:
+
+  curl -sS -H 'Authorization: Bearer $READONLY_TOKEN' '$API/api/workouts/plans/'
+
+Readable: /api/workouts/, /api/sessions/, /api/health/, /api/diet/,
+/api/profile/. GET only; anything else returns 403 by design.
+
+This matters. One item was escalated to protect logged sets that the user had
+already fixed before submitting, because the text said they were broken and
+there was no way to look. If a claim does not hold, say so in your summary and
+proceed on what you actually found.
+EOF
+)"
+  fi
+
   local prompt
   prompt="$(cat <<EOF
 You are running unattended in the GetFit repo as an automated feedback loop.
@@ -150,6 +190,7 @@ Rules:
   ESCALATE: security-sensitive, needs review
 - Do NOT commit or push. The runner handles git.
 - When done, print a one-line summary of what you changed.
+$verify_block
 EOF
 )"
 

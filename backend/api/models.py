@@ -125,6 +125,7 @@ class ApiKey(models.Model):
 
     SCOPE_LOGGING = 'logging'
     SCOPE_FEEDBACK = 'feedback'
+    SCOPE_READONLY = 'readonly'
     SCOPE_FULL = 'full'
     SCOPE_CHOICES = [
         (SCOPE_LOGGING, 'Health, diet and workout logging'),
@@ -134,6 +135,13 @@ class ApiKey(models.Model):
         # phone agent. A dedicated scope keeps it least-privilege: it cannot
         # touch health, diet, plans or the account.
         (SCOPE_FEEDBACK, 'Feedback queue only'),
+        # Read-only, for an agent that needs to VERIFY a claim about stored
+        # data before acting on it. The feedback runner escalated an item to
+        # protect logged sets the user had already corrected, because all it
+        # had was the submission text and a feedback-scoped key -- it could not
+        # look. This scope lets it look and nothing else: GET/HEAD/OPTIONS
+        # only, on the owner's own rows.
+        (SCOPE_READONLY, 'Read-only access to your own data'),
         (SCOPE_FULL, 'Full account access'),
     ]
 

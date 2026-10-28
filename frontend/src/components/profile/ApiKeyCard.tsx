@@ -31,6 +31,21 @@ function relativeTime(iso: string | null): string {
   return days === 1 ? 'yesterday' : `${days}d ago`
 }
 
+/**
+ * Scopes offerable from the UI, least privilege first.
+ *
+ * `full` is deliberately absent: it exists server-side for completeness but
+ * handing out an unrestricted credential should not be a one-tap action.
+ */
+const SCOPES = [
+  { value: 'readonly', label: 'Read only',
+    hint: 'can look, cannot change anything' },
+  { value: 'logging', label: 'Logging',
+    hint: 'log workouts, meals and health' },
+  { value: 'feedback', label: 'Feedback',
+    hint: 'the feedback queue only' },
+]
+
 export default function ApiKeyCard() {
   const { showToast } = useToast()
 
@@ -38,6 +53,7 @@ export default function ApiKeyCard() {
   const [loading, setLoading] = useState(true)
   const [label, setLabel] = useState('')
   const [creating, setCreating] = useState(false)
+  const [scope, setScope] = useState('logging')
   // The full secret, held in component state only, shown once.
   const [revealed, setRevealed] = useState<ApiKey | null>(null)
   const [copied, setCopied] = useState(false)
@@ -57,7 +73,7 @@ export default function ApiKeyCard() {
     if (!name) return
     setCreating(true)
     try {
-      const created = await api.profile.createApiKey(name)
+      const created = await api.profile.createApiKey(name, scope)
       setRevealed(created)
       setLabel('')
       setCopied(false)
@@ -131,22 +147,47 @@ export default function ApiKeyCard() {
       )}
 
       {/* Create */}
-      <div className="flex gap-2 mb-4">
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
-          placeholder="What will use this key? e.g. phone agent"
-          maxLength={64}
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-        />
-        <button
-          onClick={handleCreate}
-          disabled={creating || !label.trim()}
-          className="text-sm font-semibold px-4 py-2 rounded-xl bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 transition-colors flex-shrink-0"
-        >
-          {creating ? '…' : 'Create'}
-        </button>
+      <div className="mb-4 space-y-2">
+        <div className="flex gap-2">
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+            placeholder="What will use this key? e.g. phone agent"
+            maxLength={64}
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          <button
+            onClick={handleCreate}
+            disabled={creating || !label.trim()}
+            className="text-sm font-semibold px-4 py-2 rounded-xl bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 transition-colors flex-shrink-0"
+          >
+            {creating ? '…' : 'Create'}
+          </button>
+        </div>
+        {/* Scope was previously fixed at "logging", so the narrower scopes
+            existed server-side but could not be minted without calling the
+            API by hand. Least privilege is only useful if it is reachable. */}
+        <div className="flex gap-1.5">
+          {SCOPES.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setScope(option.value)}
+              className={`flex-1 text-left px-2.5 py-1.5 rounded-xl border transition-colors ${
+                scope === option.value
+                  ? 'border-brand-300 bg-brand-50'
+                  : 'border-gray-200 hover:bg-gray-50'}`}
+            >
+              <p className={`text-[11px] font-semibold ${
+                scope === option.value ? 'text-brand-600' : 'text-gray-700'}`}>
+                {option.label}
+              </p>
+              <p className="text-[10px] text-gray-400 leading-tight">
+                {option.hint}
+              </p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* List */}
