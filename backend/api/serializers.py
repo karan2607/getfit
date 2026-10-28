@@ -150,7 +150,7 @@ class WorkoutPlanSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error', 'equipment']
         read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
 
 
@@ -161,7 +161,7 @@ class WorkoutPlanDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'days', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
+        fields = ['id', 'title', 'description', 'is_active', 'activated_at', 'generated_by_ai', 'duration_weeks', 'current_week', 'current_day_order', 'specific_goal', 'program_target', 'goal_check_in_shown', 'data_version', 'days', 'created_at', 'updated_at', 'program_outline', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error', 'equipment']
         read_only_fields = ['id', 'generated_by_ai', 'created_at', 'updated_at', 'weeks_ready', 'preparing_week', 'is_preparing', 'prepare_error']
 
 

@@ -1014,6 +1014,11 @@ def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
     lines = [
         f'Generate WEEK {week_number} of a {plan.duration_weeks}-week program.',
         f'Program: {plan.title}',
+        # The gym type the user chose at plan creation. Week 1 always had this;
+        # every later week was generated without it, because the answer was
+        # passed to the prompt and never stored. A week-5 plan could therefore
+        # prescribe cable machines to someone who had said "bodyweight only".
+        f'Equipment available: {plan.equipment}' if plan.equipment else None,
         '',
     ]
     if phase:
@@ -1358,6 +1363,23 @@ def _create_day(plan, day_data, week_number, order):
         is_rest_day=day_data.get('is_rest_day', False),
         order=order,
     )
+
+
+def _accepted_equipment(value):
+    """
+    A recognised equipment string, or '' for anything else.
+
+    Dropped rather than rejected, same call as `_accepted_outline`: the value
+    only sharpens the prompt and the superset rules, so a bad one should cost
+    that sharpening and not the whole plan. Blank already means "assume full
+    gym", which is the behaviour from before the field existed.
+    """
+    allowed = {choice for choice, _label in WorkoutPlan.EQUIPMENT_CHOICES}
+    text = str(value or '').strip().lower()
+    if text and text not in allowed:
+        logger.warning('dropping unrecognised equipment %r', value)
+        return ''
+    return text
 
 
 def _accepted_outline(data):
@@ -1799,6 +1821,13 @@ def workout_plan_generate(request):
     if confirmed_target:
         plan_data['program_target'] = confirmed_target
 
+    # Carry the gym type into the preview so SAVING the plan persists it. The
+    # frontend posts the preview object straight back, so this needs no client
+    # change -- and without it the answer the user gave is used once for week 1
+    # and then lost, leaving every later week generated blind.
+    if equipment:
+        plan_data['equipment'] = equipment
+
     return Response(plan_data)
 
 
@@ -1825,6 +1854,7 @@ def workout_plans(request):
         specific_goal=data.get('specific_goal', ''),
         program_target=data.get('program_target'),
         program_outline=_accepted_outline(data),
+        equipment=_accepted_equipment(data.get('equipment')),
     )
 
     notes_by_name = data.get('exercise_notes') or None

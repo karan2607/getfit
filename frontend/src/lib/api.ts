@@ -645,6 +645,8 @@ export interface WorkoutPlan {
     unit?: string
   } | null
   goal_check_in_shown: boolean
+  /** 'bodyweight' | 'home gym' | 'full gym'; '' when unknown (older plans). */
+  equipment?: string
   data_version?: number
   /**
    * Phase structure for the whole program. Lets the UI show the shape of
@@ -706,6 +708,13 @@ export interface WorkoutPlanPreview {
   days?: PreviewDay[]
   /** Legacy whole-plan shape. Still accepted on save. */
   weeks?: PreviewDay[][]
+  /**
+   * The gym type chosen before generating. Echoed back by the generate
+   * endpoint so that saving the preview PERSISTS it -- it used to be sent,
+   * used once for week 1, and then thrown away, leaving every later week
+   * generated with no idea what equipment existed.
+   */
+  equipment?: string
 }
 
 export interface SetLog {

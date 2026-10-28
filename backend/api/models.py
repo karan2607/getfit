@@ -245,6 +245,14 @@ class ChatMessage(models.Model):
 # ---------------------------------------------------------------------------
 
 class WorkoutPlan(models.Model):
+    # Mirrors EQUIPMENT_OPTIONS in frontend/src/pages/Workouts.tsx. Stored as
+    # the same strings the UI already sends so nothing has to be translated.
+    EQUIPMENT_CHOICES = [
+        ('bodyweight', 'Bodyweight only'),
+        ('home gym', 'Home gym'),
+        ('full gym', 'Full gym'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_plans')
     title = models.CharField(max_length=100)
@@ -256,6 +264,16 @@ class WorkoutPlan(models.Model):
     current_week = models.PositiveIntegerField(default=1)
     current_day_order = models.PositiveIntegerField(default=0)
     specific_goal = models.TextField(blank=True)
+    # What the user has access to, asked at plan creation
+    # ('bodyweight' | 'home gym' | 'full gym').
+    #
+    # This was collected and then thrown away: it was passed into the week-1
+    # generation prompt as a string and never stored, so every week generated
+    # afterwards was programmed with no idea what equipment existed, and the
+    # superset validator could not know either. Blank means unknown, which the
+    # prompt treats as 'full gym' exactly as before.
+    equipment = models.CharField(max_length=20, choices=EQUIPMENT_CHOICES,
+                                 blank=True, default='')
     program_target = models.JSONField(null=True, blank=True)
     goal_check_in_shown = models.BooleanField(default=False)
 
