@@ -139,6 +139,49 @@ def equipment_for(name):
     return profile['equipment'] if profile else ''
 
 
+# Equipment that implies a commercial gym. A cable tower or a plate-loaded
+# machine is not something a home setup has; a barbell or dumbbells might be.
+_GYM_ONLY_EQUIPMENT = frozenset(('machine', 'cable'))
+
+
+def infer_gym_type(names):
+    """
+    Which gym type a plan was built for, inferred from what it prescribes.
+
+    Returns 'full gym', 'home gym', 'bodyweight', or '' when there is not
+    enough evidence.
+
+    Why infer at all: the gym type was collected at plan creation and thrown
+    away until it was given a column, so every plan created before that has a
+    blank one -- and a blank means week 2+ is generated with no idea what the
+    user has. The plan's own exercises are the record of what was declared, so
+    this reads the evidence rather than guessing.
+
+    Deliberately conservative. '' is returned when nothing is recognisable,
+    because a wrong answer is worse than no answer: blank already means "assume
+    full gym", which is the pre-existing behaviour, whereas a wrong
+    'bodyweight' would strip equipment the user actually has.
+
+    In particular 'bodyweight' requires POSITIVE evidence of body-only work and
+    nothing else. A plan whose exercises are all unresolvable is no evidence of
+    a bodyweight plan; it is no evidence at all.
+    """
+    found = set()
+    for name in names or ():
+        equipment = equipment_for(name)
+        # 'other' is upstream's catch-all and says nothing about availability.
+        if equipment and equipment != 'other':
+            found.add(equipment)
+
+    if not found:
+        return ''
+    if found & _GYM_ONLY_EQUIPMENT:
+        return 'full gym'
+    if found - {'body only'}:
+        return 'home gym'
+    return 'bodyweight'
+
+
 def _equipment_problem(a, b, gym):
     """
     Equipment the user does not have, or None when the pair is fine.

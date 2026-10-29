@@ -287,3 +287,126 @@ class EquipmentKnowledgeBaseTests(APITestCase):
         unknown = {v['equipment'] for v in self.kb.values()
                    if v.get('equipment')} - known
         self.assertEqual(unknown, set(), msg='unmapped equipment values')
+
+
+class InferGymTypeTests(APITestCase):
+    """
+    Inferring the gym type from what a plan prescribes.
+
+    Needed because the answer was collected and discarded until the column
+    existed, so every pre-existing plan has a blank one -- and blank means
+    week 2+ is generated with no idea what the user has.
+
+    The bar: conservative. A wrong answer strips equipment the user actually
+    has; no answer just means "assume full gym", which is the behaviour from
+    before the column existed.
+    """
+
+    def infer(self, names):
+        from api import exercise_muscles as em
+        return em.infer_gym_type(names)
+
+    def test_cable_or_machine_work_means_a_full_gym(self):
+        """Nobody has a cable tower at home."""
+        self.assertEqual(self.infer(['Cable Crossover', 'Push-ups']), 'full gym')
+        self.assertEqual(self.infer(['Leg Press', 'Plank']), 'full gym')
+
+    def test_free_weights_alone_mean_a_home_gym(self):
+        self.assertEqual(
+            self.infer(['Barbell Bench Press', 'Dumbbell Curl', 'Push-ups']),
+            'home gym')
+
+    def test_body_only_work_means_bodyweight(self):
+        self.assertEqual(self.infer(['Push-ups', 'Pull-up', 'Plank']),
+                         'bodyweight')
+
+    def test_no_recognisable_equipment_means_no_answer(self):
+        """
+        The important restraint. An unresolvable plan is NOT evidence of a
+        bodyweight plan -- it is no evidence at all, and '' already means
+        "assume full gym".
+        """
+        # Genuinely unresolvable. Note 'Zercher Thing' would NOT work here:
+        # the fuzzy matcher correctly resolves it to 'zercher squats'
+        # (barbell), which is the matcher doing its job, not noise.
+        self.assertEqual(self.infer(['Qqqq Zzzz', 'Flibberty Wotsit']), '')
+        self.assertEqual(self.infer([]), '')
+        self.assertEqual(self.infer(None), '')
+
+    def test_the_catch_all_equipment_value_is_not_evidence(self):
+        """122 upstream records say 'other', which says nothing about a gym."""
+        from api import exercise_muscles as em
+        others = [n for n in ('Jump Rope', 'Battle Ropes')
+                  if em.equipment_for(n) == 'other']
+        if others:
+            self.assertEqual(self.infer(others), '')
+
+
+class EquipmentBackfillStepTests(APITestCase):
+    """Upgrade step 7, which writes the inferred value to existing plans."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='bfeq@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+
+    def build(self, names, equipment=''):
+        from api.models import Exercise
+        plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', current_week=1, equipment=equipment)
+        day = WorkoutDay.objects.create(
+            plan=plan, day_number=1, week_number=1, name='Full')
+        for order, name in enumerate(names):
+            Exercise.objects.create(day=day, name=name, sets=3, reps='10',
+                                    order=order)
+        return plan
+
+    def run_step(self, plan):
+        from api import data_upgrades
+        lines = []
+        changed = data_upgrades._step_7_infer_plan_equipment(plan, lines.append)
+        plan.refresh_from_db()
+        return changed, lines
+
+    def test_a_blank_plan_gets_the_inferred_value(self):
+        plan = self.build(['Cable Crossover', 'Lat Pulldown'])
+        changed, _ = self.run_step(plan)
+        self.assertEqual(changed, 1)
+        self.assertEqual(plan.equipment, 'full gym')
+
+    def test_an_existing_answer_is_never_overwritten(self):
+        """
+        THE invariant. A real answer from the user beats an inference from the
+        exercise list, always -- even when they disagree.
+        """
+        plan = self.build(['Cable Crossover', 'Lat Pulldown'],
+                          equipment='bodyweight')
+        changed, _ = self.run_step(plan)
+        self.assertEqual(changed, 0)
+        self.assertEqual(plan.equipment, 'bodyweight')
+
+    def test_an_unclear_plan_is_left_blank(self):
+        plan = self.build(['Qqqq Zzzz', 'Flibberty Wotsit'])
+        changed, lines = self.run_step(plan)
+        self.assertEqual(changed, 0)
+        self.assertEqual(plan.equipment, '')
+        self.assertTrue(any('left blank' in line for line in lines))
+
+    def test_a_second_run_changes_nothing(self):
+        plan = self.build(['Cable Crossover', 'Lat Pulldown'])
+        self.run_step(plan)
+        changed, _ = self.run_step(plan)
+        self.assertEqual(changed, 0)
+        self.assertEqual(plan.equipment, 'full gym')
+
+    def test_it_is_registered_as_step_seven(self):
+        from api import data_upgrades
+        label, func = data_upgrades.UPGRADES[7]
+        self.assertEqual(func, data_upgrades._step_7_infer_plan_equipment)
+        self.assertIn('equipment', label)
+
+    def test_the_whole_runner_applies_it(self):
+        from django.core.management import call_command
+        plan = self.build(['Cable Crossover', 'Lat Pulldown'])
+        call_command('upgrade_data', verbosity=0)
+        plan.refresh_from_db()
+        self.assertEqual(plan.equipment, 'full gym')

@@ -247,6 +247,48 @@ def _step_6_reclassify_for_new_types(plan, stdout):
     return changed
 
 
+def _step_7_infer_plan_equipment(plan, stdout):
+    """
+    Fill in `WorkoutPlan.equipment` for plans created before the column existed.
+
+    The gym type was always collected at plan creation and then discarded, so
+    every pre-existing plan has a blank one -- and blank means week 2+ is
+    generated with no idea what the user has access to. A plan's own exercises
+    are the record of what was declared, so this reads that evidence rather
+    than guessing (see exercise_muscles.infer_gym_type).
+
+    NEVER overwrites a value that is already set: a real answer from the user
+    beats an inference from the exercise list, always.
+
+    Leaves the field blank when the evidence is unclear. Blank already means
+    "assume full gym", which is the behaviour from before the column existed,
+    so no-answer is safe while a wrong answer would strip equipment the user
+    actually has.
+
+    Idempotent: a plan with a value set is skipped on every subsequent run.
+    """
+    from . import exercise_muscles
+
+    if plan.equipment:
+        return 0
+
+    names = set()
+    for day in plan.days.all():
+        for exercise in day.exercises.all():
+            names.add(exercise.name)
+
+    inferred = exercise_muscles.infer_gym_type(names)
+    if not inferred:
+        stdout('    %s: no equipment evidence, left blank' % plan.title[:40])
+        return 0
+
+    stdout('    %s: equipment -> %r (from %d exercise name(s))'
+           % (plan.title[:40], inferred, len(names)))
+    plan.equipment = inferred
+    plan.save(update_fields=['equipment'])
+    return 1
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
@@ -256,6 +298,8 @@ UPGRADES = {
     5: ('canonicalise exercise names', _step_5_canonicalise_exercise_names),
     6: ('reclassify for cardio_machine / weight_distance',
         _step_6_reclassify_for_new_types),
+    7: ('infer equipment for plans that predate the field',
+        _step_7_infer_plan_equipment),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0
