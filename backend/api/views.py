@@ -1400,6 +1400,47 @@ def _create_day(plan, day_data, week_number, order):
     )
 
 
+def _json_field(value, expected):
+    """
+    A nested request field that may arrive as a JSON STRING.
+
+    Reported from a phone: "Failed to build prompt: string indices must be
+    integers, not 'str'".
+
+    The client sends JSON normally, but switches to FormData when a body photo
+    is attached, and FormData cannot carry nested structures -- so it
+    JSON.stringify()s `specific_goals`, `goal_params` and `confirmed_target`.
+    Nothing parsed them back. `goal_params` therefore arrived as the string
+    '{"lose_weight": {...}}', and:
+
+        if 'lose_weight' in goal_params      # substring match on a str -> True
+            p = goal_params['lose_weight']   # TypeError
+
+    The membership test passing on a string is what turned this into a 500
+    instead of a harmlessly skipped branch. Two silent corruptions rode along:
+    a string `specific_goals` iterates CHARACTERS, so the prompt literally read
+    "Specific goals: l, o, s, e, _, w, ...", and a string `confirmed_target`
+    has no `.get`.
+
+    Net effect: attaching a photo broke plan generation, and ONLY when a photo
+    was attached -- which is why it was never seen in testing.
+
+    Returns None for anything unusable rather than raising. These fields only
+    sharpen the prompt, so a malformed one costs that sharpening, never the
+    plan. Same call as `_accepted_equipment` and `_accepted_outline`.
+    """
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            logger.warning('unparseable %s field: %.80r',
+                           getattr(expected, '__name__', expected), value)
+            return None
+    # isinstance check AFTER parsing: '"lose_weight"' is valid JSON that
+    # decodes to a str, which is the exact shape that caused the crash.
+    return value if isinstance(value, expected) else None
+
+
 def _accepted_equipment(value):
     """
     A recognised equipment string, or '' for anything else.
@@ -1723,8 +1764,8 @@ def workout_plan_suggest_target(request):
     experience_level = request.data.get('experience_level', '')
     days_per_week = request.data.get('days_per_week', 4)
     duration_weeks = request.data.get('duration_weeks', 8)
-    specific_goals = request.data.get('specific_goals', [])
-    goal_params = request.data.get('goal_params', {})
+    specific_goals = _json_field(request.data.get('specific_goals'), list) or []
+    goal_params = _json_field(request.data.get('goal_params'), dict) or {}
     notes = request.data.get('notes', '')
     body_context = request.data.get('body_context', '')
 
@@ -1824,9 +1865,10 @@ def workout_plan_generate(request):
         except Exception:
             pass
 
-    specific_goals = request.data.get('specific_goals', [])
-    goal_params = request.data.get('goal_params', {})
-    confirmed_target = request.data.get('confirmed_target', None)
+    # Coerced because a body photo forces multipart, which stringifies these.
+    specific_goals = _json_field(request.data.get('specific_goals'), list) or []
+    goal_params = _json_field(request.data.get('goal_params'), dict) or {}
+    confirmed_target = _json_field(request.data.get('confirmed_target'), dict)
 
     try:
         profile = request.user.profile

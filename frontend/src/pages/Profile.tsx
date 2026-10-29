@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api, type UserProfile } from '../lib/api'
 import { toDisplayWeight, toStorageWeight, type WeightUnit } from '../lib/units'
@@ -118,9 +119,18 @@ function PersonalNotesCard({ value, onChange, onSave }: {
 type Tab = 'info' | 'notes' | 'password'
 
 export default function Profile() {
-  const { user, setUser } = useAuth()
+  const { user, setUser, logout } = useAuth()
+  const navigate = useNavigate()
   const { showToast } = useToast()
   const [tab, setTab] = useState<Tab>('info')
+
+  function handleLogout() {
+    // Confirmed because signing out on a phone means retyping a password, and
+    // the button sits directly under the password form.
+    if (!window.confirm('Sign out of GetFit on this device?')) return
+    logout()
+    navigate('/login')
+  }
   const [saving, setSaving] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [form, setForm] = useState<Partial<UserProfile>>({})
@@ -388,6 +398,28 @@ export default function Profile() {
             <AdminResetCard />
           </div>
         )}
+
+        {/* Sign out.
+            Outside the tabs on purpose: it is an account action, not a
+            settings field, and someone looking for it will not guess which tab
+            it lives under. `logout` already existed in the auth context but
+            was only ever fired by the 30-minute inactivity timer — there was no
+            way for the user to do it deliberately.
+
+            Safe for integrations now: logout deletes the DRF session token,
+            which used to take the phone agent's credential with it. Integration
+            keys are independent of sessions, so an ApiKey survives this. */}
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <button
+            onClick={handleLogout}
+            className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-xl py-2.5 text-sm transition-colors"
+          >
+            Sign out
+          </button>
+          <p className="mt-2 text-center text-[11px] text-gray-400">
+            Signed in as {user?.email}
+          </p>
+        </div>
 
       </div>
     </div>
