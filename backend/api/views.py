@@ -20,7 +20,7 @@ from rest_framework import status
 
 from .models import (
     PasswordResetToken, UserProfile, ChatSession, ChatMessage,
-    WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
+    WorkoutPlan, WorkoutDay, Exercise, Composite, WorkoutSession, SetLog,
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
     ExerciseGuide, MealGuide,
     HealthConnection, HealthDailySummary, HealthWorkout,
@@ -208,6 +208,25 @@ def profile(request):
 # Chat
 # ---------------------------------------------------------------------------
 
+def _wire_group_numbers(exercises):
+    """
+    Map each composite id to a small integer, for the AI wire format.
+
+    Storage is a `Composite` container; the model is taught a flat
+    `superset_group` integer, because that is what it handles reliably -- see
+    _composite_for. This is the outbound half of that translation.
+
+    Numbering is per day and follows `order`, so the integers read 1, 2 in the
+    sequence the user sees rather than in container-creation order.
+    """
+    numbers = {}
+    for exercise in exercises:
+        composite_id = getattr(exercise, 'composite_id', None)
+        if composite_id and composite_id not in numbers:
+            numbers[composite_id] = len(numbers) + 1
+    return numbers
+
+
 def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, diet_plan_id=None, meal_id=None) -> str:
     preferred_unit = 'lb'
     try:
@@ -346,6 +365,7 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                 wk = day.week_number or 1
                 if wk not in weeks_map:
                     weeks_map[wk] = []
+                day_groups = _wire_group_numbers(day.exercises.all())
                 weeks_map[wk].append({
                     'day_number': day.day_number,
                     'name': day.name,
@@ -356,12 +376,16 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                     # chat outputs the COMPLETE plan back, so any field missing
                     # here was silently dropped on every edit. Supersets came
                     # back ungrouped and timed exercises came back as lifts.
+                    #
+                    # Groups are rendered as the flat integer the model is
+                    # taught, not as the stored container -- see
+                    # _composite_for on why the wire format stays flat.
                     'exercises': [
                         {'name': ex.name, 'sets': ex.sets, 'reps': ex.reps,
                          'rest_seconds': ex.rest_seconds, 'notes': ex.notes or '',
                          'measurement_type': ex.measurement_type,
-                         **({'superset_group': ex.superset_group}
-                            if ex.superset_group is not None else {})}
+                         **({'superset_group': day_groups[ex.composite_id]}
+                            if ex.composite_id else {})}
                         for ex in day.exercises.all()
                     ],
                 })
@@ -377,14 +401,16 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
                 try:
                     from .models import WorkoutDay
                     day_obj = WorkoutDay.objects.prefetch_related('exercises').get(pk=day_id, plan=plan_obj)
+                    focus_groups = _wire_group_numbers(
+                        day_obj.exercises.order_by('order'))
                     day_exercises = [
                         f'  - {ex.name}: {ex.sets} sets × {ex.reps}'
                         + (f', {ex.rest_seconds}s rest' if ex.rest_seconds else '')
                         # The day listing is what the model edits from when the
                         # user clicks Edit on one day, so an existing group has
                         # to be visible HERE too, not only in the JSON above.
-                        + (f' [superset_group {ex.superset_group}]'
-                           if ex.superset_group is not None else '')
+                        + (f' [superset_group {focus_groups[ex.composite_id]}]'
+                           if ex.composite_id else '')
                         + (f' | {ex.notes}' if ex.notes else '')
                         for ex in day_obj.exercises.order_by('order')
                     ]
@@ -1595,6 +1621,44 @@ def _exercise_note(ex_data, canonical_name, notes_by_name):
     return canonical_map.get(canonical_name) or ''
 
 
+def _composite_for(day, group, rest_seconds=None):
+    """
+    The `Composite` row for a wire-format `superset_group` integer on this day.
+
+    The AI wire format is still a flat integer -- that is what the model
+    handles reliably, and nesting is where it previously failed by merging two
+    exercises into one name. Storage is a container. This is the translation,
+    and it lives here so the six `_create_exercise` call sites do not each need
+    to know about it.
+
+    The cache hangs off the `day` instance because creation is always a single
+    pass over one day's exercises, so the same instance is reused throughout.
+
+    `rest_seconds` is updated as members arrive, so the LAST member's value
+    wins -- identical to what migration 0045 does to existing groups, and to
+    what the card rendered before containers existed.
+
+    Safe to create eagerly because `_validate_superset_groups` has already run
+    and stripped every lone or rejected group, so any integer still present
+    belongs to a validated group of two or more.
+    """
+    if group is None:
+        return None
+    cache = getattr(day, '_composite_cache', None)
+    if cache is None:
+        cache = {}
+        day._composite_cache = cache
+    composite = cache.get(group)
+    if composite is None:
+        composite = Composite.objects.create(
+            day=day, order=len(cache), rest_seconds=rest_seconds)
+        cache[group] = composite
+    elif rest_seconds is not None:
+        composite.rest_seconds = rest_seconds
+        composite.save(update_fields=['rest_seconds'])
+    return composite
+
+
 def _create_exercise(day, ex_data: dict, order: int, notes_by_name=None):
     """
     Single creation path for Exercise rows.
@@ -1628,7 +1692,8 @@ def _create_exercise(day, ex_data: dict, order: int, notes_by_name=None):
             day_name=getattr(day, 'name', None),
             reps=reps,
         ),
-        superset_group=ex_data.get('superset_group'),
+        composite=_composite_for(day, ex_data.get('superset_group'),
+                                 ex_data.get('rest_seconds')),
     )
 
 
@@ -5321,11 +5386,15 @@ def workout_day_supersets(request, day_id):
                          'kind': kind},
                         status=status.HTTP_400_BAD_REQUEST)
 
-    # Reorder so members are contiguous, then assign group numbers.
+    # Reorder so members are contiguous, then rebuild the containers.
     with transaction.atomic():
-        Exercise.objects.filter(day=day).update(superset_group=None)
+        # Detach first, then delete the old containers. SET_NULL means the
+        # delete alone would leave the exercises intact anyway, but detaching
+        # explicitly keeps the intent obvious: this rewrites GROUPING, never
+        # training data.
+        Exercise.objects.filter(day=day).update(composite=None)
+        Composite.objects.filter(day=day).delete()
 
-        grouped_ids = {ex.id for members in resolved for ex in members}
         sequence = []
         placed = set()
         for exercise in exercises:
@@ -5337,14 +5406,25 @@ def workout_day_supersets(request, day_id):
                 sequence.append((exercise, None))
                 placed.add(exercise.id)
                 continue
-            number = resolved.index(owning) + 1
+            index = resolved.index(owning)
             for member in owning:
-                sequence.append((member, number))
+                sequence.append((member, index))
                 placed.add(member.id)
 
-        for order, (exercise, number) in enumerate(sequence):
+        # Rest comes from the LAST member, matching migration 0045 and what
+        # the card rendered before containers existed.
+        containers = {}
+        for index, members in enumerate(resolved):
+            containers[index] = Composite.objects.create(
+                day=day, order=index,
+                rest_seconds=next(
+                    (m.rest_seconds for m in reversed(members)
+                     if m.rest_seconds is not None), None))
+
+        for order, (exercise, index) in enumerate(sequence):
             Exercise.objects.filter(pk=exercise.pk).update(
-                order=order, superset_group=number)
+                order=order,
+                composite=containers[index] if index is not None else None)
 
     logger.info('day %s supersets set: %d group(s)', day_id, len(resolved))
     day.refresh_from_db()

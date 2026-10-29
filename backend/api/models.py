@@ -366,6 +366,51 @@ class WorkoutDay(models.Model):
         return f'{self.name} (Plan: {self.plan.title})'
 
 
+class Composite(models.Model):
+    """
+    A container for exercises performed back to back as one round.
+
+    Two members is a superset, three a triset, four a giant set; the name is
+    derived from the count rather than stored, because storing it would let the
+    label disagree with the membership.
+
+    Why a container rather than a flag on Exercise
+    ----------------------------------------------
+    This replaced `Exercise.superset_group`, an integer shared by members of
+    the same group. That worked for identity and ordering, but it had nowhere
+    to put REST -- and rest belongs to the group, not to a member: you do every
+    exercise back to back and then rest once. The card had to read the LAST
+    member's `rest_seconds` and hope, which is a guess dressed as a rule.
+
+    A component is still an `Exercise` row, so there is no join table carrying
+    no data of its own, and nothing about SetLog, the field contract,
+    progression or history changes. Each member logs its own sets exactly as
+    before -- which is the property that made the merged "A + B" exercise so
+    damaging and is worth protecting explicitly.
+
+    Invariants enforced server-side (see views._validate_superset_groups and
+    workout_day_supersets): 2-4 members, contiguous in `order`, no warmup
+    member, not the day's first working exercise, equal `sets`, and every pair
+    accepted by exercise_muscles.superset_verdict.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE,
+                            related_name='composites')
+    # Position among the day's units. Members carry their own Exercise.order,
+    # which is what actually sequences the work; this exists so a composite can
+    # be addressed and reordered as a whole.
+    order = models.PositiveIntegerField(default=0)
+    # Rest after a complete round. The field this model exists for.
+    rest_seconds = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return 'Composite %s (%s)' % (self.order, self.day.name)
+
+
 class Exercise(models.Model):
     MEASUREMENT_TYPE_CHOICES = [
         ('weight_reps', 'Weight + Reps'),
@@ -384,18 +429,19 @@ class Exercise(models.Model):
     notes = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     measurement_type = models.CharField(max_length=20, choices=MEASUREMENT_TYPE_CHOICES, default='weight_reps')
-    # Exercises on the same day sharing a group are performed back to back.
-    # null = a standalone exercise, which is almost everything.
+    # The composite this exercise is a component of, or null for a standalone
+    # exercise -- which is almost everything.
     #
-    # Invariants enforced server-side (see views._validate_superset_groups):
-    # >=2 members, contiguous in `order`, no warmup member, equal `sets`, and
-    # every pair accepted by exercise_muscles.superset_verdict -- so a bad
-    # pairing is not reachable by the AI or by hand.
+    # Replaced `superset_group` (a shared integer). See Composite for why: an
+    # integer had nowhere to store the group's rest, so the card read the last
+    # member's value and hoped.
     #
-    # SetLog is deliberately untouched: each member still logs its own sets,
-    # so the field contract, coerce_set_fields, progression and history all
-    # keep working unchanged.
-    superset_group = models.PositiveIntegerField(null=True, blank=True)
+    # SetLog is deliberately untouched by all of this: each member still logs
+    # its own sets, so the field contract, coerce_set_fields, progression and
+    # history keep working unchanged.
+    composite = models.ForeignKey('Composite', on_delete=models.SET_NULL,
+                                  null=True, blank=True,
+                                  related_name='exercises')
 
     class Meta:
         ordering = ['order']

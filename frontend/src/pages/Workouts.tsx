@@ -650,7 +650,7 @@ function CompositeCard({ exercises, onClick }: {
   onClick: (e: Exercise) => void
 }) {
   const rounds = compositeRounds(exercises.map((e) => e.sets))
-  const rest = compositeRest(exercises.map((e) => e.rest_seconds ?? null))
+  const rest = compositeRest(exercises)
 
   return (
     <div className="flex-shrink-0 w-56 bg-white rounded-xl shadow-sm border-2 border-brand-200 flex flex-col overflow-hidden">
@@ -1350,7 +1350,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     | { kind: 'superset'; key: string; entries: typeof exerciseEntries }
 
   const renderUnits: RenderUnit[] = groupIntoUnits(
-    exerciseEntries, (entry) => entry.planEx,
+    exerciseEntries, (entry) => entry.planEx ?? undefined,
   ).map((unit) => (
     unit.kind === 'composite'
       ? { kind: 'superset' as const,
@@ -1577,7 +1577,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                     {isOpen && (
                       <button
-                        onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType, superset_group: null })}
+                        onClick={() => setSelectedExercise(planEx ?? { id: '', name: exerciseName, sets: 0, reps: '', order: 0, rest_seconds: null, notes: '', measurement_type: mType, composite_id: null, composite_rest_seconds: null })}
                         className="text-xs text-brand-500 border border-brand-200 rounded-lg px-2.5 py-1 font-medium hover:bg-brand-50 transition-colors"
                       >
                         How to

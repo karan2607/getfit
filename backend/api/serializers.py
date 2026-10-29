@@ -126,9 +126,30 @@ class ChatSessionDetailSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class ExerciseSerializer(serializers.ModelSerializer):
+    """
+    A plan exercise.
+
+    `composite_id` and `composite_rest_seconds` replaced `superset_group`.
+    The client needs exactly two things to render a group -- an identifier
+    shared by its members, and the rest that follows a complete round -- and a
+    bare integer could only ever supply the first. The card previously read the
+    LAST member's `rest_seconds` and hoped; now the group's own value is sent.
+
+    Flat rather than a nested object on purpose: the members are already
+    siblings in the `exercises` list, so nesting the container would repeat it
+    once per member.
+    """
+
+    composite_id = serializers.UUIDField(read_only=True, allow_null=True)
+    composite_rest_seconds = serializers.IntegerField(
+        source='composite.rest_seconds', read_only=True, allow_null=True,
+        default=None)
+
     class Meta:
         model = Exercise
-        fields = ['id', 'name', 'sets', 'reps', 'rest_seconds', 'notes', 'order', 'measurement_type', 'superset_group']
+        fields = ['id', 'name', 'sets', 'reps', 'rest_seconds', 'notes',
+                  'order', 'measurement_type',
+                  'composite_id', 'composite_rest_seconds']
         read_only_fields = ['id']
 
 

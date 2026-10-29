@@ -28,7 +28,7 @@ from rest_framework.authtoken.models import Token
 
 from api import views, exercise_types as et
 from api.models import (
-    User, UserProfile, WorkoutPlan, WorkoutDay, Exercise,
+    User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, Composite,
 )
 
 
@@ -189,7 +189,7 @@ class MergedExerciseSavePathTests(APITestCase):
             {'name': 'Barbell Squat', 'sets': 3, 'reps': '5'},
             {'name': 'Leg Extension + Leg Curl', 'sets': 3, 'reps': '12'},
         ])
-        groups = [e.superset_group for e in saved
+        groups = [e.composite_id for e in saved
                   if e.name in ('Leg Extension', 'Leg Curl')]
         self.assertEqual(len(groups), 2)
         self.assertIsNotNone(groups[0])
@@ -216,15 +216,17 @@ class ChatPlanContextTests(APITestCase):
         self.plan = WorkoutPlan.objects.create(user=self.user, title='Grouped')
         self.day = WorkoutDay.objects.create(
             plan=self.plan, day_number=1, week_number=1, name='Pull')
+        self.composite = Composite.objects.create(
+            day=self.day, order=0, rest_seconds=75)
         Exercise.objects.create(
             day=self.day, name='Deadlift', sets=3, reps='5', order=0,
             measurement_type=et.WEIGHT_REPS)
         Exercise.objects.create(
             day=self.day, name='Lat Pulldown', sets=3, reps='12', order=1,
-            measurement_type=et.WEIGHT_REPS, superset_group=1)
+            measurement_type=et.WEIGHT_REPS, composite=self.composite)
         Exercise.objects.create(
             day=self.day, name='Plank', sets=3, reps='45 sec', order=2,
-            measurement_type=et.DURATION, superset_group=1)
+            measurement_type=et.DURATION, composite=self.composite)
 
     def context(self, day_id=None):
         return views._build_system_prompt(

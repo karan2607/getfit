@@ -606,7 +606,13 @@ export interface Exercise {
    * null for almost everything. Members are contiguous in `order` and
    * server-validated, so the UI can group consecutive matches safely.
    */
-  superset_group: number | null
+  /**
+   * The composite (superset/triset) this exercise belongs to, or null.
+   * Replaced `superset_group`: the client needs a shared identifier AND the
+   * group's rest, and a bare integer could only supply the first.
+   */
+  composite_id: string | null
+  composite_rest_seconds: number | null
 }
 
 export interface WorkoutDay {

@@ -18,8 +18,8 @@ from rest_framework.test import APITestCase
 
 from api import views, exercise_types as et
 from api.models import (
-    User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, WorkoutSession,
-    SetLog,
+    User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, Composite,
+    WorkoutSession, SetLog,
 )
 
 
@@ -180,9 +180,10 @@ class PlanCreationTests(APITestCase):
             ex('Barbell Bench Press', superset_group=1),
             ex('Chest-Supported T-Bar Row', superset_group=1),
         ])
-        grouped = plan.days.first().exercises.exclude(superset_group=None)
+        grouped = plan.days.first().exercises.exclude(composite=None)
         self.assertEqual(grouped.count(), 2)
-        self.assertEqual({g.superset_group for g in grouped}, {1})
+        # One container shared by both members, which is what the integer meant.
+        self.assertEqual(len({g.composite_id for g in grouped}), 1)
 
     def test_a_rejected_group_is_saved_ungrouped(self):
         """The workout survives; only the pairing is lost."""
@@ -194,7 +195,7 @@ class PlanCreationTests(APITestCase):
         ])
         day = plan.days.first()
         self.assertEqual(day.exercises.count(), 4)
-        self.assertEqual(day.exercises.exclude(superset_group=None).count(), 0)
+        self.assertEqual(day.exercises.exclude(composite=None).count(), 0)
 
     def test_the_serializer_exposes_the_group(self):
         plan = self.create([
@@ -204,9 +205,18 @@ class PlanCreationTests(APITestCase):
         ])
         res = self.client.get(reverse('workout-plan-detail', args=[plan.id]))
         exercises = res.data['days'][0]['exercises']
-        self.assertIn('superset_group', exercises[0])
-        self.assertEqual([e['superset_group'] for e in exercises],
-                         [None, None, 1, 1])
+        self.assertIn('composite_id', exercises[0])
+        ids = [e['composite_id'] for e in exercises]
+        # Standalone exercises carry nothing; the two members share one
+        # container id. The value is opaque to the client -- it only ever
+        # compares members, which is all the grouping needs.
+        self.assertEqual(ids[:2], [None, None])
+        self.assertIsNotNone(ids[2])
+        self.assertEqual(ids[2], ids[3])
+        # And the group's own rest is sent, which is the whole reason the
+        # container exists: the card used to read the last member's value.
+        rests = [e['composite_rest_seconds'] for e in exercises]
+        self.assertEqual(rests[2], rests[3])
 
 
 class SetLoggingUnaffectedTests(APITestCase):
@@ -224,12 +234,14 @@ class SetLoggingUnaffectedTests(APITestCase):
                                           duration_weeks=1, current_week=1)
         self.day = WorkoutDay.objects.create(plan=plan, day_number=1,
                                              week_number=1, name='Push')
+        self.composite = Composite.objects.create(
+            day=self.day, order=0, rest_seconds=90)
         self.a = Exercise.objects.create(
             day=self.day, name='Barbell Bench Press', sets=3, reps='8-12',
-            measurement_type=et.WEIGHT_REPS, order=0, superset_group=1)
+            measurement_type=et.WEIGHT_REPS, order=0, composite=self.composite)
         self.b = Exercise.objects.create(
             day=self.day, name='Push-ups', sets=3, reps='10-15',
-            measurement_type=et.BODYWEIGHT_REPS, order=1, superset_group=1)
+            measurement_type=et.BODYWEIGHT_REPS, order=1, composite=self.composite)
         self.session = WorkoutSession.objects.create(
             user=self.user, exercise_day=self.day, day_name='Push')
 
@@ -304,7 +316,7 @@ class SupersetEndpointTests(APITestCase):
         res = self.post([self.ids('Barbell Bench Press',
                                   'Chest-Supported T-Bar Row')])
         self.assertEqual(res.status_code, 200, res.data)
-        grouped = list(self.day.exercises.exclude(superset_group=None)
+        grouped = list(self.day.exercises.exclude(composite=None)
                        .order_by('order'))
         self.assertEqual(len(grouped), 2)
         self.assertEqual(grouped[1].order - grouped[0].order, 1)
@@ -344,11 +356,11 @@ class SupersetEndpointTests(APITestCase):
     def test_an_empty_list_clears_all_grouping(self):
         self.post([self.ids('Barbell Bench Press', 'Chest-Supported T-Bar Row')])
         self.assertEqual(
-            self.day.exercises.exclude(superset_group=None).count(), 2)
+            self.day.exercises.exclude(composite=None).count(), 2)
         res = self.post([])
         self.assertEqual(res.status_code, 200)
         self.assertEqual(
-            self.day.exercises.exclude(superset_group=None).count(), 0)
+            self.day.exercises.exclude(composite=None).count(), 0)
 
     def test_an_exercise_from_another_day_is_refused(self):
         other_plan = WorkoutPlan.objects.create(user=self.user, title='Q',
@@ -378,10 +390,10 @@ class SupersetEndpointTests(APITestCase):
     def test_nothing_is_written_when_validation_fails(self):
         """Atomic: a refused request must not reorder or partly group."""
         before = list(self.day.exercises.order_by('order')
-                      .values_list('id', 'order', 'superset_group'))
+                      .values_list('id', 'order', 'composite_id'))
         self.post([self.ids('Barbell Bench Press', 'Push-ups')])
         after = list(self.day.exercises.order_by('order')
-                     .values_list('id', 'order', 'superset_group'))
+                     .values_list('id', 'order', 'composite_id'))
         self.assertEqual(before, after)
 
 

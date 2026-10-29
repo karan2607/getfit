@@ -9,8 +9,10 @@
  * workout — which is exactly when it is too late to notice the plan is wrong.
  *
  * This is also the single adaptation point for how a composite is identified.
- * Today that is `superset_group` on each exercise; if that moves to a real
- * container the only place that needs to change is `groupKeyOf`.
+ * It was `superset_group`, a shared integer; it is now `composite_id`, a real
+ * container that also carries the group's rest. Moving it needed changes to
+ * exactly `groupKeyOf` and `compositeRest` — which is what this file exists
+ * for.
  *
  * Degradation is deliberate: a group with fewer than two members is NOT a
  * composite. The server rejects those, but a hand-edited or partially migrated
@@ -20,15 +22,17 @@
 
 /** The minimum an item needs for grouping. Both plan rows and session entries fit. */
 export interface Groupable {
-  superset_group?: number | null
+  composite_id?: string | null
+  /** Rest after a complete round, from the container rather than a member. */
+  composite_rest_seconds?: number | null
 }
 
 export type CompositeUnit<T> =
   | { kind: 'single'; item: T }
-  | { kind: 'composite'; group: number; items: T[] }
+  | { kind: 'composite'; group: string; items: T[] }
 
-function groupKeyOf(item: Groupable | null | undefined): number | null {
-  return item?.superset_group ?? null
+function groupKeyOf(item: Groupable | null | undefined): string | null {
+  return item?.composite_id ?? null
 }
 
 /**
@@ -90,12 +94,22 @@ export function compositeRounds(sets: number[]): number {
  * Rest between rounds, in seconds.
  *
  * Rest belongs to the ROUND, not to a member — you do every exercise back to
- * back and then rest once. The last member's value is the one that means
- * "after the round", which is why it wins over the others.
+ * back and then rest once. The container now carries it, so this reads the
+ * group's own value and falls back to the last member only for data that
+ * predates the container.
+ *
+ * That fallback is not dead code: it is exactly what the card did before, and
+ * what migration 0045 used to populate the containers, so the two agree.
  */
-export function compositeRest(restSeconds: Array<number | null>): number | null {
-  for (let i = restSeconds.length - 1; i >= 0; i--) {
-    if (restSeconds[i] != null) return restSeconds[i]
+export function compositeRest(
+  items: Array<Groupable & { rest_seconds?: number | null }>,
+): number | null {
+  for (const item of items) {
+    if (item.composite_rest_seconds != null) return item.composite_rest_seconds
+  }
+  for (let i = items.length - 1; i >= 0; i--) {
+    const value = items[i].rest_seconds
+    if (value != null) return value
   }
   return null
 }

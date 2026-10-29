@@ -55,7 +55,7 @@ export default function SupersetCard({
   const allLogs = members.flatMap((m) => m.logs)
   const doneCount = allLogs.filter((l) => isSetCompleted(l)).length
   const allDone = allLogs.length > 0 && doneCount === allLogs.length
-  const rest = compositeRest(members.map((m) => m.planEx.rest_seconds ?? null))
+  const rest = compositeRest(members.map((m) => m.planEx))
 
   function roundComplete(round: number) {
     const logs = members.map((m) => m.logs[round]).filter(Boolean) as SetLog[]
