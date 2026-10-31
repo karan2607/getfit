@@ -48,7 +48,10 @@ from .rules import RULES
 # captured fixture -- so this re-baseline changes the fingerprint and nothing
 # else. That is the ideal shape for a new rule: it proves the golden set was
 # already clean on the defect rather than quietly absorbing it.
-SUITE_VERSION = 4
+# 5: added goals_are_served (weight 2.0). Neutral on all eight fixtures --
+# their contexts predate `specific_goals` -- so this re-baseline is the
+# fingerprint plus one null key per plan, and no existing score moves.
+SUITE_VERSION = 5
 
 
 def rules_fingerprint(rules=RULES):

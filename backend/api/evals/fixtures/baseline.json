@@ -1,6 +1,6 @@
 {
-  "suite_version": 4,
-  "rules_fingerprint": "707e45b08b2bc14dbd4688adcd7f30138f6cfa7f7f61d1ea3049642e37b663db",
+  "suite_version": 5,
+  "rules_fingerprint": "7c4c3a1f47c0a17106eee4036981499e08f8c4f75ca0f25a567fe679d877497d",
   "_comment": "Exact expected failure counts per fixture per rule. Regenerate with `manage.py eval_plans --update-baseline`, always as its own commit -- bundling it with a code change would launder a regression into the baseline.",
   "plans": {
     "plan01": {
@@ -17,6 +17,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -35,6 +36,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -53,6 +55,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -71,6 +74,7 @@
       "no_banned_names": 1,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -89,6 +93,7 @@
       "no_banned_names": 5,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -107,6 +112,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -125,6 +131,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
@@ -143,6 +150,7 @@
       "no_banned_names": 0,
       "superset_groups_valid": 0,
       "no_merged_exercise_names": 0,
+      "goals_are_served": 0,
       "program_outline_tiles_the_program": 0,
       "exercise_notes_map_resolves": 0,
       "single_week_payload": 0
