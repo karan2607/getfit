@@ -466,3 +466,156 @@ class SplitExistingMergedRowsTests(APITestCase):
         label, func = data_upgrades.UPGRADES[8]
         self.assertEqual(func, data_upgrades._step_8_split_merged_exercises)
         self.assertIn('merged', label)
+
+
+class RealignLoggedNamesTests(APITestCase):
+    """
+    Upgrade step 9. Step 8 renamed the Exercise rows and left the logs behind.
+
+    `SetLog.exercise_name` is denormalised and history matches on NAME, so the
+    reported plan ended up with bench history split across two names and the
+    logged sets invisible to the coaching for the exercise they belong to.
+    """
+
+    def setUp(self):
+        from api.models import WorkoutSession, SetLog
+        self.user = User.objects.create_user(email='realign@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', current_week=1, is_active=True)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Push')
+        # Post-step-8 state: the row is renamed, the logs still say the old name.
+        self.bench = Exercise.objects.create(
+            day=self.day, name='Barbell Bench Press', sets=4, reps='12',
+            order=0, measurement_type=et.WEIGHT_REPS)
+        self.session = WorkoutSession.objects.create(
+            user=self.user, exercise_day=self.day, day_name='Push',
+            is_completed=True)
+        self.logs = [
+            SetLog.objects.create(
+                workout_session=self.session, exercise=self.bench,
+                exercise_name='Barbell Bench Press + Push-ups (Superset)',
+                set_number=n, weight_kg=43.1, reps_completed=12,
+                is_completed=True)
+            for n in (1, 2, 3, 4)
+        ]
+        # An orphan: no exercise FK. Deliberately survives plan deletion.
+        self.orphan = SetLog.objects.create(
+            workout_session=self.session, exercise=None,
+            exercise_name='Some Deleted Exercise', set_number=9,
+            weight_kg=20.0, reps_completed=10, is_completed=True)
+
+    def run_step(self):
+        from api import data_upgrades
+        lines = []
+        changed = data_upgrades._step_9_realign_logged_names(
+            self.plan, lines.append)
+        return changed, lines
+
+    def test_stale_logged_names_are_realigned(self):
+        changed, _ = self.run_step()
+        self.assertEqual(changed, 4)
+        from api.models import SetLog
+        names = set(SetLog.objects.filter(exercise=self.bench)
+                    .values_list('exercise_name', flat=True))
+        self.assertEqual(names, {'Barbell Bench Press'})
+
+    def test_the_history_is_reunited_under_one_name(self):
+        """
+        The user-visible point: those sets become part of bench history instead
+        of a separate one-session entry the coaching never sees.
+        """
+        from api.models import SetLog
+        before = SetLog.objects.filter(
+            exercise_name='Barbell Bench Press').count()
+        self.assertEqual(before, 0)
+        self.run_step()
+        after = SetLog.objects.filter(
+            exercise_name='Barbell Bench Press').count()
+        self.assertEqual(after, 4)
+
+    def test_logged_values_are_untouched(self):
+        from api.models import SetLog
+        self.run_step()
+        for log in SetLog.objects.filter(exercise=self.bench):
+            self.assertEqual(log.weight_kg, 43.1)
+            self.assertEqual(log.reps_completed, 12)
+            self.assertTrue(log.is_completed)
+
+    def test_no_rows_are_created_or_deleted(self):
+        from api.models import SetLog
+        before = set(SetLog.objects.values_list('id', flat=True))
+        self.run_step()
+        self.assertEqual(set(SetLog.objects.values_list('id', flat=True)),
+                         before)
+
+    def test_an_orphaned_log_is_left_alone(self):
+        """
+        `exercise_name` outliving its plan is the DESIGN, not a defect. With no
+        FK there is nothing to realign against, and rewriting it would destroy
+        history on purpose.
+        """
+        self.run_step()
+        self.orphan.refresh_from_db()
+        self.assertEqual(self.orphan.exercise_name, 'Some Deleted Exercise')
+        self.assertIsNone(self.orphan.exercise_id)
+
+    def test_a_log_already_matching_is_untouched(self):
+        from api.models import SetLog
+        SetLog.objects.filter(exercise=self.bench).update(
+            exercise_name='Barbell Bench Press')
+        changed, _ = self.run_step()
+        self.assertEqual(changed, 0)
+
+    def test_a_second_run_changes_nothing(self):
+        self.run_step()
+        changed, _ = self.run_step()
+        self.assertEqual(changed, 0)
+
+    def test_another_users_logs_are_untouched(self):
+        from api.models import WorkoutSession, SetLog
+        other = User.objects.create_user(email='realign2@test.local', password='x')
+        session = WorkoutSession.objects.create(
+            user=other, day_name='Theirs', is_completed=True)
+        theirs = SetLog.objects.create(
+            workout_session=session, exercise=None,
+            exercise_name='Barbell Bench Press + Push-ups (Superset)',
+            set_number=1, weight_kg=50.0, reps_completed=8, is_completed=True)
+        self.run_step()
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.exercise_name,
+                         'Barbell Bench Press + Push-ups (Superset)')
+
+    def test_it_is_registered_as_step_nine(self):
+        from api import data_upgrades
+        label, func = data_upgrades.UPGRADES[9]
+        self.assertEqual(func, data_upgrades._step_9_realign_logged_names)
+        self.assertIn('logged names', label)
+
+    def test_step_eight_and_nine_together_fix_the_reported_plan(self):
+        """
+        End to end: a merged row with logs becomes two loggable exercises AND
+        the history lands under the right name. Step 8 alone left it split.
+        """
+        from api import data_upgrades
+        from api.models import SetLog
+        day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=2, week_number=1, name='Push2')
+        merged = Exercise.objects.create(
+            day=day, name='Barbell Bench Press + Push-ups (Superset)',
+            sets=4, reps='12 + 10', order=0, measurement_type=et.WEIGHT_REPS)
+        SetLog.objects.create(
+            workout_session=self.session, exercise=merged,
+            exercise_name='Barbell Bench Press + Push-ups (Superset)',
+            set_number=5, weight_kg=43.1, reps_completed=12, is_completed=True)
+
+        data_upgrades._step_8_split_merged_exercises(self.plan, lambda _m: None)
+        data_upgrades._step_9_realign_logged_names(self.plan, lambda _m: None)
+
+        self.assertEqual(
+            [e.name for e in day.exercises.order_by('order')],
+            ['Barbell Bench Press', 'Push-ups'])
+        log = SetLog.objects.get(set_number=5)
+        self.assertEqual(log.exercise_name, 'Barbell Bench Press')
+        self.assertEqual(log.reps_completed, 12)

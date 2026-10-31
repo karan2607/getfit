@@ -367,6 +367,52 @@ def _step_8_split_merged_exercises(plan, stdout):
     return changed
 
 
+def _step_9_realign_logged_names(plan, stdout):
+    """
+    Rewrite `SetLog.exercise_name` where it disagrees with the Exercise it
+    points at.
+
+    Step 8 renamed the merged Exercise rows and did not touch the logs. But
+    `exercise_name` is denormalised, and history and progression match on the
+    NAME -- that is the entire reason step 5 exists -- so the reported plan
+    ended up with bench history split across two names:
+
+        "Barbell Bench Press + Push-ups (Superset)"   1 session
+        "Barbell Bench Press"                         2 sessions
+
+    The logged sets were invisible to the coaching for the exercise they
+    actually belong to. A new step number rather than a fix to step 8 because
+    `data_version` gates by number and step 8 has already run -- the same
+    reason step 6 could not be a fix to step 1.
+
+    Scope is deliberately GENERAL, not merged-name specific: any log whose
+    denormalised name has drifted from its exercise is stale, however it got
+    that way. The FK is the authority when it is present.
+
+    Logs whose `exercise` is null are left alone. That is the deliberate
+    design -- `exercise_name` survives plan deletion precisely so history
+    outlives the plan, and there is nothing to realign against.
+
+    Idempotent: a log already matching its exercise is untouched.
+    """
+    from .models import SetLog
+
+    changed = 0
+    for day in plan.days.all():
+        for exercise in day.exercises.all():
+            stale = (SetLog.objects
+                     .filter(exercise=exercise)
+                     .exclude(exercise_name=exercise.name))
+            names = sorted(set(stale.values_list('exercise_name', flat=True)))
+            rows = stale.update(exercise_name=exercise.name)
+            if rows:
+                stdout('    %d log(s) %s -> %r'
+                       % (rows, ' / '.join(repr(n) for n in names)[:60],
+                          exercise.name))
+                changed += rows
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
@@ -380,6 +426,8 @@ UPGRADES = {
         _step_7_infer_plan_equipment),
     8: ('split merged "A + B" exercises already in plans',
         _step_8_split_merged_exercises),
+    9: ('realign logged names with their exercise',
+        _step_9_realign_logged_names),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0
