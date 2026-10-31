@@ -193,3 +193,73 @@ class ClientContextLinesTests(TestCase):
         line = self.client_line(p, preferred_unit='kg')
         self.assertIn('80kg', line)
         self.assertNotIn('lb', line)
+
+
+class ProfileCompletenessTests(TestCase):
+    """
+    `is_complete` was dead code checking the wrong fields.
+
+    It asked for goal/experience/diet and was referenced nowhere, so nothing
+    collected age/gender/height/weight and nothing noticed they were missing.
+    The plan prompt then dropped all four if any one was absent — the model was
+    told nothing at all about the client and fell back to a generic template.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='comp2@test.local', password='x')
+
+    def profile(self, **fields):
+        base = dict(age=29, gender='female', height_cm=165, weight_kg=63.5,
+                    fitness_goal='lose_fat', experience_level='beginner',
+                    dietary_preference='vegetarian')
+        base.update(fields)
+        return UserProfile.objects.create(user=self.user, **base)
+
+    def test_a_full_profile_is_complete(self):
+        p = self.profile()
+        self.assertTrue(p.is_complete)
+        self.assertEqual(p.missing_for_planning, [])
+
+    def test_the_demographic_fields_are_now_required(self):
+        """
+        The specific regression. Each of these alone used to leave the profile
+        'complete' while silently emptying the prompt's client context.
+        """
+        for field in ('age', 'gender', 'height_cm', 'weight_kg'):
+            UserProfile.objects.filter(user=self.user).delete()
+            p = self.profile(**{field: None})
+            self.assertFalse(p.is_complete, msg=field)
+            self.assertIn(field, p.missing_for_planning, msg=field)
+
+    def test_it_reports_which_fields_are_missing_not_just_a_boolean(self):
+        """
+        A boolean cannot drive a useful prompt. The client needs the names so
+        it can ask for those specific values.
+        """
+        UserProfile.objects.filter(user=self.user).delete()
+        p = self.profile(age=None, gender=None)
+        self.assertEqual(sorted(p.missing_for_planning), ['age', 'gender'])
+
+    def test_the_original_fields_are_still_required(self):
+        """Widening the check must not drop what it already enforced."""
+        for field in ('fitness_goal', 'experience_level', 'dietary_preference'):
+            UserProfile.objects.filter(user=self.user).delete()
+            p = self.profile(**{field: None})
+            self.assertIn(field, p.missing_for_planning, msg=field)
+
+    def test_the_api_exposes_it_so_the_client_can_prompt(self):
+        """
+        Existing users predate the onboarding requirement. They must be ASKED,
+        not locked out — so the gap has to be visible to the client.
+        """
+        from django.urls import reverse
+        from rest_framework.authtoken.models import Token
+        from rest_framework.test import APIClient
+        self.profile(age=None)
+        token, _ = Token.objects.get_or_create(user=self.user)
+        # APIClient, not Django's test client: `credentials()` is DRF's.
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        res = client.get(reverse('profile'))
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('age', res.data['missing_for_planning'])

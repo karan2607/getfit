@@ -20,6 +20,34 @@ export default function Onboarding() {
   const step = STEPS[stepIndex]
   const isLast = stepIndex === STEPS.length - 1
 
+  /**
+   * Why the body step is now required.
+   *
+   * Age, sex, height and weight were optional, and the plan prompt dropped
+   * ALL FOUR if any one was missing — so skipping a single box meant the AI
+   * was told nothing at all about who it was programming for, and defaulted
+   * to a generic (male-coded) strength template. The prompt is per-field now,
+   * but the real fix is collecting the data in the first place.
+   *
+   * Named reasons rather than a silently disabled button: a dead Continue
+   * with no explanation is the worst version of this.
+   */
+  const blockedReason: string | null = (() => {
+    if (step !== 'body') return null
+    const missing = [
+      !data.age && 'age',
+      !data.gender && 'gender',
+      !data.height_cm && 'height',
+      !data.weight_kg && 'weight',
+    ].filter(Boolean) as string[]
+    if (!missing.length) return null
+    return `Your plans are built around these, so we need your ${
+      missing.length === 1
+        ? missing[0]
+        : missing.slice(0, -1).join(', ') + ' and ' + missing[missing.length - 1]
+    }.`
+  })()
+
   function update(fields: Partial<UserProfile>) {
     setData((prev) => ({ ...prev, ...fields }))
   }
@@ -69,6 +97,12 @@ export default function Onboarding() {
           <DietStep data={data} onChange={update} userName={user?.name ?? ''} />
         )}
 
+        {blockedReason && (
+          <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {blockedReason}
+          </p>
+        )}
+
         <div className="flex gap-3 mt-8">
           {stepIndex > 0 && (
             <button
@@ -80,7 +114,7 @@ export default function Onboarding() {
           )}
           <button
             onClick={handleNext}
-            disabled={saving}
+            disabled={saving || blockedReason !== null}
             className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-2.5 text-sm transition-colors"
           >
             {saving ? 'Saving...' : isLast ? 'Get started' : 'Continue'}

@@ -37,13 +37,21 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    # Which planning inputs are unset, so the client can PROMPT for them
+    # instead of silently generating a plan against a blank client. Existing
+    # users predate the onboarding requirement, so locking them out would be
+    # the wrong trade -- they get asked, not blocked.
+    missing_for_planning = serializers.ListField(read_only=True)
+
     class Meta:
         model = UserProfile
         fields = [
             'height_cm', 'weight_kg', 'age', 'gender',
             'fitness_goal', 'experience_level', 'dietary_preference', 'activity_level',
             'personal_notes', 'preferred_unit', 'timezone',
+            'missing_for_planning',
         ]
+        read_only_fields = ['missing_for_planning']
 
     def validate_timezone(self, value):
         """

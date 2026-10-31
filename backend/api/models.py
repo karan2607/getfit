@@ -80,9 +80,29 @@ class UserProfile(models.Model):
 
     personal_notes = models.TextField(blank=True)  # injuries, preferences, AI-remembered context
 
+    # Fields the workout prompt genuinely needs. Separate from the property so
+    # the API can report WHICH are missing rather than just a boolean.
+    REQUIRED_FOR_PLANNING = (
+        'age', 'gender', 'height_cm', 'weight_kg',
+        'fitness_goal', 'experience_level', 'dietary_preference',
+    )
+
+    @property
+    def missing_for_planning(self):
+        """
+        Which planning inputs are unset.
+
+        age/gender/height/weight were NOT in this list, and this property was
+        itself dead code referenced nowhere -- so nothing collected them and
+        nothing noticed. The plan prompt then dropped all four if any one was
+        missing, meaning the model was told nothing at all about the client and
+        fell back to a generic template.
+        """
+        return [f for f in self.REQUIRED_FOR_PLANNING if not getattr(self, f)]
+
     @property
     def is_complete(self):
-        return all([self.fitness_goal, self.experience_level, self.dietary_preference])
+        return not self.missing_for_planning
 
 
 class PasswordResetToken(models.Model):
