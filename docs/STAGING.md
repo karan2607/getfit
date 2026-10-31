@@ -20,11 +20,28 @@ and 7 were all verified against synthetic fixtures. Staging points at a Neon
 
 ## Layout
 
-| | branch | database |
-|---|---|---|
-| `getfit-backend` | `main` | production Neon |
-| `getfit-backend-staging` | `staging` | Neon `staging` branch |
-| `getfit-staging` (static) | `staging` | — |
+The backend is on Render, the frontend on Vercel. That split was written down
+nowhere, which sent someone hunting for a Redirects/Rewrites tab on a Render
+service that was never going to have one.
+
+| | host | branch | URL |
+|---|---|---|---|
+| backend, production | Render | `main` | `getfit-backend-p00m.onrender.com` |
+| backend, staging | Render | `staging` | `getfit-backend-staging.onrender.com` |
+| frontend, production | Vercel | `main` | `getfit-lilac.vercel.app` |
+| frontend, staging | Vercel | any non-`main` | the branch's Preview alias |
+
+There is no staging frontend *service*. Vercel builds a Preview deployment for
+every unassigned branch, and the Hobby plan includes it; the paid "custom
+environments" feature is not needed. `VITE_API_URL` is scoped per environment —
+Production to the production backend, Preview to the staging one.
+
+**`VITE_*` values are public.** Vite inlines them into the bundle at build
+time, so they ship to every browser. `getfit-backend-p00m` above was recovered
+by curling the production bundle and grepping, while the variable was marked
+"Secret" in Vercel. Marking a `VITE_` variable Secret hides it from you, not
+from anyone else. Never put a real key behind that prefix — `GEMINI_API_KEY`
+belongs on the Django side, where it is.
 
 Staging runs `DEBUG=False`, same as production. Turning it on would hide the
 exact failure mode staging exists to catch — a tracebackless 500 is part of
