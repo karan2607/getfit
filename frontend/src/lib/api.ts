@@ -358,6 +358,9 @@ export const api = {
       reps_completed?: number | null
       weight_kg?: number | null
       duration_seconds?: number | null
+      speed_kmh?: number | null
+      incline_pct?: number | null
+      distance_m?: number | null
       is_completed?: boolean
       notes?: string
     }) =>
@@ -590,7 +593,23 @@ export interface ChatSessionDetail extends ChatSession {
   messages: ChatMessage[]
 }
 
-export type MeasurementType = 'weight_reps' | 'weight_duration' | 'duration' | 'warmup' | 'bodyweight_reps'
+/**
+ * Mirrors exercise_types.ALL_TYPES. MUST stay in step with the server.
+ *
+ * `cardio_machine` and `weight_distance` were added server-side and an upgrade
+ * step reclassified 40 existing rows onto them — while this union still listed
+ * five. So `fieldsFor('cardio_machine')` missed, fell back to `weight_reps`,
+ * and a treadmill rendered weight and reps inputs whose values the server then
+ * discarded. units.test.ts now asserts this list against the contract.
+ */
+export type MeasurementType =
+  | 'weight_reps'
+  | 'weight_duration'
+  | 'duration'
+  | 'warmup'
+  | 'bodyweight_reps'
+  | 'cardio_machine'
+  | 'weight_distance'
 
 export interface Exercise {
   id: string
@@ -741,11 +760,14 @@ export interface SetLog {
   exercise_id: string | null
   exercise_name: string
   set_number: number
-  // Which of these three is meaningful depends on measurement_type. The server
+  // Which of these is meaningful depends on measurement_type. The server
   // forces the others to null, so never infer from "has a value".
   reps_completed: number | null
   weight_kg: number | null          // always kilograms
   duration_seconds: number | null
+  speed_kmh: number | null          // always km/h
+  incline_pct: number | null
+  distance_m: number | null         // always metres
   measurement_type: MeasurementType | null
   is_completed: boolean
   notes: string
@@ -790,6 +812,9 @@ export interface ExerciseHistoryPoint {
   weight_kg: number | null
   reps_completed: number | null
   duration_seconds: number | null
+  speed_kmh: number | null
+  incline_pct: number | null
+  distance_m: number | null
 }
 
 /**

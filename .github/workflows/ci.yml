@@ -66,6 +66,14 @@ jobs:
       - name: Tests
         run: python manage.py test api.tests --verbosity 2
 
+      # The frontend mirrors exercise_types.FIELD_CONTRACT by hand, and it
+      # drifted: two types were added server-side and 40 rows reclassified onto
+      # them while the frontend still knew five, so a treadmill rendered weight
+      # and reps inputs the server then discarded. This fails the build if the
+      # server contract changes and the exported fixture was not regenerated.
+      - name: Frontend contract is in step with the server
+        run: python manage.py export_set_contract --check
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -86,6 +94,9 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm run test
 
       - name: Build
         run: npm run build

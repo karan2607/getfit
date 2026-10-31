@@ -51,7 +51,18 @@ export function formatDuration(seconds: number | null | undefined): string {
 // Measurement-type contract (mirrors exercise_types.FIELD_CONTRACT)
 // ---------------------------------------------------------------------------
 
-export type SetField = 'weight_kg' | 'reps_completed' | 'duration_seconds'
+export type SetField =
+  | 'weight_kg'
+  | 'reps_completed'
+  | 'duration_seconds'
+  | 'speed_kmh'
+  | 'incline_pct'
+  | 'distance_m'
+
+export const ALL_SET_FIELDS: readonly SetField[] = [
+  'weight_kg', 'reps_completed', 'duration_seconds',
+  'speed_kmh', 'incline_pct', 'distance_m',
+]
 
 const FIELD_CONTRACT: Record<MeasurementType, readonly SetField[]> = {
   weight_reps: ['weight_kg', 'reps_completed'],
@@ -59,6 +70,10 @@ const FIELD_CONTRACT: Record<MeasurementType, readonly SetField[]> = {
   duration: ['duration_seconds'],
   bodyweight_reps: ['reps_completed'],
   warmup: [],
+  // Each is a SUPERSET of the type it replaced, which is what made
+  // reclassifying existing rows lossless. Do not narrow either.
+  cardio_machine: ['duration_seconds', 'speed_kmh', 'incline_pct'],
+  weight_distance: ['weight_kg', 'duration_seconds', 'distance_m'],
 }
 
 /** Which set fields carry meaning for this measurement type. */
@@ -99,6 +114,29 @@ export function timeUnitFor(reps: string | null | undefined): TimeUnit {
 }
 
 export const SECONDS_PER_MIN = 60
+export const KM_PER_MILE = 1.60934
+export const METRES_PER_YARD = 0.9144
+export const METRES_PER_FOOT = 0.3048
+
+export type DistanceUnit = 'm' | 'yd' | 'ft'
+
+/**
+ * Which unit the DISTANCE input should ask for, taken from the prescription.
+ *
+ * Storage is always metres. But a carry prescribed "40 yards" asking the user
+ * to type 36.6 is the same mistake `timeUnitFor` exists to fix — the number on
+ * the card should be the number you type.
+ */
+export function distanceUnitFor(reps: string | null | undefined): DistanceUnit {
+  const text = (reps ?? '').toLowerCase()
+  if (/\b(yard|yards|yd)\b/.test(text)) return 'yd'
+  if (/\b(feet|foot|ft)\b/.test(text)) return 'ft'
+  return 'm'
+}
+
+const METRES_PER: Record<DistanceUnit, number> = {
+  m: 1, yd: METRES_PER_YARD, ft: METRES_PER_FOOT,
+}
 
 /**
  * Column label for a set input.
@@ -109,10 +147,17 @@ export function fieldLabel(
   unit: WeightUnit,
   exerciseName = '',
   timeUnit: TimeUnit = 'sec',
+  distanceUnit: DistanceUnit = 'm',
 ): string {
   if (field === 'reps_completed') return 'Reps'
   if (field === 'duration_seconds') {
     return timeUnit === 'min' ? 'Time (min)' : 'Time (sec)'
+  }
+  if (field === 'speed_kmh') return unit === 'lb' ? 'Speed (mph)' : 'Speed (km/h)'
+  if (field === 'incline_pct') return 'Incline (%)'
+  if (field === 'distance_m') {
+    return distanceUnit === 'yd' ? 'Distance (yd)'
+      : distanceUnit === 'ft' ? 'Distance (ft)' : 'Distance (m)'
   }
   const n = exerciseName.toLowerCase()
   if (/dumbbell|db /.test(n)) return `Each (${unit})`
@@ -130,12 +175,19 @@ export function toDisplayField(
   value: number | null | undefined,
   unit: WeightUnit,
   timeUnit: TimeUnit = 'sec',
+  distanceUnit: DistanceUnit = 'm',
 ): number | null {
   if (value === null || value === undefined) return null
   if (field === 'weight_kg') return toDisplayWeight(value, unit)
   if (field === 'duration_seconds' && timeUnit === 'min') {
     // One decimal, so 90s shows as 1.5 rather than a lossy 2.
     return Math.round((value / SECONDS_PER_MIN) * 10) / 10
+  }
+  if (field === 'speed_kmh' && unit === 'lb') {
+    return Math.round((value / KM_PER_MILE) * 10) / 10
+  }
+  if (field === 'distance_m' && distanceUnit !== 'm') {
+    return Math.round((value / METRES_PER[distanceUnit]) * 10) / 10
   }
   return value
 }
@@ -146,11 +198,24 @@ export function toStorageField(
   value: number | null | undefined,
   unit: WeightUnit,
   timeUnit: TimeUnit = 'sec',
+  distanceUnit: DistanceUnit = 'm',
 ): number | null {
   if (value === null || value === undefined) return null
   if (field === 'weight_kg') return toStorageWeight(value, unit)
   if (field === 'duration_seconds' && timeUnit === 'min') {
     return Math.max(0, Math.round(value * SECONDS_PER_MIN))
+  }
+  // Speed, incline and distance keep one decimal: rounding a 3.5% incline to
+  // 4, or 5.6 km/h to 6, defeats the point of recording them.
+  if (field === 'speed_kmh') {
+    const kmh = unit === 'lb' ? value * KM_PER_MILE : value
+    return Math.max(0, Math.round(kmh * 10) / 10)
+  }
+  if (field === 'incline_pct') {
+    return Math.max(0, Math.round(value * 10) / 10)
+  }
+  if (field === 'distance_m') {
+    return Math.max(0, Math.round(value * METRES_PER[distanceUnit] * 10) / 10)
   }
   return Math.max(0, Math.round(value))
 }
@@ -172,6 +237,10 @@ const CHART_CONTRACT: Record<MeasurementType, ChartSpec> = {
   duration: { metric: 'duration_seconds', unit: 'seconds' },
   bodyweight_reps: { metric: 'reps_completed', unit: 'reps' },
   warmup: { metric: null, unit: null },
+  // Time for a machine (speed and incline are settings, not progress) and
+  // load for a carry. Mirrors exercise_types.CHART_CONTRACT.
+  cardio_machine: { metric: 'duration_seconds', unit: 'seconds' },
+  weight_distance: { metric: 'weight_kg', unit: 'mass' },
 }
 
 export function chartSpecFor(measurementType: MeasurementType): ChartSpec {

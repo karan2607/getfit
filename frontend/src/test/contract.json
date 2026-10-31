@@ -1,0 +1,76 @@
+{
+  "chart_contract": {
+    "bodyweight_reps": {
+      "metric": "reps_completed",
+      "unit": "reps"
+    },
+    "cardio_machine": {
+      "metric": "duration_seconds",
+      "unit": "seconds"
+    },
+    "duration": {
+      "metric": "duration_seconds",
+      "unit": "seconds"
+    },
+    "warmup": {
+      "metric": null,
+      "unit": null
+    },
+    "weight_distance": {
+      "metric": "weight_kg",
+      "unit": "mass"
+    },
+    "weight_duration": {
+      "metric": "weight_kg",
+      "unit": "mass"
+    },
+    "weight_reps": {
+      "metric": "weight_kg",
+      "unit": "mass"
+    }
+  },
+  "field_contract": {
+    "bodyweight_reps": [
+      "reps_completed"
+    ],
+    "cardio_machine": [
+      "duration_seconds",
+      "speed_kmh",
+      "incline_pct"
+    ],
+    "duration": [
+      "duration_seconds"
+    ],
+    "warmup": [],
+    "weight_distance": [
+      "weight_kg",
+      "duration_seconds",
+      "distance_m"
+    ],
+    "weight_duration": [
+      "weight_kg",
+      "duration_seconds"
+    ],
+    "weight_reps": [
+      "weight_kg",
+      "reps_completed"
+    ]
+  },
+  "fields": [
+    "weight_kg",
+    "reps_completed",
+    "duration_seconds",
+    "speed_kmh",
+    "incline_pct",
+    "distance_m"
+  ],
+  "types": [
+    "weight_reps",
+    "weight_duration",
+    "duration",
+    "warmup",
+    "bodyweight_reps",
+    "cardio_machine",
+    "weight_distance"
+  ]
+}

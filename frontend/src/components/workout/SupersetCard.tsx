@@ -1,7 +1,8 @@
 import type { Exercise, SetLog, MeasurementType } from '../../lib/api'
 import {
-  type SetField, type WeightUnit, type TimeUnit,
+  type SetField, type WeightUnit, type TimeUnit, type DistanceUnit,
   fieldsFor, fieldLabel, toDisplayField, formatDuration, timeUnitFor,
+  distanceUnitFor,
 } from '../../lib/units'
 import { compositeLabel, compositeRounds, compositeRest } from '../../lib/composites'
 
@@ -44,7 +45,8 @@ export default function SupersetCard({
   onToggleOpen: () => void
   setFieldValue: (log: SetLog, field: SetField) => number | null
   isSetCompleted: (log: SetLog) => boolean
-  onFieldChange: (log: SetLog, field: SetField, raw: string, timeUnit: TimeUnit) => void
+  onFieldChange: (log: SetLog, field: SetField, raw: string,
+                  timeUnit: TimeUnit, distanceUnit: DistanceUnit) => void
   onToggleSet: (log: SetLog) => void
   onShowProgress: (name: string) => void
 }) {
@@ -139,6 +141,7 @@ export default function SupersetCard({
                   if (!log) return null
                   const fields = fieldsFor(member.measurementType)
                   const timeUnit = timeUnitFor(member.planEx.reps)
+                  const distanceUnit = distanceUnitFor(member.planEx.reps)
                   const done = isSetCompleted(log)
 
                   return (
@@ -168,11 +171,13 @@ export default function SupersetCard({
                       <div className="flex gap-2">
                         {fields.map((field) => {
                           const display = toDisplayField(
-                            field, setFieldValue(log, field), unit, timeUnit)
+                            field, setFieldValue(log, field), unit, timeUnit,
+                            distanceUnit)
                           return (
                             <div key={field} className="flex-1 min-w-0">
                               <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5 truncate">
-                                {fieldLabel(field, unit, member.planEx.name, timeUnit)}
+                                {fieldLabel(field, unit, member.planEx.name,
+                                            timeUnit, distanceUnit)}
                               </label>
                               {isCompleted ? (
                                 <p className="text-sm font-medium text-gray-700 px-1 py-1">
@@ -190,7 +195,8 @@ export default function SupersetCard({
                                   placeholder="0"
                                   value={display ?? ''}
                                   onChange={(e) => onFieldChange(
-                                    log, field, e.target.value, timeUnit)}
+                                    log, field, e.target.value, timeUnit,
+                                    distanceUnit)}
                                   className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                                 />
                               )}
