@@ -320,6 +320,24 @@ class RuleBehaviourTests(SimpleTestCase):
             'injury_constraints_respected',
             context={'injuries': 'Left knee pain under load'})
 
+    def test_a_single_week_payload_is_scored_for_injuries(self):
+        """
+        Weeks 2+ arrive as {"week": [...]} rather than a whole plan, and that
+        is where the injury risk now lives: the week prompt never carried the
+        client's injuries at all, so a stated knee problem constrained week 1
+        and vanished for every week after it.
+
+        iter_weeks already handles this shape, so the rule needed no change --
+        this test exists to lock that in, because an untested capability is
+        indistinguishable from an absent one.
+        """
+        card = self.assert_flags(
+            {'title': 'W5', 'week': [
+                day(1, 'Legs', [WARMUP, ex('Barbell Back Squat', 4, '6-8')])]},
+            'injury_constraints_respected',
+            context={'injuries': 'Left knee pain under load'})
+        self.assertIn('knee', card.findings[0].detail.lower())
+
     def test_the_prompts_own_substitution_passes(self):
         self.assert_clean(
             plan([day(1, 'Legs', [

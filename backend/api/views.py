@@ -716,6 +716,92 @@ SUPERSET_PROMPT_RULES = (
 )
 
 
+def _client_context_lines(profile, plan=None, preferred_unit='lb',
+                          extra_notes=''):
+    """
+    Who the model is programming for. Shared by week 1 and week N.
+
+    Why this is one function: `_week_generate_prompt` took `profile` as an
+    argument and never read it -- the word appeared exactly once in the whole
+    function, in the signature. So for an 8-week plan, weeks 2-8 were written
+    with no age, sex, bodyweight, height, experience level, goals, and no
+    INJURIES. A stated back problem constrained week 1 and then silently
+    vanished for seven eighths of the program.
+
+    One builder means the two prompts cannot drift, and a drifted copy is
+    exactly how that happened.
+
+    Demographics are emitted PER FIELD. The previous week-1 line was
+
+        f'Client: {age}yo {gender}, {weight}, {height}cm'
+            if all([age, gender, weight, height]) else ''
+
+    so a single missing field deleted all four and the model was told nothing
+    at all. Nothing requires those fields at signup, so that was reachable for
+    any user with a gap.
+
+    Injuries are folded in from `personal_notes` under the hard-constraint
+    heading rather than a soft "Personal notes:" line. That field is documented
+    on the model as holding "injuries, preferences, AI-remembered context", so
+    constraint framing is what it deserves -- and it is the only injury source
+    week N has, since there is no request-time notes field there.
+    """
+    lines = []
+
+    # Formatting is preserved verbatim from the original week-1 line, so a
+    # COMPLETE profile produces byte-identical output to before. Only the
+    # all-or-nothing behaviour changes.
+    age = getattr(profile, 'age', None) if profile else None
+    gender = getattr(profile, 'gender', None) if profile else None
+    weight_kg = getattr(profile, 'weight_kg', None) if profile else None
+    height = getattr(profile, 'height_cm', None) if profile else None
+
+    # age and gender read as one phrase ("29yo female"), the rest are
+    # comma-separated -- matching the line this replaced.
+    who = ' '.join(filter(None, [
+        '%syo' % age if age else '',
+        str(gender) if gender else '',
+    ]))
+    if weight_kg:
+        weight_display = ('%slb' % round(weight_kg * 2.20462, 1)
+                          if preferred_unit == 'lb' else '%skg' % weight_kg)
+    else:
+        weight_display = ''
+
+    bits = [b for b in (who, weight_display,
+                        '%scm' % height if height else '') if b]
+    if bits:
+        lines.append('Client: %s' % ', '.join(bits))
+
+    # Collected at signup and previously reaching NO workout prompt at all.
+    # It bears on recovery and how much volume the client can absorb.
+    activity = getattr(profile, 'activity_level', None) if profile else None
+    if activity:
+        lines.append('Activity level outside training: %s'
+                     % str(activity).replace('_', ' '))
+
+    if plan is not None:
+        if getattr(plan, 'specific_goal', ''):
+            lines.append('Stated goals: %s' % plan.specific_goal)
+        target = getattr(plan, 'program_target', None)
+        if isinstance(target, dict) and target.get('label'):
+            lines.append(
+                'Program target: %s = %s (current: %s)'
+                % (target.get('label'), target.get('recommended_value', '?'),
+                   target.get('current_value', 'unknown')))
+
+    notes = ' '.join(filter(None, [
+        (getattr(profile, 'personal_notes', '') or '').strip() if profile else '',
+        (extra_notes or '').strip(),
+    ])).strip()
+    lines.append(
+        'INJURIES & LIMITATIONS (HARD CONSTRAINTS — apply every session, '
+        'no exceptions):\n%s' % notes
+        if notes else 'INJURIES & LIMITATIONS: None stated')
+
+    return lines
+
+
 def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
     """
     The coaching doctrine, shared by whole-plan and single-week generation.
@@ -910,7 +996,6 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
     else:
         weight_display = None
 
-    profile_line = f'Client: {age}yo {gender}, {weight_display}, {height}cm' if all([age, gender, weight_display, height]) else ''
 
     specific_goals_line = ''
     if specific_goals:
@@ -940,16 +1025,18 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
 
     phases = '1 phase, linear progression' if duration_weeks <= 4 else ('2-3 phases' if duration_weeks <= 8 else '3-4 phases, deload every 4th week')
 
-    injuries_line = f'INJURIES & LIMITATIONS (HARD CONSTRAINTS — apply every session, no exceptions):\n{notes}' if notes else 'INJURIES & LIMITATIONS: None stated'
+    # Shared with the week-N prompt so the two cannot drift. `notes` is the
+    # free text typed at generation time; it is merged with the profile's
+    # personal_notes under the hard-constraint heading.
+    client_lines = _client_context_lines(
+        profile, preferred_unit=preferred_unit, extra_notes=notes)
 
     user = '\n'.join(filter(None, [
-        profile_line,
-        f'Personal notes: {personal_notes}' if personal_notes else '',
+        *client_lines,
         f'Primary goal: {goal} | Experience: {level} | Equipment: {equip}',
         specific_goals_line,
         target_line,
         f'Days/week: {days_per_week} | Duration: {duration_weeks} weeks',
-        injuries_line,
         f'Body context: {body_context}' if body_context else '',
         past_line,
         '',
@@ -1037,14 +1124,25 @@ def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
          and (p.get('start_week') or 0) <= week_number <= (p.get('end_week') or 0)),
         None)
 
+    # WHO this is for. `profile` was already being passed in and was never
+    # read, so weeks 2-N were written with no demographics, no experience
+    # level, no goals and -- the serious one -- no injuries. Built by the same
+    # helper week 1 uses, so the two cannot drift apart again.
+    client_lines = _client_context_lines(
+        profile, plan=plan, preferred_unit=preferred_unit)
+
+    experience = getattr(profile, 'experience_level', None) if profile else None
+
     lines = [
         f'Generate WEEK {week_number} of a {plan.duration_weeks}-week program.',
         f'Program: {plan.title}',
+        f'Experience: {experience}' if experience else None,
         # The gym type the user chose at plan creation. Week 1 always had this;
         # every later week was generated without it, because the answer was
         # passed to the prompt and never stored. A week-5 plan could therefore
         # prescribe cable machines to someone who had said "bodyweight only".
         f'Equipment available: {plan.equipment}' if plan.equipment else None,
+        *client_lines,
         '',
     ]
     if phase:
