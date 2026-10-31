@@ -57,7 +57,19 @@ services:
     # Free tier spins down when idle, so the first request after a quiet spell
     # takes ~50s. Acceptable for staging; do not copy this to production.
     plan: free
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data
+    # reset_staging --check runs FIRST, before migrate and upgrade_data touch
+    # a single row. If DATABASE_URL ever resolves to the production host the
+    # build fails and nothing runs.
+    #
+    # It is in the build command rather than something to run by hand because
+    # the free plan has NO SHELL -- there is no way to run the guard manually
+    # here. Putting it in the build turns a one-time check into a gate on every
+    # staging deploy, which is strictly better anyway. --check makes no
+    # database connection; it only compares settings against PRODUCTION_DB_HOST.
+    # The trailing --counts prints row counts into the BUILD LOG, which is the
+    # only way to read them without a shell. Diff them against production
+    # before promoting a row-mutating migration.
+    buildCommand: pip install -r requirements.txt && python manage.py reset_staging --check && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py reset_staging --counts
     startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
     envVars:
       - key: SECRET_KEY

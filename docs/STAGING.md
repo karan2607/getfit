@@ -63,6 +63,28 @@ wrong database.
 Re-branching staging from production is done in the Neon dashboard; this repo
 has no Neon API token.
 
+### There is no shell on staging
+
+Render's free plan has no Shell tab, so the guard cannot be run by hand there.
+It runs in the **build command** instead:
+
+```
+reset_staging --check   → before migrate, so a wrong DATABASE_URL fails the
+                          build before any row is touched
+reset_staging --counts  → after upgrade_data, so the counts land in the build
+                          log where they can be read without a shell
+```
+
+That is better than a manual check: it gates *every* staging deploy rather
+than being something someone remembers to do once.
+
+To run the guard against staging from a laptop instead:
+
+```sh
+DATABASE_URL="<neon staging branch>" PRODUCTION_DB_HOST="<prod host>" \
+  python manage.py reset_staging --counts
+```
+
 ## One-time setup
 
 1. **Neon** — create a branch named `staging` from `main`. Copy its pooled
