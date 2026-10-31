@@ -90,3 +90,43 @@ services:
       # logs when the key is absent, which is why the superuser reset tooling
       # exists. Listing them here implied they were set and sent someone
       # looking for a key that does not exist.
+
+  # ---------------------------------------------------------------------------
+  # Static sites.
+  #
+  # Documented here even though both were created in the dashboard, because the
+  # SPA rewrite below is load-bearing and was nowhere in the repo — so nobody
+  # setting up a new environment would know to add it, and the symptom
+  # (refreshing /workouts returns 404) looks like a routing bug in the app.
+  #
+  # `rewrite`, NOT `redirect`: a redirect changes the address bar to
+  # /index.html, so React Router never sees the path the user asked for.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: getfit-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # the production backend URL
+
+  - type: web
+    name: getfit-staging
+    runtime: static
+    branch: staging
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # https://getfit-backend-staging.onrender.com
