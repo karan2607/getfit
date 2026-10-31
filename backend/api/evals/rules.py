@@ -497,6 +497,92 @@ def superset_groups_valid(plan, context, find):
     return checked
 
 
+# Timed or distance work, which is what "conditioning" means structurally.
+_CONDITIONING_TYPES = frozenset((
+    exercise_types.DURATION,
+    exercise_types.CARDIO_MACHINE,
+    exercise_types.WEIGHT_DISTANCE,
+))
+
+_CORE_RE = re.compile(
+    r'\bcrunch|\bsit[\s-]?up|\bplank|\bab\b|\babs\b|\bleg raise'
+    r'|\brussian twist|\bbicycle|\bmountain climber|\bdead bug'
+    r'|\bhollow|\bwood ?chop|\bpallof', re.I)
+
+_COMPOUND_RE = re.compile(
+    r'\bsquat|\bdeadlift|\bbench press|\brow\b|\bpress\b|\bpull[\s-]?up'
+    r'|\bchin[\s-]?up|\bpulldown|\blunge|\bdip\b|\bhip thrust', re.I)
+
+
+def _reps_low_end(reps):
+    """The smallest rep number in a prescription, or None."""
+    numbers = [int(n) for n in re.findall(r'\d+', str(reps or ''))]
+    return min(numbers) if numbers else None
+
+
+def goals_are_served(plan, context, find):
+    """
+    Every stated goal must be visibly addressed by the plan's content.
+
+    Goals were passed to the model as a sentence and nothing ever checked that
+    the plan reflected them. Reported case: a client whose goals were muscle
+    gain + fat loss + "reduce belly fat" received a barbell-pressing-heavy plan
+    that did not obviously serve any of the three.
+
+    Coarse on purpose -- this catches a goal that is simply UNADDRESSED, not a
+    goal that could be served better. The same posture as the rest of these
+    rules: reject the clearly wrong, do not arbitrate the merely arguable.
+
+    Scored only when `specific_goals` is present in the context, so the eight
+    historical fixtures (which predate the field) stay neutral.
+    """
+    goals = (context or {}).get('specific_goals')
+    if not isinstance(goals, (list, tuple)) or not goals:
+        return 0
+
+    names, reps_list, types = [], [], []
+    for _week, day, exercise in iter_exercises(plan):
+        name = str(exercise.get('name') or '')
+        if not name or exercise_types.is_warmup_name(name):
+            continue
+        names.append(name)
+        reps_list.append(exercise.get('reps'))
+        types.append(_resolved_type(exercise, day))
+    if not names:
+        return 0
+
+    has_conditioning = any(t in _CONDITIONING_TYPES for t in types)
+    has_compound = any(_COMPOUND_RE.search(n) for n in names)
+    has_core = any(_CORE_RE.search(n) for n in names)
+    has_heavy = any((_reps_low_end(r) or 99) <= 6 for r in reps_list)
+
+    label = 'plan'
+    checked = 0
+    for goal in goals:
+        goal = str(goal)
+        checked += 1
+        if goal in ('lose_weight', 'reduce_belly_fat', 'improve_stamina'):
+            if not has_conditioning:
+                find(label, 'goal %r but the plan has no conditioning work'
+                            % goal)
+            # The wrong answer to "reduce belly fat" is ab volume. Flag a plan
+            # that answers it with core work and nothing that burns calories.
+            elif goal == 'reduce_belly_fat' and has_core and not has_compound:
+                find(label, 'goal %r answered with core work and no compound '
+                            'training' % goal)
+        elif goal == 'build_muscle':
+            if not has_compound:
+                find(label, 'goal %r but the plan has no compound movements'
+                            % goal)
+        elif goal == 'get_stronger':
+            if not has_heavy:
+                find(label, 'goal %r but nothing is prescribed at 6 reps or '
+                            'fewer' % goal)
+        else:
+            checked -= 1          # no opinion on this goal; stay neutral
+    return checked
+
+
 def no_merged_exercise_names(plan, context, find):
     """
     No exercise may bundle two movements into one entry.
@@ -635,6 +721,9 @@ RULES = (
     # impossible to enter, which is the worst class of defect here -- it pushes
     # the user into logging something false.
     ('no_merged_exercise_names', no_merged_exercise_names, 3.0),
+    # Weighted 2.0: a plan that ignores a stated goal is not dangerous, but it
+    # is the plan failing at its actual job.
+    ('goals_are_served', goals_are_served, 2.0),
     # Per-week generation. Each reports 0 checks on the whole-plan fixtures,
     # which predate the format, so they stay neutral on history.
     ('program_outline_tiles_the_program', program_outline_tiles_the_program, 2.0),

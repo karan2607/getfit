@@ -405,6 +405,71 @@ class RuleBehaviourTests(SimpleTestCase):
         card = self.score(plan([solid_day()]), 'superset_groups_valid')
         self.assertEqual(card.by_rule()['superset_groups_valid'].checked, 0)
 
+    # -- goals_are_served ---------------------------------------------------
+
+    def test_a_fat_loss_goal_with_no_conditioning_is_flagged(self):
+        card = self.assert_flags(plan([day(1, 'Full', [
+            WARMUP,
+            ex('Barbell Bench Press', 4, '8-12'),
+            ex('Barbell Row', 4, '8-12')])]),
+            'goals_are_served',
+            context={'specific_goals': ['lose_weight']})
+        self.assertIn('no conditioning', card.findings[0].detail)
+
+    def test_a_muscle_goal_with_no_compounds_is_flagged(self):
+        self.assert_flags(plan([day(1, 'Arms', [
+            WARMUP,
+            ex('Dumbbell Bicep Curl', 3, '12-15'),
+            ex('Lateral Raise', 3, '12-15')])]),
+            'goals_are_served',
+            context={'specific_goals': ['build_muscle']})
+
+    def test_a_strength_goal_with_no_heavy_work_is_flagged(self):
+        self.assert_flags(plan([day(1, 'Full', [
+            WARMUP, ex('Barbell Squat', 3, '12-15')])]),
+            'goals_are_served',
+            context={'specific_goals': ['get_stronger']})
+
+    def test_belly_fat_answered_with_only_ab_work_is_flagged(self):
+        """
+        The wrong answer to the goal. Spot reduction does not exist, so a plan
+        that serves "reduce belly fat" with crunches and nothing that burns
+        calories is answering a question the user did not ask.
+        """
+        card = self.assert_flags(plan([day(1, 'Core', [
+            WARMUP,
+            ex('Crunches', 3, '20', et.BODYWEIGHT_REPS),
+            ex('Russian Twist', 3, '20', et.BODYWEIGHT_REPS),
+            ex('Treadmill', 1, '20 min', et.CARDIO_MACHINE)])]),
+            'goals_are_served',
+            context={'specific_goals': ['reduce_belly_fat']})
+        self.assertIn('core work', card.findings[0].detail)
+
+    def test_a_plan_that_serves_its_goals_is_clean(self):
+        """Muscle gain + fat loss done properly: compounds plus conditioning."""
+        self.assert_clean(plan([day(1, 'Full', [
+            WARMUP,
+            ex('Barbell Bench Press', 4, '8-12'),
+            ex('Barbell Row', 4, '8-12'),
+            ex('Plank', 3, '45 sec', et.DURATION),
+            ex('Treadmill', 1, '15 min', et.CARDIO_MACHINE)])]),
+            'goals_are_served',
+            context={'specific_goals': ['build_muscle', 'lose_weight',
+                                        'reduce_belly_fat']})
+
+    def test_no_stated_goals_means_no_opinion(self):
+        card = self.score(plan([solid_day()]), 'goals_are_served')
+        self.assertEqual(card.by_rule()['goals_are_served'].checked, 0)
+
+    def test_an_unrecognised_goal_is_not_second_guessed(self):
+        """
+        A goal this rule has no opinion about must not be counted as checked,
+        or the score would move on a judgement never actually made.
+        """
+        card = self.score(plan([solid_day()]), 'goals_are_served',
+                          context={'specific_goals': ['better_posture']})
+        self.assertEqual(card.by_rule()['goals_are_served'].checked, 0)
+
     # -- no_merged_exercise_names -------------------------------------------
 
     def test_a_merged_exercise_name_is_flagged(self):
@@ -717,7 +782,13 @@ class GoldenSetTests(SimpleTestCase):
         pending = {'superset_groups_valid',
                    'program_outline_tiles_the_program',
                    'exercise_notes_map_resolves',
-                   'single_week_payload'}
+                   'single_week_payload',
+                   # The eight fixtures' contexts carry `goal`, `injuries`,
+                   # `level` and `duration_weeks` -- they predate
+                   # `specific_goals`, so this rule has nothing to score on
+                   # them and stays neutral by design. Covered in both
+                   # directions by RuleBehaviourTests instead.
+                   'goals_are_served'}
         for name, _, _ in RULES:
             if name in pending:
                 continue

@@ -410,3 +410,60 @@ class EquipmentBackfillStepTests(APITestCase):
         call_command('upgrade_data', verbosity=0)
         plan.refresh_from_db()
         self.assertEqual(plan.equipment, 'full gym')
+
+
+class GoalGuidanceInThePromptTests(APITestCase):
+    """
+    What the prompt now says about serving a goal.
+
+    "reduce belly fat" was passed to the model as a bare label with no
+    guidance, so it was free to answer with ab volume -- which is not what the
+    user is asking for, because fat distribution is not selectable by exercise.
+
+    And the selection guidance exists because a female client whose goals were
+    muscle gain + fat loss received a barbell-pressing-heavy plan that read as
+    male-default. The fix is NOT sex-based substitution: prescribing lighter
+    weights or machine-only work to women is a worse programme, not a women's
+    programme. The fix is that selection traces to goals.
+    """
+
+    def prompt(self):
+        from api import views
+        system, user = views._workout_generate_prompt(
+            None, days_per_week=4, duration_weeks=8, preferred_unit='lb')
+        return system + '\n' + user
+
+    def test_spot_reduction_is_explicitly_ruled_out(self):
+        p = self.prompt()
+        self.assertIn('Fat distribution is NOT selectable by exercise', p)
+        self.assertIn('Do NOT pad the plan with ab volume', p)
+
+    def test_the_plan_is_told_not_to_claim_spot_reduction_to_the_user(self):
+        """
+        Your call: fix it in the prompt, do not lecture the user in plan copy.
+        So the model must neither pad with abs NOR explain itself in a note.
+        """
+        self.assertIn('Never claim or imply spot reduction', self.prompt())
+
+    def test_core_work_is_still_allowed_on_its_own_merits(self):
+        """
+        The guard against over-correcting: trunk strength is legitimate
+        training. The rule is "not as a fat-loss mechanism", not "no core work".
+        """
+        self.assertIn('core work for trunk STRENGTH', self.prompt())
+
+    def test_selection_is_told_to_ignore_sex(self):
+        p = self.prompt()
+        self.assertIn('NEVER BY SEX', p)
+        self.assertIn('Barbell bench press is correct for a woman', p)
+
+    def test_demographics_are_scoped_to_loading_not_selection(self):
+        """
+        The distinction that keeps this correct rather than stereotyped: age,
+        sex and bodyweight inform STARTING LOADS, not which exercises a client
+        is permitted to do.
+        """
+        self.assertIn('for STARTING LOADS and volume', self.prompt())
+
+    def test_every_exercise_must_trace_to_a_goal(self):
+        self.assertIn('must trace to a stated goal', self.prompt())

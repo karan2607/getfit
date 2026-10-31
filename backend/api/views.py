@@ -861,6 +861,34 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
         '- Balanced upper/lower or full-body. Consistent 3x10-12, 60-90s rest\n'
         '- Rotate exercise variations every 4 weeks to prevent adaptation\n\n'
 
+        # "reduce belly fat" was passed through as a bare label with no
+        # guidance, so the model was free to answer it with ab volume -- which
+        # does not do what the user is asking for.
+        'TARGETED FAT LOSS ("reduce belly fat", "lose love handles", etc):\n'
+        '- Fat distribution is NOT selectable by exercise. No movement burns\n'
+        '  fat from the area it trains. Serve this goal the way it actually\n'
+        '  works: the calorie deficit (the diet plan handles that), whole-body\n'
+        '  compound training to protect muscle, and conditioning density.\n'
+        '- Include direct core work for trunk STRENGTH on its own merits --\n'
+        '  2-3 exercises is plenty. Do NOT pad the plan with ab volume, and\n'
+        '  do NOT present core work as the mechanism for losing belly fat.\n'
+        '- Never claim or imply spot reduction in any name, note or\n'
+        '  description. Say what the work is for, not what it cannot do.\n\n'
+
+        # Exercise selection must not default to a demographic stereotype.
+        # Reported: a female client whose goals were muscle gain + fat loss
+        # received a barbell-pressing-heavy plan that read as male-default.
+        'SELECTION IS DRIVEN BY GOAL, EXPERIENCE AND EQUIPMENT -- NEVER BY SEX:\n'
+        '- The same goal gets the same movement selection regardless of the\n'
+        '  client\'s sex. Barbell bench press is correct for a woman building\n'
+        '  muscle; "lighter weights", machine-only work and "toning" are not a\n'
+        '  womens programme, they are a worse programme.\n'
+        '- Use the client\'s demographics for STARTING LOADS and volume\n'
+        '  tolerance, which they legitimately inform. Not for which exercises\n'
+        '  they are allowed to do.\n'
+        '- Every exercise must trace to a stated goal. If you cannot say which\n'
+        '  goal an exercise serves, it does not belong in the plan.\n\n'
+
         'EXPERIENCE RULES:\n'
         '- BEGINNER: Full-body 3x/week, basic compounds only, linear progression, 3x8-12\n'
         '- INTERMEDIATE: Push/pull/legs or upper/lower, block periodization, more variety\n'
