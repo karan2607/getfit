@@ -123,13 +123,23 @@ Both land in your Queue tab for you to handle by hand.
 
 ## The build gate
 
-There is no staging environment, so this gate is the only thing between the loop
-and a broken production deploy. Both must pass before any commit:
+The loop pushes to the **`staging`** branch, which auto-deploys to
+`getfit-backend-staging` against a Neon branch of the production database.
+Promotion to `main` is a deliberate act, so the loop cannot put an unreviewed
+change in front of users — only in front of you.
+
+This gate still runs before anything is pushed, because catching a failure
+here is cheaper than catching it on staging. Both must pass before any commit:
 
 ```bash
 cd backend  && python manage.py check && python manage.py test api.tests
 cd frontend && npm run build        # tsc -b + vite build
 ```
+
+What the gate CANNOT catch, and what staging is for: a UI regression (the
+component tests cover the logic, not the rendering of every surface) and a
+production-only break. The Django 5 outage passed a green local run on 4.2 and
+broke on production's 5.x.
 
 Run the **full** `npm run build`, not just `npx tsc --noEmit`: the project config
 enables `noUnusedLocals`, so the build catches errors the bare typecheck does not.

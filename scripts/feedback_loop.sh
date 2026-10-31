@@ -37,7 +37,14 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOKEN_FILE="${GETFIT_TOKEN_FILE:-$HOME/.getfit-loop-token}"
 POLL_SECONDS="${GETFIT_POLL_SECONDS:-300}"
 LOG="${GETFIT_LOOP_LOG:-$HOME/getfit-loop.log}"
-BRANCH="${GETFIT_BRANCH:-main}"
+# Pushes to STAGING, not main. Staging auto-deploys and is promoted to
+# production by hand, so the loop can no longer put an unreviewed change in
+# front of users on its own -- it can only put one in front of you.
+#
+# Override with GETFIT_BRANCH=main to restore the old behaviour, but note the
+# build gate is a local test run: it cannot catch a UI regression or a
+# production-only break (the Django 5 outage was green locally on 4.2).
+BRANCH="${GETFIT_BRANCH:-staging}"
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
 
@@ -141,7 +148,17 @@ process_item() {
     set_status "$id" skipped "Working tree was dirty; loop refused to run."
     return
   fi
-  git -C "$REPO" checkout "$BRANCH" >>"$LOG" 2>&1
+  # Fail loudly on a missing branch rather than silently working on whatever
+  # happens to be checked out. Before this the checkout error went to the log
+  # and the loop carried on, so a typo in GETFIT_BRANCH meant committing to
+  # the wrong branch -- and with the default now `staging`, that wrong branch
+  # would have been main.
+  if ! git -C "$REPO" checkout "$BRANCH" >>"$LOG" 2>&1; then
+    log "  SKIP: branch '$BRANCH' does not exist locally."
+    log "    Create it once with:  git checkout -b $BRANCH && git push -u origin $BRANCH"
+    set_status "$id" skipped "Branch '$BRANCH' does not exist; nothing was changed."
+    return
+  fi
   git -C "$REPO" pull --ff-only >>"$LOG" 2>&1 || log "  WARN: pull failed, continuing on local $BRANCH"
 
   local before

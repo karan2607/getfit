@@ -1,3 +1,15 @@
+# Two environments, same blueprint.
+#
+# Everything deploys to STAGING first and is promoted to main by hand. Before
+# this existed, `main` went straight to production with only the local test
+# gate in front of it -- which is how the Django 5 outage shipped (green
+# locally on 4.2, broken on production's 5.x) and why every UI change went out
+# with no automated coverage at all.
+#
+# Staging points at a Neon BRANCH of the production database, so a migration
+# that mutates rows can be run against real-shaped data first. Every such
+# migration so far (the Composite conversion, upgrade steps 6 and 7) was
+# verified against synthetic fixtures because the local database is empty.
 services:
   - type: web
     name: getfit-backend
@@ -25,3 +37,45 @@ services:
         sync: false
       - key: FROM_EMAIL
         value: GetFit <noreply@resend.dev>
+
+  # ---------------------------------------------------------------------------
+  # Staging. Identical build and runtime to production on purpose: a staging
+  # environment that differs from production tests the wrong thing.
+  #
+  # DEBUG stays False to match production. Setting it True here would hide the
+  # exact class of failure staging exists to catch -- the Django 5 outage was
+  # a prod-only break, and a tracebackless 500 is part of what prod looks like.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: getfit-backend-staging
+    runtime: python
+    branch: staging
+    # Free tier spins down when idle, so the first request after a quiet spell
+    # takes ~50s. Acceptable for staging; do not copy this to production.
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data
+    startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      # MUST be the Neon `staging` branch, never the production database.
+      # api/management/commands/reset_staging.py refuses to run if this points
+      # at the same database as production.
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # Shares production's key, so staging burns the same credits. Worth
+      # knowing before generating plans here in a loop.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        value: GetFit Staging <noreply@resend.dev>
+      # No SENTRY_DSN: staging noise in the production Sentry project would
+      # make real alerts worth less.
