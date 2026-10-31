@@ -289,6 +289,84 @@ def _step_7_infer_plan_equipment(plan, stdout):
     return 1
 
 
+def _step_8_split_merged_exercises(plan, stdout):
+    """
+    Split merged "A + B" exercises already stored in a plan.
+
+    I claimed the Composite migration would do this. It did not -- 0045
+    converted `superset_group` integers into containers and never touched
+    merged NAMES, and `views._split_merged_exercises` only runs on the save
+    path, so an existing plan kept its merged rows. The reported plan still
+    had eight of them, one per week.
+
+    Why this is safe on logged history, which is the only part that could hurt:
+
+      * The FIRST half keeps the existing Exercise row -- same primary key, so
+        every SetLog attached to it stays attached. Those are genuinely that
+        exercise's sets. (The user had already corrected the summed reps by
+        hand before reporting it.)
+      * The SECOND half is a NEW row with no logs, which is correct: that
+        volume was never recorded, and inventing it would be worse than
+        leaving it absent.
+      * No SetLog is created, deleted or re-pointed.
+
+    The split halves are NOT grouped into a composite here. The reported pair
+    is bench press + push-ups, which `superset_verdict` rejects (both push,
+    both chest, both compound), so grouping would be immediately undone.
+    Leaving them as two adjacent standalone exercises is the correct outcome
+    and the one that matters: both become loggable.
+
+    Reuses the same splitter as the save path, so the two cannot disagree about
+    what "merged" means or how to divide the reps.
+
+    Idempotent: a plan with no merged names is untouched.
+    """
+    from .models import Exercise
+    from .views import _split_merged_exercises
+
+    changed = 0
+    for day in plan.days.all():
+        existing = list(day.exercises.order_by('order', 'id'))
+        if not existing:
+            continue
+
+        payload = [{'name': e.name, 'sets': e.sets, 'reps': e.reps,
+                    'rest_seconds': e.rest_seconds, 'notes': e.notes,
+                    'measurement_type': e.measurement_type,
+                    '_pk': e.pk} for e in existing]
+        split, problems = _split_merged_exercises(day.name, payload)
+        if len(split) == len(payload):
+            continue          # nothing merged on this day
+
+        for problem in problems:
+            stdout('    %s' % problem)
+
+        # Rewrite the day in order. The first part of a split keeps the
+        # original row (and therefore its SetLogs); later parts are new.
+        seen_pks = set()
+        for order, item in enumerate(split):
+            pk = item.get('_pk')
+            reps = exercise_types.normalize_reps(str(item.get('reps') or '10'))
+            mtype = exercise_types.normalize(
+                item.get('measurement_type'), item['name'],
+                day_name=day.name, reps=reps)
+            if pk is not None and pk not in seen_pks:
+                seen_pks.add(pk)
+                Exercise.objects.filter(pk=pk).update(
+                    name=item['name'], reps=reps, order=order,
+                    measurement_type=mtype)
+                stdout('    kept  %-34s (logs preserved)' % item['name'][:34])
+            else:
+                Exercise.objects.create(
+                    day=day, name=item['name'], sets=item.get('sets') or 3,
+                    reps=reps, rest_seconds=item.get('rest_seconds'),
+                    notes=item.get('notes') or '', order=order,
+                    measurement_type=mtype)
+                stdout('    added %-34s (no prior logs)' % item['name'][:34])
+            changed += 1
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
@@ -300,6 +378,8 @@ UPGRADES = {
         _step_6_reclassify_for_new_types),
     7: ('infer equipment for plans that predate the field',
         _step_7_infer_plan_equipment),
+    8: ('split merged "A + B" exercises already in plans',
+        _step_8_split_merged_exercises),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0

@@ -285,3 +285,184 @@ class ChatPlanContextTests(APITestCase):
         self.assertIn(views.SUPERSET_PROMPT_RULES,
                       views._workout_system_prompt('lb'))
         self.assertIn(views.SUPERSET_PROMPT_RULES, self.context())
+
+
+class SplitExistingMergedRowsTests(APITestCase):
+    """
+    Upgrade step 8: repairing merged rows ALREADY stored in a plan.
+
+    I claimed the Composite migration would do this. It did not — 0045
+    converted superset_group integers into containers and never touched merged
+    names, and the save-path splitter only fires when a plan is written. The
+    reported plan still had eight merged rows, one per week, each with a
+    different rep split from the progression.
+
+    The only thing that could actually hurt here is logged history, so that is
+    what most of these assert.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='split8@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', current_week=1, is_active=True)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1,
+            name='Upper Body Push Focus')
+
+        self.warm = Exercise.objects.create(
+            day=self.day, name='Warmup & Mobility', sets=1, reps='5 min',
+            order=0, measurement_type=et.WARMUP)
+        self.merged = Exercise.objects.create(
+            day=self.day, name='Barbell Bench Press + Push-ups (Superset)',
+            sets=4, reps='12 + 10', rest_seconds=90, order=1,
+            measurement_type=et.WEIGHT_REPS)
+        self.after = Exercise.objects.create(
+            day=self.day, name='Lateral Raise', sets=3, reps='12-15', order=2,
+            measurement_type=et.WEIGHT_REPS)
+
+        # The bench sets the user had already corrected by hand to 12 reps.
+        from api.models import WorkoutSession, SetLog
+        self.session = WorkoutSession.objects.create(
+            user=self.user, exercise_day=self.day,
+            day_name='Upper Body Push Focus', is_completed=True)
+        self.logs = [
+            SetLog.objects.create(
+                workout_session=self.session, exercise=self.merged,
+                exercise_name='Barbell Bench Press + Push-ups (Superset)',
+                set_number=n, weight_kg=43.1, reps_completed=12,
+                is_completed=True)
+            for n in (1, 2, 3, 4)
+        ]
+        self.log_ids = {log.id for log in self.logs}
+
+    def run_step(self):
+        from api import data_upgrades
+        lines = []
+        changed = data_upgrades._step_8_split_merged_exercises(
+            self.plan, lines.append)
+        return changed, lines
+
+    def names(self):
+        return [e.name for e in self.day.exercises.order_by('order')]
+
+    # -- the repair ----------------------------------------------------------
+
+    def test_the_merged_row_becomes_two_loggable_exercises(self):
+        self.run_step()
+        self.assertEqual(
+            self.names(),
+            ['Warmup & Mobility', 'Barbell Bench Press', 'Push-ups',
+             'Lateral Raise'])
+
+    def test_each_half_keeps_its_own_prescription(self):
+        self.run_step()
+        bench = self.day.exercises.get(name='Barbell Bench Press')
+        push = self.day.exercises.get(name='Push-ups')
+        self.assertEqual(bench.reps, '12')
+        self.assertEqual(push.reps, '10')
+        self.assertEqual(bench.sets, 4)
+        self.assertEqual(push.sets, 4)
+
+    def test_each_half_gets_its_own_field_contract(self):
+        """
+        The whole point. Push-ups must stop having a weight column — a value
+        typed there is discarded by the server.
+        """
+        self.run_step()
+        push = self.day.exercises.get(name='Push-ups')
+        self.assertEqual(push.measurement_type, et.BODYWEIGHT_REPS)
+        self.assertNotIn('weight_kg', et.FIELD_CONTRACT[push.measurement_type])
+        bench = self.day.exercises.get(name='Barbell Bench Press')
+        self.assertEqual(bench.measurement_type, et.WEIGHT_REPS)
+
+    def test_the_halves_are_adjacent_and_the_order_stays_contiguous(self):
+        self.run_step()
+        orders = list(self.day.exercises.order_by('order')
+                      .values_list('order', flat=True))
+        self.assertEqual(orders, [0, 1, 2, 3])
+
+    # -- logged history, which is the only part that could hurt --------------
+
+    def test_the_first_half_keeps_the_existing_row_and_its_logs(self):
+        """
+        Same primary key, so every SetLog stays attached. Those ARE bench sets.
+        """
+        original_pk = self.merged.pk
+        self.run_step()
+        bench = self.day.exercises.get(name='Barbell Bench Press')
+        self.assertEqual(bench.pk, original_pk)
+        from api.models import SetLog
+        self.assertEqual(
+            SetLog.objects.filter(exercise=bench).count(), 4)
+
+    def test_no_set_log_is_created_deleted_or_repointed(self):
+        from api.models import SetLog
+        self.run_step()
+        self.assertEqual({l.id for l in SetLog.objects.all()}, self.log_ids)
+        for log in SetLog.objects.all():
+            self.assertEqual(log.weight_kg, 43.1)
+            self.assertEqual(log.reps_completed, 12)
+            self.assertTrue(log.is_completed)
+
+    def test_the_new_half_has_no_invented_history(self):
+        """
+        Push-up volume was never recorded. Inventing it would be worse than
+        leaving it absent.
+        """
+        from api.models import SetLog
+        self.run_step()
+        push = self.day.exercises.get(name='Push-ups')
+        self.assertEqual(SetLog.objects.filter(exercise=push).count(), 0)
+
+    # -- restraint -----------------------------------------------------------
+
+    def test_a_day_with_nothing_merged_is_untouched(self):
+        other = WorkoutDay.objects.create(
+            plan=self.plan, day_number=2, week_number=1, name='Pull')
+        a = Exercise.objects.create(day=other, name='Lat Pulldown', sets=3,
+                                    reps='12', order=0)
+        self.run_step()
+        a.refresh_from_db()
+        self.assertEqual(a.name, 'Lat Pulldown')
+        self.assertEqual(other.exercises.count(), 1)
+
+    def test_a_second_run_changes_nothing(self):
+        self.run_step()
+        before = self.names()
+        changed, _ = self.run_step()
+        self.assertEqual(changed, 0)
+        self.assertEqual(self.names(), before)
+
+    def test_it_handles_each_weeks_different_rep_split(self):
+        """
+        The real plan's eight rows each split differently because the reps
+        progress: "10 + 10", "5 + 5-8", "6-8 + 8-12".
+        """
+        for week, reps, expected in (
+            (2, '10-12 + 10', ['10-12', '10']),
+            (3, '5 + 5-8', ['5', '5-8']),
+            (4, '6-8 + 8-12', ['6-8', '8-12']),
+        ):
+            day = WorkoutDay.objects.create(
+                plan=self.plan, day_number=1, week_number=week, name='Push')
+            Exercise.objects.create(
+                day=day, name='Barbell Bench Press + Push-ups (Superset)',
+                sets=4, reps=reps, order=0,
+                measurement_type=et.WEIGHT_REPS)
+        self.run_step()
+        for week, _reps, expected in (
+            (2, None, ['10-12', '10']),
+            (3, None, ['5', '5-8']),
+            (4, None, ['6-8', '8-12']),
+        ):
+            day = WorkoutDay.objects.get(plan=self.plan, week_number=week,
+                                         day_number=1)
+            got = [e.reps for e in day.exercises.order_by('order')]
+            self.assertEqual(got, expected, msg='week %d' % week)
+
+    def test_it_is_registered_as_step_eight(self):
+        from api import data_upgrades
+        label, func = data_upgrades.UPGRADES[8]
+        self.assertEqual(func, data_upgrades._step_8_split_merged_exercises)
+        self.assertIn('merged', label)
