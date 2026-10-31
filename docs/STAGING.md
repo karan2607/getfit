@@ -67,13 +67,36 @@ has no Neon API token.
 
 1. **Neon** — create a branch named `staging` from `main`. Copy its pooled
    connection string.
-2. **Render** — apply the blueprint (`backend/render.yaml`), which creates
-   `getfit-backend-staging`. Then set the `sync: false` variables on it:
-   `DATABASE_URL` (the staging branch), `ALLOWED_HOSTS`,
-   `CORS_ALLOWED_ORIGINS`, `GEMINI_API_KEY`, `RESEND_API_KEY`.
+2. **Render** — create the staging web service BY HAND, matching
+   `backend/render.yaml`. Do not point Render at the blueprint: the production
+   service was created in the dashboard, and applying a blueprint now can try
+   to take it over. `render.yaml` is the written spec, not the mechanism.
+
+   ```
+   DEBUG                = False
+   SECRET_KEY           = <new, never reuse production's>
+   DATABASE_URL         = <the Neon staging branch, pooled>
+   ALLOWED_HOSTS        = getfit-backend-staging.onrender.com
+   CORS_ALLOWED_ORIGINS = https://getfit-staging.onrender.com
+   GEMINI_API_KEY       = <same as production>
+   PRODUCTION_DB_HOST   = <production Neon hostname, no user or password>
+   ```
+
+   No `RESEND_API_KEY` or `FROM_EMAIL`: outbound email has never been
+   configured on this project. No `SENTRY_DSN`: staging noise would devalue
+   real alerts.
 3. **Render** — create a static site `getfit-staging` from the `staging`
    branch, root `frontend`, build `npm ci && npm run build`, publish `dist`,
    with `VITE_API_URL` set to the staging backend URL.
+
+   Add the SPA rewrite: source `/*`, destination `/index.html`, type
+   **Rewrite**. Without it, refreshing on `/workouts` 404s. Production has
+   this set in the dashboard, which is why it is not in the repo.
+
+   If Render appends a suffix because the name is taken, correct
+   `CORS_ALLOWED_ORIGINS` on the backend to the real URL. The symptom of a
+   mismatch is that the site loads but every API call fails with a CORS error
+   in the browser console and nothing appears in the backend logs.
 4. **Git** — `git checkout -b staging && git push -u origin staging`.
 
 ## Known costs

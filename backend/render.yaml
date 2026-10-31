@@ -31,6 +31,10 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Declared but NOT set in production today. api/email.py prints the
+      # password-reset link to the logs when it is absent, which is why the
+      # superuser reset tooling exists -- see views.admin_reset. Set this to
+      # enable real self-service resets.
       - key: RESEND_API_KEY
         sync: false
       - key: SENTRY_DSN
@@ -73,9 +77,16 @@ services:
       # knowing before generating plans here in a loop.
       - key: GEMINI_API_KEY
         sync: false
-      - key: RESEND_API_KEY
+      # reset_staging compares DATABASE_URL's host against this and REFUSES
+      # to run if they match. Unset also refuses -- an unset variable is the
+      # likeliest way to end up pointed at production by accident.
+      - key: PRODUCTION_DB_HOST
         sync: false
-      - key: FROM_EMAIL
-        value: GetFit Staging <noreply@resend.dev>
       # No SENTRY_DSN: staging noise in the production Sentry project would
       # make real alerts worth less.
+      #
+      # No RESEND_API_KEY / FROM_EMAIL either. Outbound email has never been
+      # configured on this project -- api/email.py prints the reset link to the
+      # logs when the key is absent, which is why the superuser reset tooling
+      # exists. Listing them here implied they were set and sent someone
+      # looking for a key that does not exist.
