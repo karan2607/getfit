@@ -85,13 +85,31 @@ has no Neon API token.
    No `RESEND_API_KEY` or `FROM_EMAIL`: outbound email has never been
    configured on this project. No `SENTRY_DSN`: staging noise would devalue
    real alerts.
-3. **Render** — create a static site `getfit-staging` from the `staging`
-   branch, root `frontend`, build `npm ci && npm run build`, publish `dist`,
-   with `VITE_API_URL` set to the staging backend URL.
+3. **Vercel** — the frontend is on Vercel, not Render. There is no staging
+   service to create: Vercel builds a preview deployment for every branch, so
+   pushing to `staging` already produces one.
 
-   Add the SPA rewrite: source `/*`, destination `/index.html`, type
-   **Rewrite**. Without it, refreshing on `/workouts` 404s. Production has
-   this set in the dashboard, which is why it is not in the repo.
+   Two things to set, both in Vercel → Settings → Environment Variables:
+
+   ```
+   VITE_API_URL  (Preview only)     = https://getfit-backend-staging.onrender.com
+   VITE_API_URL  (Production only)  = <the production backend URL>
+   ```
+
+   Scope matters. A single unscoped `VITE_API_URL` makes previews talk to the
+   **production** backend, which is precisely the thing staging exists to
+   prevent — the UI would look like staging while writing to real data.
+
+   Then copy the **branch alias** (`…-git-staging-<scope>.vercel.app`, stable
+   across deploys) into the backend's `CORS_ALLOWED_ORIGINS`. Do not use the
+   per-commit preview URL; it changes every push and CORS would break.
+
+   The SPA rewrite needs no dashboard setting — `frontend/vercel.json` has
+   carried it since the first commit and applies to previews as well.
+
+   If the preview URL returns a Vercel login page, Deployment Protection is on
+   for previews (Settings → Deployment Protection). Turn it off for this
+   project or anyone you share staging with will be blocked.
 
    If Render appends a suffix because the name is taken, correct
    `CORS_ALLOWED_ORIGINS` on the backend to the real URL. The symptom of a

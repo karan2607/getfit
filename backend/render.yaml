@@ -91,42 +91,24 @@ services:
       # exists. Listing them here implied they were set and sent someone
       # looking for a key that does not exist.
 
-  # ---------------------------------------------------------------------------
-  # Static sites.
-  #
-  # Documented here even though both were created in the dashboard, because the
-  # SPA rewrite below is load-bearing and was nowhere in the repo — so nobody
-  # setting up a new environment would know to add it, and the symptom
-  # (refreshing /workouts returns 404) looks like a routing bug in the app.
-  #
-  # `rewrite`, NOT `redirect`: a redirect changes the address bar to
-  # /index.html, so React Router never sees the path the user asked for.
-  # ---------------------------------------------------------------------------
-  - type: web
-    name: getfit-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        sync: false          # the production backend URL
-
-  - type: web
-    name: getfit-staging
-    runtime: static
-    branch: staging
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        sync: false          # https://getfit-backend-staging.onrender.com
+# -----------------------------------------------------------------------------
+# The FRONTEND IS NOT ON RENDER. It is on Vercel, and has been since the first
+# commit -- `frontend/vercel.json` carries the SPA rewrite.
+#
+# An earlier version of this file declared `getfit-frontend` and
+# `getfit-staging` as Render static sites. Neither exists. Writing them here
+# sent someone into the Render dashboard looking for a Redirects/Rewrites tab
+# on a service that was never going to have one.
+#
+# What that means for staging:
+#   - Vercel builds a PREVIEW deployment for every branch automatically, so
+#     pushing to `staging` needs no new service. The stable branch alias is
+#     what CORS_ALLOWED_ORIGINS above must list -- NOT a per-commit URL, which
+#     changes on every deploy.
+#   - VITE_API_URL is scoped per environment in Vercel. Preview must point at
+#     getfit-backend-staging; Production keeps pointing at getfit-backend.
+#   - The SPA rewrite is already committed in frontend/vercel.json and applies
+#     to previews too. There is nothing to configure by hand.
+#
+# See docs/STAGING.md.
+# -----------------------------------------------------------------------------
