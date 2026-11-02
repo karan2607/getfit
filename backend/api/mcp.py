@@ -81,6 +81,23 @@ def _weight_in(value, unit):
 
 
 def _exercise_out(exercise):
+    """
+    One exercise, as an agent sees it.
+
+    `order`, `composite_id` and `composite_rest_seconds` were all missing, and
+    their absence was not cosmetic:
+
+      * without the composite fields an agent cannot tell that two exercises
+        are a superset at all, so it describes a round as two unrelated
+        movements -- while `ExerciseSerializer` has exposed both the whole
+        time, leaving the HTTP and MCP surfaces disagreeing about one row.
+      * without `order` there is no way to say WHERE an exercise sits in its
+        day, which is what the position-based plan diff matches on.
+
+    `composite_rest_seconds` reads through the container because rest belongs
+    to the ROUND, not to a member -- the old integer `superset_group` had
+    nowhere to put it, which is why `Composite` exists.
+    """
     return {
         'id': str(exercise.id),
         'name': exercise.name,
@@ -88,11 +105,16 @@ def _exercise_out(exercise):
         'reps': exercise.reps,
         'rest_seconds': exercise.rest_seconds,
         'notes': exercise.notes,
+        'order': exercise.order,
         'measurement_type': exercise.measurement_type,
         # Tell the agent which fields it may log for this exercise, so it
         # cannot put seconds into a weight field.
         'loggable_fields': list(
             exercise_types.FIELD_CONTRACT.get(exercise.measurement_type, ())),
+        'composite_id': (str(exercise.composite_id)
+                         if exercise.composite_id else None),
+        'composite_rest_seconds': (exercise.composite.rest_seconds
+                                   if exercise.composite_id else None),
     }
 
 

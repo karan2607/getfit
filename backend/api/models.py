@@ -932,6 +932,54 @@ class PlanChange(models.Model):
         return '%s change on %s' % (self.status, self.plan_id)
 
 
+class ToolCallLog(models.Model):
+    """
+    Every tool an agent runs, recorded.
+
+    Nothing recorded this before. `ChatMessage.role` is `user|assistant` only
+    -- there is no `tool` role -- so a tool call had nowhere to live, and the
+    MCP endpoint logged only unexpected exceptions. A successful write through
+    an agent (`log_set`, `update_personal_notes`, `delete_health_day`) left no
+    trace of what ran, with which arguments, on whose behalf.
+
+    That matters most when something goes wrong. "The AI deleted my Tuesday"
+    is unanswerable without this; with it, the arguments are right there.
+
+    Shaped after `Feedback`, the only other model carrying workflow
+    provenance.
+
+    NEVER stores credentials. `arguments` is tool input, which is plan and
+    exercise data, and `result_summary` is a short description rather than the
+    payload -- a full result would duplicate the database into a log table and
+    grow without bound.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE,
+                             related_name='tool_calls')
+    session = models.ForeignKey('ChatSession', on_delete=models.SET_NULL,
+                                null=True, blank=True,
+                                related_name='tool_calls')
+    tool = models.CharField(max_length=64, db_index=True)
+    arguments = models.JSONField(default=dict, blank=True)
+    result_summary = models.CharField(max_length=500, blank=True)
+    # Which model asked for it. The router sends workouts to Claude and food
+    # to Gemini, so "which model did this" is a real question.
+    model = models.CharField(max_length=64, blank=True)
+    ok = models.BooleanField(default=True)
+    error = models.CharField(max_length=300, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['user', '-created_at'])]
+
+    def __str__(self):
+        return '%s(%s) %s' % (self.tool, 'ok' if self.ok else 'failed',
+                              self.created_at)
+
+
 class ExerciseGuide(models.Model):
     # user=NULL is the shared generic guide (form steps, muscles, images).
     # A row with a user is that user's personalised copy, carrying their weight

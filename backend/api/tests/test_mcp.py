@@ -17,6 +17,7 @@ from rest_framework.authtoken.models import Token
 
 from api import mcp, exercise_types as et
 from api.models import (
+    Composite,
     User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     DietPlan, Meal,
 )
@@ -419,3 +420,57 @@ class RegistryIntegrityTests(APITestCase):
         import re
         for name in mcp.TOOLS:
             self.assertRegex(name, r'^[a-z][a-z0-9_]*$')
+
+
+class ExerciseOutExposesGroupingTests(APITestCase):
+    """
+    An MCP agent must be able to see that two exercises are a superset.
+
+    `_exercise_out` emitted 8 keys and no grouping at all, while
+    `ExerciseSerializer` has exposed `composite_id` and
+    `composite_rest_seconds` the whole time -- so the HTTP and MCP surfaces
+    disagreed about the same row, and an agent reading over MCP would describe
+    a superset as two unrelated movements.
+
+    `order` was missing too, which is what the position-based plan diff
+    matches on.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='mcpout@test.local', password='x')
+        self.plan = WorkoutPlan.objects.create(user=self.user, title='P')
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Upper')
+
+    def test_a_standalone_exercise_reports_no_composite(self):
+        ex = Exercise.objects.create(
+            day=self.day, name='Plank', sets=3, reps='60 sec', order=2,
+            measurement_type='duration')
+        out = mcp._exercise_out(ex)
+        self.assertEqual(out['order'], 2)
+        self.assertIsNone(out['composite_id'])
+        self.assertIsNone(out['composite_rest_seconds'])
+
+    def test_a_grouped_exercise_reports_its_container_and_rest(self):
+        """Rest belongs to the ROUND, which is why Composite exists."""
+        composite = Composite.objects.create(day=self.day, order=0, rest_seconds=90)
+        ex = Exercise.objects.create(
+            day=self.day, name='Dumbbell Lateral Raises', sets=3, reps='12-15',
+            order=0, measurement_type='weight_reps', composite=composite)
+        out = mcp._exercise_out(ex)
+        self.assertEqual(out['composite_id'], str(composite.id))
+        self.assertEqual(out['composite_rest_seconds'], 90)
+
+    def test_mcp_and_the_serializer_agree_on_grouping(self):
+        from api.serializers import ExerciseSerializer
+
+        composite = Composite.objects.create(day=self.day, order=0, rest_seconds=75)
+        ex = Exercise.objects.create(
+            day=self.day, name='Cable Tricep Pushdown', sets=3, reps='12-15',
+            order=1, measurement_type='weight_reps', composite=composite)
+
+        mcp_out = mcp._exercise_out(ex)
+        drf_out = ExerciseSerializer(ex).data
+        self.assertEqual(mcp_out['composite_id'], str(drf_out['composite_id']))
+        self.assertEqual(mcp_out['composite_rest_seconds'],
+                         drf_out['composite_rest_seconds'])
