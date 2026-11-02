@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type ChatSession } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
+import { InFlight, TurnFailure } from '../components/chat/TurnStatus'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import ChatBubble from '../components/chat/ChatBubble'
 import ChatInput from '../components/chat/ChatInput'
-import StreamingIndicator from '../components/chat/StreamingIndicator'
 import { SkeletonText } from '../components/Skeleton'
 import PageHeader from '../components/PageHeader'
 import ConfirmModal from '../components/ConfirmModal'
@@ -77,18 +77,33 @@ function SessionList({
 // ── Chat detail pane ──────────────────────────────────────────────────────
 
 function ChatPane({ sessionId }: { sessionId: string }) {
-  const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } = useChatSession(sessionId)
+  const {
+    session, isLoading, isSending, streamingContent, error,
+    failedTurn, elapsed, loadSession, sendMessage, retry, stop, dismissFailure,
+  } = useChatSession(sessionId)
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [pinnedToBottom, setPinnedToBottom] = useState(true)
 
   useEffect(() => {
     loadSession(sessionId)
   }, [sessionId, loadSession])
 
+  // Autoscroll ONLY when the user is already at the bottom. The old effect
+  // scrolled on every change, so reading back through a reply yanked you to
+  // the end on each chunk -- the longer the answer, the harder it was to read.
   useEffect(() => {
     const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [session?.messages.length, streamingContent])
+    if (el && pinnedToBottom) el.scrollTop = el.scrollHeight
+  }, [session?.messages.length, streamingContent, pinnedToBottom])
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    // A small tolerance: "near the bottom" is what a reader means by "at the
+    // bottom", and exact equality fails on fractional scroll heights.
+    setPinnedToBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80)
+  }
 
   if (isLoading) {
     return (
@@ -107,7 +122,11 @@ function ChatPane({ sessionId }: { sessionId: string }) {
         </button>
       </div>
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 md:px-6 py-4"
+      >
         {session?.messages.length === 0 && !streamingContent && (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="text-4xl mb-3">💬</div>
@@ -123,7 +142,19 @@ function ChatPane({ sessionId }: { sessionId: string }) {
           <ChatBubble role="assistant" content={streamingContent} isStreaming />
         )}
 
-        {isSending && !streamingContent && <StreamingIndicator />}
+        {!isSending && failedTurn?.partial && (
+          <ChatBubble role="assistant" content={failedTurn.partial} />
+        )}
+
+        {isSending && <InFlight elapsed={elapsed} onStop={stop} />}
+
+        {failedTurn && (
+          <TurnFailure
+            turn={failedTurn}
+            onRetry={retry}
+            onDismiss={dismissFailure}
+          />
+        )}
 
         {error && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
@@ -131,6 +162,20 @@ function ChatPane({ sessionId }: { sessionId: string }) {
           </div>
         )}
       </div>
+
+      {!pinnedToBottom && (
+        <button
+          type="button"
+          onClick={() => {
+            const el = scrollRef.current
+            if (el) el.scrollTop = el.scrollHeight
+            setPinnedToBottom(true)
+          }}
+          className="self-center -mt-12 mb-2 min-h-[44px] px-4 rounded-full bg-ink-600 text-white text-sm shadow-lg"
+        >
+          New messages ↓
+        </button>
+      )}
 
       {/* Input */}
       <div className="px-6 pb-6 pt-2">

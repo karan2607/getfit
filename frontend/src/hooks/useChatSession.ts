@@ -1,8 +1,27 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatSessionDetail } from '../lib/api'
-import { streamChatMessage } from '../lib/stream'
+import { streamChatMessage, type StreamEvent } from '../lib/stream'
 import { getToken } from '../lib/auth'
-import { getErrorMessage } from '../lib/errors'
+import { getErrorMessage, toFriendlyError, type FriendlyError } from '../lib/errors'
+
+/**
+ * A turn that failed or was stopped, kept so the user can act on it.
+ *
+ * The old hook set an `error` string and cleared `streamingContent` on both
+ * the error event and the catch path, so a partial reply the SERVER had
+ * already saved was thrown away on the client. The banner then vanished on
+ * reload, which made failures invisible after a refresh -- you would come
+ * back to your own question and no sign anything had gone wrong.
+ */
+export interface FailedTurn {
+  /** The exact text to resend, so retrying never means retyping. */
+  content: string
+  extra?: Record<string, unknown>
+  error: FriendlyError
+  /** Whatever streamed before it died. The server kept it; so do we. */
+  partial: string
+  stopped: boolean
+}
 
 export function useChatSession(sessionId: string | undefined) {
   const [session, setSession] = useState<ChatSessionDetail | null>(null)
@@ -10,13 +29,32 @@ export function useChatSession(sessionId: string | undefined) {
   const [isSending, setIsSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null)
+  /** Seconds in flight, for honest progress copy rather than endless dots. */
+  const [elapsed, setElapsed] = useState(0)
+  const [lastEvent, setLastEvent] = useState<StreamEvent | null>(null)
+
+  const abortRef = useRef<AbortController | null>(null)
+
+  // The timer lives in its own effect so the send path does not have to
+  // manage an interval while it is also managing a stream.
+  useEffect(() => {
+    if (!isSending) {
+      setElapsed(0)
+      return
+    }
+    const started = Date.now()
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [isSending])
 
   const loadSession = useCallback(async (id: string) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await api.chat.getSession(id)
-      setSession(data)
+      setSession(await api.chat.getSession(id))
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -24,55 +62,103 @@ export function useChatSession(sessionId: string | undefined) {
     }
   }, [])
 
-  const sendMessage = useCallback(async (content: string, extra?: Record<string, unknown>) => {
-    if (!sessionId || isSending) return
-    const token = getToken()
-    if (!token) return
+  /** Cancel the turn in flight, keeping whatever has arrived. */
+  const stop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
 
-    const userMsg: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content,
-      created_at: new Date().toISOString(),
-    }
+  const send = useCallback(
+    async (content: string, extra?: Record<string, unknown>, isRetry = false) => {
+      if (!sessionId || isSending) return
+      const token = getToken()
+      if (!token) return
 
-    setSession((prev) => prev ? { ...prev, messages: [...prev.messages, userMsg] } : prev)
-    setIsSending(true)
-    setStreamingContent('')
-    setError(null)
-
-    try {
-      let accumulated = ''
-      for await (const event of streamChatMessage(sessionId, content, token, extra)) {
-        if (event.error) {
-          setError(event.error)
-          setStreamingContent('')
-          break
+      // On a retry the user's message is already in the transcript; adding it
+      // again would show their question twice.
+      if (!isRetry) {
+        const userMsg: ChatMessage = {
+          id: `temp-${Date.now()}`,
+          role: 'user',
+          content,
+          created_at: new Date().toISOString(),
         }
-        if (event.chunk) {
-          accumulated += event.chunk
-          setStreamingContent(accumulated)
-        }
-        if (event.done && event.message_id) {
-          const assistantMsg: ChatMessage = {
-            id: event.message_id,
-            role: 'assistant',
-            content: accumulated,
-            created_at: new Date().toISOString(),
-          }
-          setSession((prev) =>
-            prev ? { ...prev, messages: [...prev.messages, assistantMsg] } : prev
-          )
-          setStreamingContent('')
-        }
+        setSession((prev) =>
+          prev ? { ...prev, messages: [...prev.messages, userMsg] } : prev,
+        )
       }
-    } catch (err) {
-      setError(getErrorMessage(err))
-      setStreamingContent('')
-    } finally {
-      setIsSending(false)
-    }
-  }, [sessionId, isSending])
 
-  return { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage, setSession }
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      setIsSending(true)
+      setStreamingContent('')
+      setError(null)
+      setFailedTurn(null)
+      setLastEvent(null)
+
+      let accumulated = ''
+      try {
+        for await (const event of streamChatMessage(
+          sessionId, content, token, extra, controller.signal,
+        )) {
+          if (event.error) {
+            // An `error` frame is never followed by `done` -- the server
+            // returns immediately after sending it.
+            setFailedTurn({
+              content, extra, partial: accumulated, stopped: false,
+              error: toFriendlyError(new Error(event.error)),
+            })
+            return
+          }
+          if (event.chunk) {
+            accumulated += event.chunk
+            setStreamingContent(accumulated)
+          }
+          if (event.done && event.message_id) {
+            setLastEvent(event)
+            const assistantMsg: ChatMessage = {
+              id: event.message_id,
+              role: 'assistant',
+              content: accumulated,
+              created_at: new Date().toISOString(),
+            }
+            setSession((prev) =>
+              prev ? { ...prev, messages: [...prev.messages, assistantMsg] } : prev,
+            )
+            setStreamingContent('')
+          }
+        }
+      } catch (err) {
+        const friendly = toFriendlyError(err)
+        setFailedTurn({
+          content, extra, partial: accumulated,
+          stopped: friendly.message === 'Stopped.',
+          error: friendly,
+        })
+      } finally {
+        abortRef.current = null
+        setIsSending(false)
+      }
+    },
+    [sessionId, isSending],
+  )
+
+  const sendMessage = useCallback(
+    (content: string, extra?: Record<string, unknown>) => send(content, extra, false),
+    [send],
+  )
+
+  /** Resend the failed turn verbatim. No retyping, ever. */
+  const retry = useCallback(() => {
+    if (!failedTurn) return
+    return send(failedTurn.content, failedTurn.extra, true)
+  }, [failedTurn, send])
+
+  const dismissFailure = useCallback(() => setFailedTurn(null), [])
+
+  return {
+    session, isLoading, isSending, streamingContent, error,
+    failedTurn, elapsed, lastEvent,
+    loadSession, sendMessage, retry, stop, dismissFailure, setSession,
+  }
 }
