@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type ChatSession } from '../lib/api'
+import { api, type ChatSession, type VerificationDiff } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
 import { InFlight, TurnFailure } from '../components/chat/TurnStatus'
+import { PlanChangeDraft, PlanChangeResult } from '../components/chat/PlanChangeCard'
 import { getErrorMessage } from '../lib/errors'
 import { useToast } from '../components/Toast'
 import ChatBubble from '../components/chat/ChatBubble'
@@ -79,8 +80,12 @@ function SessionList({
 function ChatPane({ sessionId }: { sessionId: string }) {
   const {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, loadSession, sendMessage, retry, stop, dismissFailure,
+    failedTurn, elapsed, proposedChange,
+    loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
   } = useChatSession(sessionId)
+  const [applying, setApplying] = useState(false)
+  const [appliedDiff, setAppliedDiff] = useState<VerificationDiff | null>(null)
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pinnedToBottom, setPinnedToBottom] = useState(true)
@@ -96,6 +101,35 @@ function ChatPane({ sessionId }: { sessionId: string }) {
     const el = scrollRef.current
     if (el && pinnedToBottom) el.scrollTop = el.scrollHeight
   }, [session?.messages.length, streamingContent, pinnedToBottom])
+
+  /**
+   * Apply the draft the user just confirmed.
+   *
+   * The plan payload still comes from the chat reply's workout-plan block for
+   * now; what the change_id adds is the SERVER checking the result against
+   * the approved draft, so an edit that drops something cannot report
+   * success. Wiring the agent to emit the payload itself is the next step.
+   */
+  async function handleConfirmChange() {
+    if (!proposedChange) return
+    const planId = (proposedChange.draft[0] as { plan_id?: string })?.plan_id
+      ?? proposedChange.change_id
+    setApplying(true)
+    try {
+      const res = await api.workouts.applyPlanChange(
+        planId, proposedChange.change_id, null,
+      )
+      setAppliedDiff(res.verification_diff)
+      if (!res.clean) {
+        showToast('Applied, but not everything matched the draft', 'error')
+      }
+      clearProposal()
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setApplying(false)
+    }
+  }
 
   function handleScroll() {
     const el = scrollRef.current
@@ -147,6 +181,22 @@ function ChatPane({ sessionId }: { sessionId: string }) {
         )}
 
         {isSending && <InFlight elapsed={elapsed} onStop={stop} />}
+
+        {proposedChange && (
+          <PlanChangeDraft
+            change={proposedChange}
+            busy={applying}
+            onConfirm={handleConfirmChange}
+            onCancel={clearProposal}
+          />
+        )}
+
+        {appliedDiff && (
+          <PlanChangeResult
+            diff={appliedDiff}
+            untouched={undefined}
+          />
+        )}
 
         {failedTurn && (
           <TurnFailure

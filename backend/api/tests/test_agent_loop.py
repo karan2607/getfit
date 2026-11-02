@@ -199,3 +199,67 @@ class AgentLoopTests(TestCase):
         self.assertLessEqual(len(block['content']),
                              agent_loop.MAX_RESULT_CHARS + 32)
         self.assertIn('truncated', block['content'])
+
+
+class ProposalSurfacingTests(TestCase):
+    """
+    A proposed plan change has to reach the client as DATA, not as prose.
+
+    If the confirm card were built from the reply text, the user would be
+    approving a paraphrase -- and the paraphrase is written by the same model
+    whose plan edits dropped a calf raise. The draft is lifted out of the tool
+    result so the card shows exactly what was recorded, and the change_id ties
+    the confirmation to that exact draft.
+    """
+
+    def setUp(self):
+        from api.models import Exercise, WorkoutDay, WorkoutPlan
+
+        self.user = User.objects.create_user(email='prop@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=1)
+        day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Upper Push')
+        Exercise.objects.create(
+            day=day, name='Barbell Bench Press', sets=4, reps='6-10',
+            order=0, measurement_type='weight_reps')
+        self.state = agent_loop.AgentRun()
+
+    def run_loop(self, client):
+        with mock.patch.object(claude, '_client', return_value=client):
+            return ''.join(agent_loop.run(
+                user=self.user, system_prompt='s',
+                history=[{'role': 'user', 'parts': [{'text': 'swap bench'}]}],
+                domain=agent_router.WORKOUT, run_state=self.state))
+
+    def test_a_proposal_is_lifted_onto_the_run(self):
+        client = _client_yielding(
+            ([], _Final([_ToolUse('propose_plan_change', {
+                'plan_id': str(self.plan.id),
+                'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}],
+            })])),
+            (['Here is the change.'], _Final([_Text('Here is the change.')])),
+        )
+        self.run_loop(client)
+
+        self.assertIsNotNone(self.state.proposed_change)
+        self.assertTrue(self.state.proposed_change['change_id'])
+        self.assertTrue(self.state.proposed_change['needs_confirmation'])
+        self.assertFalse(self.state.proposed_change['applied'])
+
+    def test_an_ordinary_turn_proposes_nothing(self):
+        client = _client_yielding((['hello'], _Final([_Text('hello')])))
+        self.run_loop(client)
+        self.assertIsNone(self.state.proposed_change)
+
+    def test_a_failed_proposal_is_not_surfaced_as_one(self):
+        """An error result must not render as a confirmable draft."""
+        client = _client_yielding(
+            ([], _Final([_ToolUse('propose_plan_change', {
+                'plan_id': str(self.plan.id), 'changes': [],
+            })])),
+            (['sorry'], _Final([_Text('sorry')])),
+        )
+        self.run_loop(client)
+        self.assertIsNone(self.state.proposed_change)

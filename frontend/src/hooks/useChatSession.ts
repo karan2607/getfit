@@ -3,6 +3,7 @@ import { api, type ChatMessage, type ChatSessionDetail } from '../lib/api'
 import { streamChatMessage, type StreamEvent } from '../lib/stream'
 import { getToken } from '../lib/auth'
 import { getErrorMessage, toFriendlyError, type FriendlyError } from '../lib/errors'
+import type { ProposedChange } from '../components/chat/PlanChangeCard'
 
 /**
  * A turn that failed or was stopped, kept so the user can act on it.
@@ -33,6 +34,12 @@ export function useChatSession(sessionId: string | undefined) {
   /** Seconds in flight, for honest progress copy rather than endless dots. */
   const [elapsed, setElapsed] = useState(0)
   const [lastEvent, setLastEvent] = useState<StreamEvent | null>(null)
+  /**
+   * The draft awaiting confirmation, taken from the `done` payload rather
+   * than parsed out of the reply text -- the card has to show exactly what
+   * the server recorded, and the change_id has to tie the confirmation to it.
+   */
+  const [proposedChange, setProposedChange] = useState<ProposedChange | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -95,6 +102,7 @@ export function useChatSession(sessionId: string | undefined) {
       setError(null)
       setFailedTurn(null)
       setLastEvent(null)
+      setProposedChange(null)
 
       let accumulated = ''
       try {
@@ -116,6 +124,9 @@ export function useChatSession(sessionId: string | undefined) {
           }
           if (event.done && event.message_id) {
             setLastEvent(event)
+            setProposedChange(
+              (event.proposed_change as ProposedChange | null) ?? null,
+            )
             const assistantMsg: ChatMessage = {
               id: event.message_id,
               role: 'assistant',
@@ -155,10 +166,12 @@ export function useChatSession(sessionId: string | undefined) {
   }, [failedTurn, send])
 
   const dismissFailure = useCallback(() => setFailedTurn(null), [])
+  const clearProposal = useCallback(() => setProposedChange(null), [])
 
   return {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, lastEvent,
-    loadSession, sendMessage, retry, stop, dismissFailure, setSession,
+    failedTurn, elapsed, lastEvent, proposedChange,
+    loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
+    setSession,
   }
 }

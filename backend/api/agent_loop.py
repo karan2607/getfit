@@ -51,13 +51,22 @@ class AgentRun:
         self.rounds = 0
         self.stopped_early = False
         self.model = ''
+        #: The draft a `propose_plan_change` call produced, if any. Lifted out
+        #: of the tool result so the view can put it in the `done` payload:
+        #: the frontend renders a confirm card from it, and the user approves
+        #: the exact draft they were shown rather than a paraphrase of it in
+        #: the reply text.
+        self.proposed_change = None
 
-    def record(self, name, arguments, summary):
+    def record(self, name, arguments, summary, result=None):
         self.tool_calls.append({
             'tool': name,
             'arguments': arguments,
             'result_summary': summary,
         })
+        if name == 'propose_plan_change' and isinstance(result, dict):
+            if result.get('change_id'):
+                self.proposed_change = result
 
 
 def _result_block(tool_use_id, payload, error):
@@ -140,7 +149,8 @@ def run(*, user, system_prompt, history, domain, run_state,
             payload, error = agent_tools.run_tool(
                 user, call.name, arguments, session=session, model=chosen)
             run_state.record(call.name, arguments,
-                             error or agent_tools._summarise(payload))
+                             error or agent_tools._summarise(payload),
+                             result=payload)
             results.append(_result_block(call.id, payload, error))
         messages.append({'role': 'user', 'content': results})
 

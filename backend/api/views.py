@@ -699,10 +699,13 @@ def chat_message_stream(request, session_id):
                 # and ignores the rest until it is taught otherwise, so this
                 # cannot break the existing client.
                 'tool_calls': run_state.tool_calls,
-                'proposed_change': None,
+                # Lifted out of the tool result so the client renders a
+                # confirm card from the EXACT draft, not from a paraphrase of
+                # it in the reply text.
+                'proposed_change': run_state.proposed_change,
                 'applied_change': None,
                 'verification_diff': None,
-                'needs_confirmation': False,
+                'needs_confirmation': bool(run_state.proposed_change),
             }
             yield f'data: {_json.dumps(done)}\n\n'
 

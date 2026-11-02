@@ -156,6 +156,15 @@ export async function request<T>(
   return res.json()
 }
 
+export interface VerificationDiff {
+  added: Array<{ name: string; day?: string; week?: number }>
+  removed: Array<{ name: string; day?: string; week?: number }>
+  changed: Array<{ name: string; day?: string; week?: number }>
+  unapproved: Array<{ name: string; day?: string; week?: number }>
+  keep_list_violations: Array<{ name: string; day?: string; week?: number }>
+  clean: boolean
+}
+
 export const api = {
   auth: {
     signup: (data: { name: string; email: string; password: string }) =>
@@ -381,6 +390,31 @@ export const api = {
       }>(`/api/workouts/plans/${planId}/weeks/${week}/prepare/`, {
         method: 'POST', body: JSON.stringify({ notes: notes ?? '' }),
       }),
+
+    /**
+     * Apply a plan change the user confirmed.
+     *
+     * The change_id ties the confirmation to the EXACT draft that was shown.
+     * Idempotent server-side, which matters because a timed-out request that
+     * actually succeeded is the normal way this gets sent twice.
+     */
+    applyPlanChange: (planId: string, changeId: string, plan: unknown) =>
+      request<{
+        change_id: string
+        applied: boolean
+        already_applied?: boolean
+        clean: boolean
+        verification_diff: VerificationDiff
+      }>(`/api/workouts/plans/${planId}/changes/${changeId}/apply/`, {
+        method: 'POST', body: JSON.stringify({ plan }),
+      }),
+
+    /** The plan as recorded, with a digest for staleness checks. */
+    planSnapshot: (planId: string, weeks?: number[]) =>
+      request<{ snapshot: unknown; digest: string }>(
+        `/api/workouts/plans/${planId}/snapshot/`
+        + (weeks?.length ? `?weeks=${weeks.join(',')}` : ''),
+      ),
 
     /** Replace a day's superset grouping atomically. Empty list clears it. */
     setDaySupersets: (dayId: string, groups: string[][]) =>
