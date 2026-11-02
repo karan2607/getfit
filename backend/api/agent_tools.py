@@ -291,6 +291,9 @@ def _tool_propose_plan_change(user, args):
 
     return {
         'change_id': str(change.id),
+        # The client needs this to address the apply call; without it the
+        # confirm button has a change but nowhere to send it.
+        'plan_id': str(plan.id),
         'needs_confirmation': True,
         'applied': False,
         'warnings': change.warnings,

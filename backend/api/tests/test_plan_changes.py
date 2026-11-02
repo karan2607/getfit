@@ -336,3 +336,54 @@ class CanonicalisationIsNotAChangeTests(TestCase):
                                 self.snap('Machine Chest Press'))
         self.assertEqual(len(result['changed']), 1)
         self.assertIn('name', result['changed'][0]['changes'])
+
+
+class ReplacementApprovesBothSidesTests(TestCase):
+    """
+    A `replace` draft approves the exercise going OUT as well as the one
+    coming in.
+
+    The draft names the incoming exercise in `name` and the outgoing one in
+    `replaces`. Matching only on `name` approved the addition and flagged the
+    removal, so every substitution -- the most common edit there is --
+    reported "Applied, but not as approved". A diff that cries wolf on the
+    normal case is a diff nobody reads, which quietly undoes the whole point.
+    """
+
+    def snap(self, names):
+        return {
+            'plan_id': 'p', 'title': 'P',
+            'weeks': {'1': [{
+                'day_id': 'd', 'day_number': 1, 'name': 'Upper Push',
+                'is_rest_day': False,
+                'exercises': [
+                    {'id': str(i), 'name': n, 'sets': 3, 'reps': '8-12',
+                     'rest_seconds': None, 'notes': '',
+                     'measurement_type': 'weight_reps', 'composite_id': None}
+                    for i, n in enumerate(names)
+                ],
+            }]},
+        }
+
+    def test_a_replacement_diffs_clean(self):
+        result = diff_snapshots(
+            self.snap(['Barbell Bench Press', 'Leg Extension']),
+            self.snap(['Machine Chest Press', 'Leg Extension']),
+            approved=[{'day': 'Upper Push', 'action': 'replace',
+                       'replaces': 'Barbell Bench Press',
+                       'name': 'Machine Chest Press'}],
+        )
+        self.assertTrue(result['clean'], result['unapproved'])
+
+    def test_an_unrelated_removal_is_still_caught(self):
+        """The fix must not blanket-approve everything a draft touches."""
+        result = diff_snapshots(
+            self.snap(['Barbell Bench Press', 'Standing Calf Raise']),
+            self.snap(['Machine Chest Press']),
+            approved=[{'day': 'Upper Push', 'action': 'replace',
+                       'replaces': 'Barbell Bench Press',
+                       'name': 'Machine Chest Press'}],
+        )
+        self.assertFalse(result['clean'])
+        self.assertEqual([e['name'] for e in result['unapproved']],
+                         ['Standing Calf Raise'])

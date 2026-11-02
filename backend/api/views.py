@@ -2293,7 +2293,22 @@ def workout_plan_apply_change(request, plan_id, change_id):
             'code': 'stale_draft',
         }, status=status.HTTP_409_CONFLICT)
 
+    # The payload is BUILT from the recorded draft, not supplied by the
+    # caller. The model never re-emits the plan: that was the original
+    # failure, where chat was shown all eight weeks and asked to return all
+    # eight, so one dropped line in a 56-day reply deleted an exercise and its
+    # history. An exercise the draft does not mention cannot be dropped here,
+    # because nothing re-states it.
+    #
+    # A caller MAY still pass an explicit plan (the legacy chat block path),
+    # in which case it is validated as before.
     payload = request.data.get('plan')
+    if payload is None:
+        try:
+            payload, _weeks = plan_changes.build_payload(plan, change.draft)
+        except plan_changes.DraftError as exc:
+            return Response({'detail': str(exc), 'code': 'bad_draft'},
+                            status=status.HTTP_400_BAD_REQUEST)
     if not isinstance(payload, dict):
         return Response({'detail': 'plan payload required'},
                         status=status.HTTP_400_BAD_REQUEST)

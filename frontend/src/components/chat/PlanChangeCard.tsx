@@ -12,6 +12,8 @@ import { useState } from 'react'
 
 export interface ProposedChange {
   change_id: string
+  /** Which plan the draft belongs to, so Confirm knows where to send it. */
+  plan_id?: string
   needs_confirmation: boolean
   applied: boolean
   draft: Array<{ day?: string; name?: string; week?: number; action?: string }>

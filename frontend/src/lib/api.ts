@@ -398,7 +398,7 @@ export const api = {
      * Idempotent server-side, which matters because a timed-out request that
      * actually succeeded is the normal way this gets sent twice.
      */
-    applyPlanChange: (planId: string, changeId: string, plan: unknown) =>
+    applyPlanChange: (planId: string, changeId: string, plan?: unknown) =>
       request<{
         change_id: string
         applied: boolean
@@ -406,7 +406,10 @@ export const api = {
         clean: boolean
         verification_diff: VerificationDiff
       }>(`/api/workouts/plans/${planId}/changes/${changeId}/apply/`, {
-        method: 'POST', body: JSON.stringify({ plan }),
+        // No plan payload: the server builds it from the recorded draft.
+        // Passing one is the legacy path, kept for the chat-block flow.
+        method: 'POST',
+        body: JSON.stringify(plan === undefined ? {} : { plan }),
       }),
 
     /** The plan as recorded, with a digest for staleness checks. */

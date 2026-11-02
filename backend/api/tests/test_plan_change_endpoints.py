@@ -20,6 +20,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 
+from api import exercise_names
 from api.models import (
     Exercise, PlanChange, PlanSnapshot, User, UserProfile, WorkoutDay,
     WorkoutPlan,
@@ -218,3 +219,140 @@ class PlanChangeEndpointTests(APITestCase):
         resp = self.client.get(
             reverse('workout-plan-snapshot', args=[self.plan.id]))
         self.assertIn(resp.status_code, (401, 403))
+
+
+class DraftBuildsItsOwnPayloadTests(APITestCase):
+    """
+    Confirming a draft applies it, without the model re-emitting the plan.
+
+    That re-emission was the original failure: chat was shown all eight weeks
+    and asked to return all eight, so one dropped line in a 56-day reply
+    deleted an exercise and its history -- at ~32,000 tokens each way to
+    change one thing.
+
+    Here the model proposes OPERATIONS and the server applies them to the plan
+    it already has. An exercise the draft does not mention cannot be dropped,
+    because nothing re-states it.
+    """
+
+    def setUp(self):
+        from rest_framework.authtoken.models import Token
+
+        self.user = User.objects.create_user(email='build@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=2)
+        for week in (1, 2):
+            day = WorkoutDay.objects.create(
+                plan=self.plan, day_number=1, week_number=week,
+                name='Upper Push', order=week)
+            for order, name in enumerate(['Barbell Bench Press',
+                                          'Standing Calf Raise',
+                                          'Leg Extension']):
+                Exercise.objects.create(
+                    day=day, name=name, sets=3, reps='8-12', order=order,
+                    measurement_type='weight_reps')
+
+    def propose(self, changes, keep_list=None):
+        return self.client.post(
+            reverse('workout-plan-propose-change', args=[self.plan.id]),
+            {'changes': changes, 'keep_list': keep_list or []},
+            format='json').data['change_id']
+
+    def apply(self, change_id):
+        return self.client.post(
+            reverse('workout-plan-apply-change',
+                    args=[self.plan.id, change_id]), {}, format='json')
+
+    def names(self, week=1):
+        return list(
+            Exercise.objects
+            .filter(day__plan=self.plan, day__week_number=week)
+            .order_by('order').values_list('name', flat=True))
+
+    def test_a_replacement_swaps_only_that_exercise(self):
+        change_id = self.propose([{
+            'day': 'Upper Push', 'action': 'replace',
+            'replaces': 'Barbell Bench Press', 'name': 'Machine Chest Press',
+        }])
+        resp = self.apply(change_id)
+        self.assertEqual(resp.status_code, 200, resp.data)
+
+        # Canonical spelling: the server owns exercise identity, so
+        # "Standing Calf Raise" is stored as "Standing Calf Raises (Machine)".
+        names = self.names()
+        self.assertIn('Machine Chest Press', names)
+        self.assertNotIn('Barbell Bench Press', names)
+        # The untouched exercises are still there.
+        self.assertIn(exercise_names.canonical('Standing Calf Raise'), names)
+        self.assertIn('Leg Extension', names)
+
+    def test_a_replacement_keeps_the_slots_prescription(self):
+        """A substitution changes the exercise, not the programming."""
+        change_id = self.propose([{
+            'day': 'Upper Push', 'action': 'replace',
+            'replaces': 'Barbell Bench Press', 'name': 'Machine Chest Press',
+        }])
+        self.apply(change_id)
+        swapped = Exercise.objects.get(
+            day__plan=self.plan, day__week_number=1, name='Machine Chest Press')
+        self.assertEqual(swapped.sets, 3)
+        self.assertEqual(swapped.reps, '8-12')
+
+    def test_a_day_without_a_week_applies_to_every_week(self):
+        """
+        "Take bench press out" means out, not out of week 1 only -- which
+        would leave it in the others and look like the change failed.
+        """
+        change_id = self.propose([{
+            'day': 'Upper Push', 'action': 'remove',
+            'name': 'Barbell Bench Press',
+        }])
+        self.apply(change_id)
+        self.assertNotIn('Barbell Bench Press', self.names(1))
+        self.assertNotIn('Barbell Bench Press', self.names(2))
+
+    def test_naming_a_week_scopes_the_change_to_it(self):
+        change_id = self.propose([{
+            'day': 'Upper Push', 'week': 2, 'action': 'remove',
+            'name': 'Barbell Bench Press',
+        }])
+        self.apply(change_id)
+        self.assertIn('Barbell Bench Press', self.names(1))
+        self.assertNotIn('Barbell Bench Press', self.names(2))
+
+    def test_an_addition_leaves_everything_else_alone(self):
+        change_id = self.propose([{
+            'day': 'Upper Push', 'action': 'add',
+            'name': 'Cable Face Pulls', 'sets': 3, 'reps': '12-15',
+        }])
+        self.apply(change_id)
+        names = self.names()
+        self.assertIn('Cable Face Pulls', names)
+        self.assertEqual(len(names), 4)
+
+    def test_the_result_diffs_clean_against_the_approved_draft(self):
+        change_id = self.propose(
+            [{'day': 'Upper Push', 'action': 'replace',
+              'replaces': 'Barbell Bench Press', 'name': 'Machine Chest Press'}],
+            keep_list=['Standing Calf Raise'])
+        resp = self.apply(change_id)
+        self.assertTrue(resp.data['clean'], resp.data['verification_diff'])
+
+    def test_a_draft_naming_an_unknown_day_is_refused(self):
+        change_id = self.propose([{
+            'day': 'Nonexistent Day', 'action': 'remove', 'name': 'Anything',
+        }])
+        resp = self.apply(change_id)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 'bad_draft')
+
+    def test_removing_something_already_gone_is_not_an_error(self):
+        """Idempotence at the operation level: the end state is what matters."""
+        change_id = self.propose([{
+            'day': 'Upper Push', 'action': 'remove', 'name': 'Not In The Plan',
+        }])
+        self.assertEqual(self.apply(change_id).status_code, 200)

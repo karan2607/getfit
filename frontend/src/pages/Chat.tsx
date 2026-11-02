@@ -105,19 +105,17 @@ function ChatPane({ sessionId }: { sessionId: string }) {
   /**
    * Apply the draft the user just confirmed.
    *
-   * The plan payload still comes from the chat reply's workout-plan block for
-   * now; what the change_id adds is the SERVER checking the result against
-   * the approved draft, so an edit that drops something cannot report
-   * success. Wiring the agent to emit the payload itself is the next step.
+   * No plan payload is sent. The server BUILDS it from the recorded draft and
+   * the plan it already has, so the model never re-emits the plan -- which
+   * was the original failure, where one dropped line in a 56-day reply
+   * deleted an exercise and its history.
    */
   async function handleConfirmChange() {
-    if (!proposedChange) return
-    const planId = (proposedChange.draft[0] as { plan_id?: string })?.plan_id
-      ?? proposedChange.change_id
+    if (!proposedChange?.plan_id) return
     setApplying(true)
     try {
       const res = await api.workouts.applyPlanChange(
-        planId, proposedChange.change_id, null,
+        proposedChange.plan_id, proposedChange.change_id,
       )
       setAppliedDiff(res.verification_diff)
       if (!res.clean) {
