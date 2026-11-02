@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type Meal, type FoodScanResult, type MealLog, type DietDocument } from '../lib/api'
+import { describeDate, localToday } from '../lib/localDate'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
@@ -855,7 +856,9 @@ function MealLogger() {
   const [logs, setLogs] = useState<MealLog[]>([])
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  // localToday, not toISOString(): the latter is the UTC date, so late in
+  // the evening it files a meal under a day the user has not reached.
+  const [date, setDate] = useState(() => localToday())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ food_name: '', meal_type: 'breakfast' as MealLog['meal_type'], calories: '', protein_g: '', carbs_g: '', fat_g: '', notes: '' })
   const [saving, setSaving] = useState(false)
@@ -926,12 +929,18 @@ function MealLogger() {
           <h1 className="text-2xl font-bold text-gray-900">Meal Log</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track what you actually eat each day</p>
         </div>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-        />
+        {/* The label is the point: a bare ISO string does not tell you
+            whether the app agrees with your phone about what day it is, and
+            this picker used to default to the UTC date. */}
+        <label className="flex flex-col items-end">
+          <span className="text-sm font-medium text-ink-600">{describeDate(date)}</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1 min-h-[44px] border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+        </label>
       </div>
 
       {/* Macro progress vs plan target */}

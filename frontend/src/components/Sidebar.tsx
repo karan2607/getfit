@@ -12,6 +12,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { to: '/chat', label: 'AI Trainer', icon: '💬' },
   { to: '/workouts', label: 'Workouts', icon: '🏋️' },
+  // Existed as a route and was in neither nav: reachable only by
+  // guessing the URL.
+  { to: '/sessions', label: 'Session History', icon: '📋' },
   { to: '/diet', label: 'Diet', icon: '🥗' },
   { to: '/health', label: 'Health Sync', icon: '❤️' },
   { to: '/body', label: 'Body Scanner', icon: '📷' },

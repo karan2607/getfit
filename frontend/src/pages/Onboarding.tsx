@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api, type UserProfile } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
+import { KG_PER_LB } from '../lib/units'
 import { useToast } from '../components/Toast'
 
 type Step = 'body' | 'goal' | 'diet'
@@ -126,6 +127,15 @@ export default function Onboarding() {
 }
 
 function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d: Partial<UserProfile>) => void }) {
+  // Defaults to kg because that is what this step has always asked for;
+  // choosing lb here is what stops Profile silently switching later.
+  const unit = data.preferred_unit ?? 'kg'
+  // Null as well as undefined: the profile field is nullable on the server.
+  const shown = data.weight_kg == null
+    ? undefined
+    : unit === 'kg'
+      ? data.weight_kg
+      : Number((data.weight_kg / KG_PER_LB).toFixed(1))
   return (
     <>
       <h2 className="text-xl font-bold text-gray-900 mb-1">Tell us about yourself</h2>
@@ -172,16 +182,49 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-            <input
-              type="number"
-              min={30}
-              max={300}
-              placeholder="75"
-              value={data.weight_kg ?? ''}
-              onChange={(e) => onChange({ weight_kg: e.target.value ? Number(e.target.value) : undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
+            {/* The unit is CHOSEN here and persisted.
+                This step asked for kilograms and never set preferred_unit, so
+                the profile fell back to its `lb` default -- enter 80 kg, then
+                find Profile showing 176.4 lb with no explanation. The storage
+                field stays kg either way; only the display unit is a choice. */}
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Weight ({unit})
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={unit === 'kg' ? 30 : 66}
+                max={unit === 'kg' ? 300 : 660}
+                placeholder={unit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
+                value={shown ?? ''}
+                onChange={(e) => {
+                  const typed = e.target.value ? Number(e.target.value) : undefined
+                  onChange({
+                    weight_kg: typed === undefined
+                      ? undefined
+                      : unit === 'kg'
+                        ? typed
+                        : Number((typed * KG_PER_LB).toFixed(2)),
+                  })
+                }}
+                className="flex-1 min-h-[44px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              />
+              {(['kg', 'lb'] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => onChange({ preferred_unit: u })}
+                  className={`min-h-[44px] min-w-[44px] px-3 rounded-lg text-sm font-medium transition-colors ${
+                    unit === u
+                      ? 'bg-accent-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div>
