@@ -35,6 +35,9 @@ _DOMAIN = {
     'get_profile': 'both',
     'update_personal_notes': 'both',
 
+    'get_plan_week': WORKOUT,
+    'propose_plan_change': WORKOUT,
+
     'list_workout_plans': WORKOUT,
     'get_workout_plan': WORKOUT,
     'get_todays_workout': WORKOUT,
@@ -59,11 +62,16 @@ _DOMAIN = {
 }
 
 
+def _spec(name):
+    """A tool's definition, from either registry."""
+    return _PLAN_TOOL_SPECS.get(name) or mcp.TOOLS.get(name)
+
+
 def tools_for(domain):
-    """The MCP tool names this domain may call."""
+    """The tool names this domain may call."""
     return sorted(
         name for name, assigned in _DOMAIN.items()
-        if name in mcp.TOOLS and assigned in (domain, 'both'))
+        if _spec(name) is not None and assigned in (domain, 'both'))
 
 
 def anthropic_tools(domain):
@@ -76,7 +84,7 @@ def anthropic_tools(domain):
     """
     out = []
     for name in tools_for(domain):
-        spec = mcp.TOOLS[name]
+        spec = _spec(name)
         schema = dict(spec['schema'])
         schema['additionalProperties'] = False
         schema.setdefault('required', [])
@@ -117,7 +125,7 @@ def run_tool(user, name, arguments, session=None, model=''):
     """
     from .models import ToolCallLog
 
-    spec = mcp.TOOLS.get(name)
+    spec = _spec(name)
     started = time.monotonic()
     result = None
     error = ''
@@ -149,3 +157,136 @@ def run_tool(user, name, arguments, session=None, model=''):
         pass
 
     return result, error
+
+
+# ---------------------------------------------------------------------------
+# Plan mutation
+# ---------------------------------------------------------------------------
+#
+# These are NOT in `mcp.TOOLS` and deliberately so: MCP exposes read tools and
+# narrow writes, and the plan-mutation flow needs a draft the user confirms
+# before anything is applied. The agent may PROPOSE; only the user's
+# confirmation applies.
+#
+# This is also what makes a week-scoped prompt safe. While chat edited plans by
+# re-emitting the whole thing as JSON, it had to be SHOWN the whole thing --
+# ~32,000 tokens in and the same back out to change one exercise, with every
+# re-emitted day a chance to drop something. An agent that edits through a
+# draft never reproduces the weeks it did not touch, so it never needs to see
+# them.
+
+PLAN_TOOLS = ('get_plan_week', 'propose_plan_change')
+
+
+def _tool_get_plan_week(user, args):
+    """One week of a plan, plus the phase map."""
+    from .models import WorkoutPlan
+    from .plan_changes import snapshot_plan
+
+    plan = WorkoutPlan.objects.filter(
+        pk=args.get('plan_id'), user=user).first()
+    if plan is None:
+        raise mcp.McpError('plan not found')
+    week = args.get('week_number') or plan.current_week or 1
+    snapshot = snapshot_plan(plan, week_numbers=[int(week)])
+    return {
+        'plan_id': str(plan.id),
+        'title': plan.title,
+        'week_number': int(week),
+        'weeks_total': plan.duration_weeks,
+        # The phase map travels with every week. Without it a week-local edit
+        # cannot tell accumulation from a deload and will happily add volume
+        # to the week that exists to remove it.
+        'program_outline': plan.program_outline or [],
+        'days': snapshot['weeks'].get(str(week), []),
+    }
+
+
+def _tool_propose_plan_change(user, args):
+    """
+    Record a draft for the user to confirm. Applies NOTHING.
+
+    Returns the change_id the client confirms against, so the model cannot
+    apply its own proposal even if it decides it should.
+    """
+    from .models import PlanChange, PlanSnapshot, WorkoutPlan
+    from .plan_changes import library_warnings, plan_digest, snapshot_plan
+
+    plan = WorkoutPlan.objects.filter(
+        pk=args.get('plan_id'), user=user).first()
+    if plan is None:
+        raise mcp.McpError('plan not found')
+
+    changes = args.get('changes') or []
+    if not isinstance(changes, list) or not changes:
+        raise mcp.McpError('changes must be a non-empty list')
+
+    snapshot = snapshot_plan(plan)
+    change = PlanChange.objects.create(
+        plan=plan, draft=changes,
+        keep_list=args.get('keep_list') or [],
+        warnings=library_warnings(changes, user=user),
+        base_hash=plan_digest(snapshot))
+    PlanSnapshot.objects.create(
+        plan=plan, change_id=change.id, phase=PlanSnapshot.BEFORE,
+        data=snapshot)
+
+    return {
+        'change_id': str(change.id),
+        'needs_confirmation': True,
+        'applied': False,
+        'warnings': change.warnings,
+        'draft': change.draft,
+    }
+
+
+_PLAN_TOOL_SPECS = {
+    'get_plan_week': {
+        'description': (
+            'Read ONE week of a workout plan, with the program phase map. '
+            'Use this instead of asking for the whole plan: a week is what '
+            'an edit touches, and the phase map says whether a week is '
+            'accumulation, intensification or a deload.'),
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'plan_id': {'type': 'string'},
+                'week_number': {'type': 'integer'},
+            },
+            'required': ['plan_id'],
+        },
+        'handler': _tool_get_plan_week,
+        'writes': False,
+    },
+    'propose_plan_change': {
+        'description': (
+            'Propose a change to a plan for the user to confirm. This applies '
+            'NOTHING. Describe each change as the day and the exercise name, '
+            'and list in keep_list any exercise that must survive the change. '
+            'The user confirms the returned change_id; you cannot apply it '
+            'yourself.'),
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'plan_id': {'type': 'string'},
+                'changes': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'day': {'type': 'string'},
+                            'name': {'type': 'string'},
+                            'week': {'type': 'integer'},
+                            'action': {'type': 'string'},
+                        },
+                        'required': ['day', 'name'],
+                    },
+                },
+                'keep_list': {'type': 'array', 'items': {'type': 'string'}},
+            },
+            'required': ['plan_id', 'changes'],
+        },
+        'handler': _tool_propose_plan_change,
+        'writes': True,
+    },
+}
