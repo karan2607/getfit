@@ -654,6 +654,195 @@ class BodyScanResult(models.Model):
 # Exercise Guide Knowledge Base
 # ---------------------------------------------------------------------------
 
+
+class VersionedFact(models.Model):
+    """
+    Shared shape for knowledge that changes over time and must keep its past.
+
+    Nothing is ever overwritten or deleted. A correction creates a NEW row and
+    points the old one at it through `superseded_by`, so the history of what we
+    believed, and when, stays readable. That is the whole point: the broad
+    "avoid deadlifts and overhead press" note was silently replaced by a
+    narrower rule in conversation and nobody could see which one the plan
+    generator had been using.
+
+    `effective_date` is when the fact became TRUE, which is not when the row
+    was written -- a back rule refined on 26 Oct and recorded on 2 Nov is dated
+    the 26th.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.CharField(max_length=100, db_index=True)
+    value = models.JSONField()
+    # Where this came from, in words: "user, chat 2026-10-26", "onboarding",
+    # "dietitian sheet p2". Free text on purpose -- a controlled vocabulary
+    # would be guessed at rather than filled in.
+    source = models.CharField(max_length=200, blank=True)
+    effective_date = models.DateField()
+    superseded_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='supersedes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['-effective_date', '-created_at']
+
+    @property
+    def is_current(self):
+        return self.superseded_by_id is None
+
+    def supersede_with(self, **fields):
+        """
+        Record a correction. Returns the new row; never mutates this one.
+
+        Refuses to supersede a row that already has a successor, because that
+        would fork the chain and leave two rows both claiming to be current.
+        """
+        if self.superseded_by_id is not None:
+            raise ValueError(
+                '%s %s is already superseded by %s'
+                % (type(self).__name__, self.key, self.superseded_by_id))
+        fields.setdefault('key', self.key)
+        fields.setdefault('source', self.source)
+        replacement = type(self).objects.create(**fields)
+        self.superseded_by = replacement
+        self.save(update_fields=['superseded_by'])
+        return replacement
+
+
+class UserFact(VersionedFact):
+    """
+    A durable fact about one user: constraints, preferences, standing rules.
+
+    This exists because `UserProfile.personal_notes` is a single free-text blob
+    that is the ONLY home for injuries today, and three things read it --
+    week generation (as HARD CONSTRAINTS), the chat system prompt, and
+    `_has_back_limitation`, which regex-greps it for `back|lumbar|spine|disc`.
+
+    That last one is why a structured store is not a nicety. The refined back
+    rule ("no deadlifts from the floor, no STANDING overhead press, machine and
+    seated are fine") contains none of those four words, so writing the real
+    rule into the note would have switched the spinal-load check off. A note
+    saying "barbell squats are back in" switches it on, for the wrong reason.
+    A boolean that depends on which words a sentence happens to contain is not
+    a flag, it is a coincidence.
+
+    `personal_notes` is still written, because the prompts read it. The facts
+    here are the authority; the note is the rendering.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE,
+                             related_name='facts')
+
+    class Meta(VersionedFact.Meta):
+        abstract = False
+        ordering = ['-effective_date', '-created_at']
+        indexes = [models.Index(fields=['user', 'key'])]
+
+    def __str__(self):
+        return '%s=%s%s' % (self.key, self.value,
+                            '' if self.is_current else ' (superseded)')
+
+
+class KbRule(VersionedFact):
+    """
+    An operating rule that is not about one user.
+
+    "Confirm before logging a meal", "one photo is one meal", "week 8 is a
+    deload". Same versioned shape as UserFact so a rule change is as auditable
+    as a fact change.
+    """
+
+    class Meta(VersionedFact.Meta):
+        abstract = False
+        ordering = ['-effective_date', '-created_at']
+
+    def __str__(self):
+        return '%s%s' % (self.key, '' if self.is_current else ' (superseded)')
+
+
+class ExerciseLibraryEntry(models.Model):
+    """
+    The exercises a plan may contain, and what is known about each.
+
+    A plan draft naming an exercise with no entry here is REJECTED rather than
+    resolved to a near-match. That is the lesson from image resolution, where
+    a score threshold sent Push-ups to `handstand push-ups` and Bench Press
+    scored 0.87 against Overhead Press: close enough to show a picture is not
+    close enough to program with.
+
+    Deliberately thin. Identity, naming and the field contract stay in
+    `exercise_names` and `exercise_types`; this row stores the canonical key
+    and defers to them. Duplicating either would create a second answer to
+    "what is this exercise called" and they would drift.
+
+    What is genuinely new here is the per-user judgement those modules cannot
+    hold: whether a movement is contraindicated, why, and what to use instead.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # `exercise_names.key()` is a frozenset; stored as its sorted tokens joined
+    # by spaces so it is unique, greppable and stable across spellings.
+    canonical_key = models.CharField(max_length=200, unique=True)
+    name = models.CharField(max_length=150)
+    measurement_type = models.CharField(
+        max_length=20, choices=exercise_types.CHOICES,
+        default=exercise_types.DEFAULT_TYPE)
+    muscles = models.JSONField(default=dict, blank=True)
+    equipment = models.CharField(max_length=40, blank=True)
+    # Contraindication is per-user, so it lives on a nullable FK rather than a
+    # global boolean: "no floor deadlifts" is true for this user, not for the
+    # library. A null user means the entry is a plain catalogue row.
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True,
+                             blank=True, related_name='exercise_library')
+    contraindicated = models.BooleanField(default=False)
+    contraindication_reason = models.TextField(blank=True)
+    alternatives = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'exercise library entries'
+
+    def __str__(self):
+        return self.name
+
+
+class PlanSnapshot(models.Model):
+    """
+    A plan's full contents before and after one applied change.
+
+    Written by `apply_plan_change` on both sides of the transaction, so the
+    verification diff is computed from recorded state rather than from the
+    model's account of what it did, and Undo has something real to restore.
+
+    `change_id` ties the pair together and is what makes apply idempotent:
+    re-sending a confirmed change finds the existing snapshots and does
+    nothing instead of applying twice.
+    """
+
+    BEFORE = 'before'
+    AFTER = 'after'
+    PHASE_CHOICES = [(BEFORE, 'Before'), (AFTER, 'After')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plan = models.ForeignKey('WorkoutPlan', on_delete=models.CASCADE,
+                             related_name='snapshots')
+    change_id = models.UUIDField(db_index=True)
+    phase = models.CharField(max_length=6, choices=PHASE_CHOICES)
+    data = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('change_id', 'phase')
+
+    def __str__(self):
+        return '%s snapshot of %s' % (self.phase, self.plan_id)
+
+
 class ExerciseGuide(models.Model):
     # user=NULL is the shared generic guide (form steps, muscles, images).
     # A row with a user is that user's personalised copy, carrying their weight
