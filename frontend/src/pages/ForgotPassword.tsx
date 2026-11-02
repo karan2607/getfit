@@ -63,14 +63,14 @@ export default function ForgotPassword() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-2 text-sm transition-colors"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
               >
                 {isSubmitting ? 'Sending...' : 'Send reset link'}
               </button>
             </form>
 
             <p className="text-sm text-gray-500 text-center mt-6">
-              <Link to="/login" className="text-emerald-600 hover:underline font-medium">
+              <Link to="/login" className="text-emerald-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
                 Back to sign in
               </Link>
             </p>

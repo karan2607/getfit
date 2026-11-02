@@ -79,7 +79,7 @@ export default function Login() {
           )}
 
           <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-xs text-emerald-600 hover:underline">
+            <Link to="/forgot-password" className="text-xs text-emerald-600 hover:underline inline-flex items-center min-h-[44px]">
               Forgot password?
             </Link>
           </div>
@@ -87,7 +87,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-2 text-sm transition-colors"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
           >
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
@@ -95,7 +95,7 @@ export default function Login() {
 
         <p className="text-sm text-gray-500 text-center mt-6">
           Don&apos;t have an account?{' '}
-          <Link to="/signup" className="text-emerald-600 hover:underline font-medium">
+          <Link to="/signup" className="text-emerald-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
             Sign up
           </Link>
         </p>

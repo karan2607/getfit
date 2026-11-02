@@ -30,7 +30,7 @@ export default function PasswordInput({ className = '', ...props }: Props) {
         aria-label={visible ? 'Hide password' : 'Show password'}
         aria-pressed={visible}
         title={visible ? 'Hide password' : 'Show password'}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 transition-colors"
+        className="absolute inset-y-0 right-0 flex items-center justify-center min-w-[44px] min-h-[44px] px-3 text-gray-400 hover:text-gray-600 transition-colors"
       >
         {visible ? (
           // eye with a slash through it
