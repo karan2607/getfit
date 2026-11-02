@@ -311,8 +311,14 @@ def _step_8_split_merged_exercises(plan, stdout):
       * No SetLog is created, deleted or re-pointed.
 
     The split halves are NOT grouped into a composite here. The reported pair
-    is bench press + push-ups, which `superset_verdict` rejects (both push,
-    both chest, both compound), so grouping would be immediately undone.
+    is bench press + push-ups, which `superset_verdict` rejects as `competing`
+    -- both compound, both on chest -- so grouping would be immediately undone.
+
+    That reason only became true when the Push-ups KB override landed. Before
+    it, fuzzy resolution sent Push-ups to `handstand push-ups` (primary:
+    shoulders), the shared-muscle check never fired, and the pair was rejected
+    as `two_compounds` instead. Same outcome, different code path, and this
+    docstring asserted the path that was not running.
     Leaving them as two adjacent standalone exercises is the correct outcome
     and the one that matters: both become loggable.
 

@@ -17,9 +17,12 @@ upstream dataset carries three more fields per exercise that were dropped:
     primary / secondary muscles
 
 That makes superset validity **computable** rather than a matter of AI
-judgement. `exercise_muscles.json` is the same 876 exercises, keyed
-identically to `exercise_kb.json`, so the already-audited KB matcher resolves
-against it unchanged.
+judgement. `exercise_muscles.json` holds 876 records keyed identically to
+`exercise_kb.json`'s 873, so the already-audited KB matcher resolves against it
+unchanged. The counts differ by 3 -- the two files were said to hold "the same
+876 exercises", which they do not; a name present in one and absent from the
+other simply yields no profile, and `profile_for` already returns None for
+that.
 
 What this module is for, and what it is NOT for
 -----------------------------------------------
@@ -45,6 +48,7 @@ import json
 import logging
 import os
 
+from . import exercise_names
 from . import exercise_types
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,62 @@ def _load():
     return _MUSCLES
 
 
+# Explicit corrections where fuzzy KB resolution lands on the wrong movement.
+#
+# `profile_for` resolves through `_resolve_kb_key`, the matcher built for
+# IMAGES. "Close enough to show a picture" is a lower bar than "close enough
+# to reason about which muscles this works", and four names cleared the first
+# bar while failing the second:
+#
+#   Push-ups            -> handstand push-ups   primary SHOULDERS, not chest
+#   Lying Hamstring Curl-> lying cable curl     primary BICEPS, not hamstrings
+#   Flat Dumbbell Press -> arnold dumbbell press primary SHOULDERS, not chest
+#   Glute Bridges       -> barbell glute bridge  equipment BARBELL, not body only
+#
+# The first three are false ACCEPTS in the safety filter: `superset_verdict`
+# sees no shared muscle and allows a pairing it should refuse -- Push-ups with
+# a chest press reads as non-competing. The fourth is a false REJECT, pairing
+# a bodyweight movement out of a bodyweight gym.
+#
+# Fixed here rather than in the matcher because the matcher is shared with
+# image resolution (audited to 0 wrong matches across 187 production names);
+# retuning it to satisfy this module would risk that. An explicit table is the
+# same mechanism `exercise_names.ALIASES` uses, and for the same reason: a
+# score threshold is not an acceptable way to decide identity.
+#
+# Keyed on token-set identity, so spelling variants resolve too.
+_OVERRIDE_SOURCES = {
+    'Push-ups': 'pushups',
+    'Lying Hamstring Curl': 'lying leg curls',
+    'Flat Dumbbell Press': 'dumbbell bench press',
+    'Glute Bridges': 'butt lift (bridge)',
+}
+
+_KEY_OVERRIDES = {
+    exercise_names.key(name): target
+    for name, target in _OVERRIDE_SOURCES.items()
+}
+
+
+def _override_for(name):
+    """The hand-corrected KB key for this name, or None."""
+    return _KEY_OVERRIDES.get(exercise_names.key(name))
+
+
+def validate_overrides():
+    """
+    Every override must name a record the KB actually has, with the fields
+    `profile_for` requires. Called by a test, so a typo fails the build rather
+    than silently falling back to the fuzzy match it exists to replace.
+    """
+    missing = []
+    for source, target in _OVERRIDE_SOURCES.items():
+        record = _load().get(target)
+        if not record or not record.get('force') or not record.get('primary'):
+            missing.append((source, target))
+    return missing
+
+
 def profile_for(name):
     """
     Movement facts for an exercise name, or None when unknown.
@@ -85,9 +145,11 @@ def profile_for(name):
     """
     if not name:
         return None
-    from .views import _resolve_kb_key          # avoids a circular import
 
-    key, _score = _resolve_kb_key(str(name))
+    key = _override_for(name)
+    if key is None:
+        from .views import _resolve_kb_key      # avoids a circular import
+        key, _score = _resolve_kb_key(str(name))
     if not key:
         return None
     record = _load().get(key.lower())

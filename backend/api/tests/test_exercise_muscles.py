@@ -238,3 +238,76 @@ class FilterNotRecommenderTests(SimpleTestCase):
         accepted = sum(1 for a, b in pairs if em.can_superset(a, b))
         self.assertGreater(accepted, len(pairs) * 0.2)
         self.assertLess(accepted, len(pairs) * 0.8)
+
+
+class KbResolutionOverrideTests(SimpleTestCase):
+    """
+    Fuzzy KB resolution sent four names to the wrong movement.
+
+    `profile_for` resolves through the matcher built for IMAGES. "Close enough
+    to show a picture" is a lower bar than "close enough to reason about which
+    muscles this works", and four names cleared the first while failing the
+    second:
+
+        Push-ups             -> handstand push-ups    SHOULDERS, not chest
+        Lying Hamstring Curl -> lying cable curl       BICEPS, not hamstrings
+        Flat Dumbbell Press  -> arnold dumbbell press  SHOULDERS, not chest
+        Glute Bridges        -> barbell glute bridge   BARBELL, not body only
+
+    The first three were false ACCEPTS in the safety filter -- two chest
+    compounds read as non-competing. The fourth was a false REJECT, pairing a
+    bodyweight movement out of a bodyweight gym.
+
+    These tests pin `kind`, not just the boolean. The existing bench +
+    push-ups test asserted only rejection, so it passed throughout while the
+    reason was wrong -- which is exactly how the drift survived.
+    """
+
+    def test_overrides_all_name_a_real_record(self):
+        self.assertEqual(em.validate_overrides(), [])
+
+    def test_pushups_are_a_chest_movement(self):
+        profile = em.profile_for('Push-ups')
+        self.assertEqual(sorted(profile['primary']), ['chest'])
+        self.assertEqual(profile['equipment'], 'body only')
+
+    def test_lying_hamstring_curl_is_not_a_biceps_exercise(self):
+        profile = em.profile_for('Lying Hamstring Curl')
+        self.assertEqual(sorted(profile['primary']), ['hamstrings'])
+
+    def test_flat_dumbbell_press_is_a_chest_movement(self):
+        profile = em.profile_for('Flat Dumbbell Press')
+        self.assertEqual(sorted(profile['primary']), ['chest'])
+
+    def test_glute_bridges_need_no_equipment(self):
+        profile = em.profile_for('Glute Bridges')
+        self.assertEqual(profile['equipment'], 'body only')
+
+    def test_bench_and_pushups_reject_as_competing_not_two_compounds(self):
+        """The reason matters: it is what the step-8 docstring claims."""
+        ok, kind, _why = em.superset_verdict(
+            'Barbell Bench Press', 'Push-ups')
+        self.assertFalse(ok)
+        self.assertEqual(kind, 'competing')
+
+    def test_two_chest_presses_are_refused(self):
+        """
+        Previously ALLOWED: Flat Dumbbell Press resolved to shoulders, so the
+        shared-muscle check found nothing to object to.
+        """
+        ok, kind, _why = em.superset_verdict(
+            'Flat Dumbbell Press', 'Machine Chest Press')
+        self.assertFalse(ok)
+        self.assertEqual(kind, 'competing')
+
+    def test_the_prompts_own_examples_still_pass(self):
+        """
+        A station-contention rule was built and removed because it rejected
+        both of these -- the canonical pairings the generation prompt teaches.
+        Any change to resolution has to leave them accepted.
+        """
+        for left, right in [('Barbell Bench Press', 'Barbell Row'),
+                            ('Leg Extension', 'Lying Hamstring Curl')]:
+            ok, kind, why = em.superset_verdict(left, right)
+            self.assertTrue(ok, '%s + %s rejected as %s: %s'
+                            % (left, right, kind, why))

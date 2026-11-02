@@ -233,13 +233,20 @@ class EquipmentAvailabilityVerdictTests(APITestCase):
 
     def test_muscle_rejections_still_win_over_equipment_ones(self):
         """
-        Ordering matters for what the user is told: "both push, both chest" is
-        more useful than "you don't own that".
+        Ordering matters for what the user is told: "both compound on chest"
+        is more useful than "you don't own that".
+
+        This asserted `two_compounds` until the Push-ups KB override landed.
+        Fuzzy resolution had been sending Push-ups to `handstand push-ups`
+        (primary: shoulders), so the shared-muscle check found nothing and the
+        pair fell through to the compound rule -- while this docstring
+        described the `competing` reason the whole time. The docstring had the
+        intent right; the assertion had pinned the bug.
         """
         ok, kind, _reason = self.verdict(
             'Barbell Bench Press', 'Push-ups', gym='bodyweight')
         self.assertFalse(ok)
-        self.assertEqual(kind, 'two_compounds')
+        self.assertEqual(kind, 'competing')
 
     def test_unknown_equipment_is_never_treated_as_missing(self):
         """
