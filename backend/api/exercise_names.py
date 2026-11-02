@@ -175,6 +175,13 @@ CANONICAL_NAMES = (
     'Incline Dumbbell Press',
     'Dumbbell Floor Press',
     'Machine Chest Press',
+    # Bodyweight, and in the live plan. Its absence here was not cosmetic:
+    # `tokens()` splits "push-ups" into {push, up} but folds "pushups" to
+    # {pushup}, so the two spellings had DIFFERENT identities and
+    # `same_movement` returned False for them. Logged history would split
+    # across the two names, which is the exact failure step 5 exists to
+    # prevent. The aliases below reunite them.
+    'Push-ups',
     'Pec Deck Fly Machine',
     'High-to-Low Cable Crossover',
     'Low-to-High Cable Crossover',
@@ -236,6 +243,13 @@ CANONICAL_NAMES = (
 # Every entry here is a judgement call that can be read and vetoed. Nothing is
 # inferred by similarity.
 ALIASES = {
+    # Closed-up compounds. `tokens()` cannot fold these onto the hyphenated
+    # spelling on its own -- "pushups" is one token, "push-ups" is two -- and
+    # teaching it to re-join adjacent tokens would merge things that are not
+    # the same movement. An explicit pair is the honest fix.
+    'pushups': 'Push-ups',
+    'pushup': 'Push-ups',
+    'press ups': 'Push-ups',
     # An intensity annotation is not a different exercise, and keeping them
     # apart is what hides a user's loading history from the progression logic.
     'cable face pull heavy': 'Cable Face Pulls',

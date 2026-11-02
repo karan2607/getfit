@@ -895,11 +895,12 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
         '- ADVANCED: RPE-based loading, undulating periodization, mandatory deload every 4th week\n\n'
 
         'INJURY PROTOCOL (highest priority — overrides all other decisions):\n'
-        '- Any stated injury or limitation is a HARD constraint — never programme the restricted movement\n'
-        '- Knee pain/injury → replace squat/lunge with leg press, hamstring curl, step-ups\n'
-        '- Lower back issue → replace conventional deadlift with Romanian deadlift or trap bar; no heavy spinal loading\n'
-        '- Shoulder injury → replace overhead press with cable/machine alternatives; avoid internal rotation under load\n'
-        '- Wrist/elbow → replace barbell with dumbbell or cable equivalents\n'
+        '- The client\'s own words under INJURIES & LIMITATIONS are the authority. Read them for intent, not keywords, and apply them across the WHOLE plan\n'
+        '- Judge the scale first. An ongoing, manageable complaint (nagging pain, stiffness, a known weak joint) means work AROUND it: load the area differently, keep training everything else, and put well-established mobility or stretching for that area into the Warmup & Mobility notes\n'
+        '- A serious injury (fracture, tear, rupture, recent surgery, or anything they describe as acute) means do not train that region AT ALL — not a lighter version of it — and say plainly that rehab for it belongs with a physiotherapist, not with this plan\n'
+        '- Generalise from what they said. "Fractured leg, no squats" is not a no-squats instruction, it is a no-loaded-leg-work instruction. Infer the region and the movement class, never only the exercise they happened to name\n'
+        '- Honour stated exceptions exactly. If they say a machine or seated version is fine, it IS fine — never widen their rule into a blanket ban on the whole movement pattern\n'
+        '- Never programme a movement they have ruled out, in any variation, under any name, in any week\n'
         '- Always note the substitution reason in the exercise notes field\n\n'
 
         'WARMUP & MOBILITY (mandatory — first entry in EVERY workout day):\n'

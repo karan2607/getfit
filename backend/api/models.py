@@ -692,19 +692,35 @@ class VersionedFact(models.Model):
     def is_current(self):
         return self.superseded_by_id is None
 
+    #: Never carried onto a replacement row: identity, its own timestamps, and
+    #: the successor pointer (a new row has no successor yet).
+    _NOT_INHERITED = frozenset(('id', 'created_at', 'superseded_by'))
+
     def supersede_with(self, **fields):
         """
         Record a correction. Returns the new row; never mutates this one.
 
+        Every concrete field is carried over unless `fields` overrides it, so a
+        caller states only what CHANGED. Copying the whole row rather than a
+        hand-listed subset is deliberate: this base class cannot know what a
+        subclass added, and the first version listed `key` and `source` by hand
+        and silently dropped `UserFact.user`, producing a replacement with no
+        owner.
+
         Refuses to supersede a row that already has a successor, because that
-        would fork the chain and leave two rows both claiming to be current.
+        would fork the chain and leave two rows both claiming to be current
+        with no way to say which one governs.
         """
         if self.superseded_by_id is not None:
             raise ValueError(
                 '%s %s is already superseded by %s'
                 % (type(self).__name__, self.key, self.superseded_by_id))
-        fields.setdefault('key', self.key)
-        fields.setdefault('source', self.source)
+
+        for field in self._meta.concrete_fields:
+            if field.name in self._NOT_INHERITED:
+                continue
+            fields.setdefault(field.name, getattr(self, field.name))
+
         replacement = type(self).objects.create(**fields)
         self.superseded_by = replacement
         self.save(update_fields=['superseded_by'])
@@ -784,7 +800,7 @@ class ExerciseLibraryEntry(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # `exercise_names.key()` is a frozenset; stored as its sorted tokens joined
     # by spaces so it is unique, greppable and stable across spellings.
-    canonical_key = models.CharField(max_length=200, unique=True)
+    canonical_key = models.CharField(max_length=200, db_index=True)
     name = models.CharField(max_length=150)
     measurement_type = models.CharField(
         max_length=20, choices=exercise_types.CHOICES,
@@ -805,6 +821,23 @@ class ExerciseLibraryEntry(models.Model):
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'exercise library entries'
+        constraints = [
+            # One shared catalogue row per movement, and at most one override
+            # per user per movement -- expressed as two constraints because a
+            # plain unique_together would not enforce the first: in SQL
+            # NULL != NULL, so nullable `user` lets duplicate catalogue rows
+            # through. `canonical_key` was globally unique at first, which
+            # looked tighter and was wrong -- it made a per-user override
+            # impossible to store alongside the catalogue row it overrides.
+            models.UniqueConstraint(
+                fields=['canonical_key'],
+                condition=models.Q(user__isnull=True),
+                name='unique_catalogue_exercise'),
+            models.UniqueConstraint(
+                fields=['user', 'canonical_key'],
+                condition=models.Q(user__isnull=False),
+                name='unique_user_exercise'),
+        ]
 
     def __str__(self):
         return self.name

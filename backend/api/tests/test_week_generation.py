@@ -14,7 +14,7 @@ constrained week 1 and then silently vanished for every week after it.
 The first test below fails before the fix. That is the point of it.
 """
 
-from django.test import TestCase
+from django.test import TestCase, SimpleTestCase
 
 from api import views
 from api.models import (
@@ -263,3 +263,58 @@ class ProfileCompletenessTests(TestCase):
         res = client.get(reverse('profile'))
         self.assertEqual(res.status_code, 200)
         self.assertIn('age', res.data['missing_for_planning'])
+
+
+class InjuryProtocolTests(SimpleTestCase):
+    """
+    The injury protocol must reason, not look up.
+
+    It used to be a four-row table: knee -> leg press, lower back -> RDL or
+    trap bar, shoulder -> cable, wrist -> dumbbell. Three problems, all real:
+
+      1. It contradicted this user's actual rule. "Replace conventional
+         deadlift with Romanian deadlift or trap bar" -- a trap-bar deadlift
+         is lifted from the floor, which is the one thing they cannot do.
+      2. An injury outside those four rows got no guidance at all.
+      3. "Replace the restricted movement" is too narrow. A fractured leg is
+         not a reason to swap squats for leg press; it is a reason to stop
+         loading the leg.
+
+    The replacement states principles -- scale, generalisation, exceptions --
+    and lets the model apply them to whatever the client actually wrote.
+    """
+
+    def protocol(self):
+        prompt = views._workout_system_prompt()
+        return prompt[prompt.index('INJURY PROTOCOL'):
+                      prompt.index('WARMUP & MOBILITY')]
+
+    def test_it_no_longer_prescribes_a_trap_bar_deadlift(self):
+        """Lifted from the floor, so it contradicts the standing back rule."""
+        self.assertNotIn('trap bar', views._workout_system_prompt().lower())
+
+    def test_it_tells_the_model_to_generalise_past_the_named_exercise(self):
+        protocol = self.protocol().lower()
+        self.assertIn('generalise', protocol)
+        self.assertIn('movement class', protocol)
+
+    def test_it_separates_a_manageable_complaint_from_a_serious_injury(self):
+        protocol = self.protocol().lower()
+        self.assertIn('work around it', protocol)
+        self.assertIn('not train that region at all', protocol)
+
+    def test_a_serious_injury_defers_rehab_to_a_professional(self):
+        """We are not clinicians and the plan must not read as if we were."""
+        self.assertIn('physiotherapist', self.protocol().lower())
+
+    def test_stated_exceptions_are_not_widened_into_blanket_bans(self):
+        """
+        The live case: "no STANDING overhead press, machine/seated is fine"
+        must not become "no overhead press".
+        """
+        protocol = self.protocol().lower()
+        self.assertIn('honour stated exceptions', protocol)
+        self.assertIn('never widen', protocol)
+
+    def test_the_clients_own_words_are_named_as_the_authority(self):
+        self.assertIn("client's own words", self.protocol())

@@ -134,6 +134,17 @@ def validate_overrides():
     return missing
 
 
+
+def catalogue_names():
+    """
+    Every movement name the muscle KB holds, as stored (lowercase).
+
+    The exercise library seeds from this: it is the widest list of real
+    movements the project has, and the only one carrying muscle data.
+    """
+    return list(_load().keys())
+
+
 def profile_for(name):
     """
     Movement facts for an exercise name, or None when unknown.
