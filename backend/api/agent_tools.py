@@ -46,13 +46,25 @@ _DOMAIN = {
     'get_exercise_history': WORKOUT,
     'log_set': WORKOUT,
     'update_exercise_notes': WORKOUT,
+    # Health READS inform training decisions -- recovery, step count, resting
+    # heart rate -- so the agent gets them.
     'get_health_summary': WORKOUT,
     'get_health_series': WORKOUT,
-    'log_health_day': WORKOUT,
-    'update_health_day': WORKOUT,
-    'delete_health_day': WORKOUT,
-    'log_health_workout': WORKOUT,
-    'delete_health_workout': WORKOUT,
+
+    # Health WRITES are deliberately absent, for two reasons.
+    #
+    # They are not this agent's job: editing a health day has its own screen,
+    # and the remit here is plans, edits, set logging, weights and history.
+    #
+    # And they are expensive to offer. `strict: true` compiles a grammar per
+    # tool, and the API caps the TOTAL optional parameters across strict
+    # schemas at 24. These four carry 19 of them between them, which pushed
+    # the surface to 38 and failed every turn with a 400. Dropping them
+    # leaves 19 -- comfortably inside the cap, with the tools that matter.
+    #
+    # They remain available over MCP, which has no such limit.
+    #   log_health_day, update_health_day, delete_health_day,
+    #   log_health_workout, delete_health_workout
 
     'list_diet_plans': FOOD,
     'get_diet_plan': FOOD,
@@ -60,6 +72,23 @@ _DOMAIN = {
     'log_meal': FOOD,
     'set_body_weight': FOOD,
 }
+
+
+#: MCP tools deliberately NOT offered to the agent, with the reason recorded
+#: so the invariant test can tell an exclusion from an oversight.
+#:
+#: All five are health writes. They are not this agent's remit, and together
+#: they carry 19 optional parameters -- `strict: true` compiles a grammar per
+#: tool and the API caps total optional parameters across strict schemas at
+#: 24, so including them pushed the surface to 38 and failed every turn with
+#: a 400. They remain available over MCP, which has no such limit.
+EXCLUDED_FROM_AGENT = frozenset((
+    'log_health_day',
+    'update_health_day',
+    'delete_health_day',
+    'log_health_workout',
+    'delete_health_workout',
+))
 
 
 def _spec(name):
@@ -74,20 +103,49 @@ def tools_for(domain):
         if _spec(name) is not None and assigned in (domain, 'both'))
 
 
+def _strictify(schema):
+    """
+    Make a JSON Schema acceptable to `strict: true`, at EVERY depth.
+
+    Strict mode requires `additionalProperties: false` on every object, not
+    just the outermost one. Setting it only at the top produced a 400 --
+    "tools.15.custom: For \'object\' type, additionalProperties must be
+    explicitly set to false" -- and because the whole turn is wrapped, the
+    user saw a bare "AI request failed" with no clue that one nested schema
+    in one tool was the cause.
+
+    Copies rather than mutating: `mcp.TOOLS` is module-level shared state and
+    the MCP endpoint serves the same dicts.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    out = dict(schema)
+    if out.get('type') == 'object':
+        out['additionalProperties'] = False
+        props = out.get('properties') or {}
+        out['properties'] = {k: _strictify(v) for k, v in props.items()}
+        out.setdefault('required', [])
+    if out.get('type') == 'array' and isinstance(out.get('items'), dict):
+        out['items'] = _strictify(out['items'])
+    return out
+
+
 def anthropic_tools(domain):
     """
-    MCP definitions in Anthropic's tool format.
+    Tool definitions in Anthropic's format.
 
-    `strict: True` on every tool, with `additionalProperties: false`: it is
-    what guarantees the arguments validate against the schema, and it is how
-    determinism is obtained now that `temperature` is rejected outright.
+    `strict: True` on every tool is how determinism is obtained now that
+    `temperature` is rejected outright: it guarantees the arguments validate
+    against the schema rather than merely resembling it.
     """
     out = []
     for name in tools_for(domain):
         spec = _spec(name)
-        schema = dict(spec['schema'])
-        schema['additionalProperties'] = False
-        schema.setdefault('required', [])
+        schema = _strictify(spec['schema'])
+        if schema.get('type') != 'object':
+            schema = {'type': 'object', 'properties': {},
+                      'required': [], 'additionalProperties': False}
         out.append({
             'name': name,
             'description': spec['description'],

@@ -724,6 +724,9 @@ function PlanDetail({ planId }: { planId: string }) {
   const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [endingWeek, setEndingWeek] = useState(false)
+  const [showPrepare, setShowPrepare] = useState(false)
+  const [prepareNote, setPrepareNote] = useState('')
+  const [preparingNext, setPreparingNext] = useState(false)
   const [preparingGuides, setPreparingGuides] = useState(false)
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [conflictSession, setConflictSession] = useState<{ id: string; dayName: string; targetDayId: string } | null>(null)
@@ -786,6 +789,26 @@ function PlanDetail({ planId }: { planId: string }) {
     }
   }
 
+  async function handlePrepareNextWeek() {
+    if (!plan) return
+    setPreparingNext(true)
+    try {
+      const res = await api.workouts.prepareNextWeek(
+        plan.id, (plan.current_week ?? 1) + 1, prepareNote,
+      )
+      showToast(res.started ? `Week ${res.preparing_week} is preparing…` : res.detail)
+      setShowPrepare(false)
+      setPrepareNote('')
+      // Re-read so weeks_ready / is_preparing reflect the new state; the
+      // prompt above keys off both.
+      setPlan(await api.workouts.getPlan(plan.id))
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    } finally {
+      setPreparingNext(false)
+    }
+  }
+
   async function handleEndWeek() {
     if (!plan) return
     setEndingWeek(true)
@@ -843,6 +866,20 @@ function PlanDetail({ planId }: { planId: string }) {
     : plan.days.filter((d) => d.week_number === 1)
   const trainingDays = currentWeekDays.filter((d) => !d.is_rest_day).length
 
+  // Is next week already generated? `weeks_ready` is derived server-side from
+  // the weeks that actually have days, so it cannot claim a week exists
+  // before its days do.
+  const nextWeekReady = (plan.weeks_ready ?? 0) > currentWeek
+  // Prompt once most of the week's training is done. Counting COMPLETED days
+  // rather than using a fixed day number, because a 3-day week and a 6-day
+  // week reach "nearly finished" at different points.
+  const completedThisWeek = currentWeekDays.filter(
+    (d) => !d.is_rest_day && d.last_completed_at,
+  ).length
+  const nearlyDone = trainingDays > 0 && completedThisWeek >= trainingDays - 1
+  const nextWeekPrompt =
+    currentWeek < maxWeek && (nearlyDone || nextWeekReady) && !plan.is_preparing
+
   return (
     <>
       {conflictSession && (
@@ -890,6 +927,72 @@ function PlanDetail({ planId }: { planId: string }) {
 
         {plan.description && (
           <p className="text-sm text-gray-500 mb-6">{plan.description}</p>
+        )}
+
+        {/* Prepare next week BEFORE the user finishes this one.
+            Generation takes real time, and doing it at Finish meant waiting
+            for it. The machinery already existed -- prepareNextWeek, with a
+            notes field for how the week went -- but nothing surfaced it near
+            the end of a week, so it was only found by scrolling to Upcoming
+            Weeks. Once the week is ready, Finish is just a state change. */}
+        {plan.is_active && nextWeekPrompt && (
+          <div className="mb-6 rounded-2xl border border-accent-200 bg-accent-50 p-4">
+            <p className="text-sm font-medium text-ink-600">
+              {nextWeekReady
+                ? `Week ${currentWeek + 1} is ready`
+                : `Nearly done with week ${currentWeek}`}
+            </p>
+            <p className="text-sm text-ink-500 mt-1">
+              {nextWeekReady
+                ? 'Finishing this week will take you straight into it.'
+                : 'Prepare next week now and it will be waiting when you finish. '
+                  + 'Tell the coach how this week went and it will take that into account.'}
+            </p>
+            {!nextWeekReady && !showPrepare && (
+              <button
+                type="button"
+                onClick={() => setShowPrepare(true)}
+                className="mt-3 inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
+              >
+                Prepare week {currentWeek + 1}
+              </button>
+            )}
+
+            {!nextWeekReady && showPrepare && (
+              <div className="mt-3">
+                {/* The note is the point. Week N+1 is generated from the plan
+                    so far plus whatever the user says here, so "my shoulder
+                    was sore all week" reaches the model that writes it. */}
+                <label className="block text-xs font-medium text-ink-500 mb-1">
+                  How did this week go? (optional)
+                </label>
+                <textarea
+                  value={prepareNote}
+                  onChange={(e) => setPrepareNote(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. shoulder was sore on pressing days, squats felt easy"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    disabled={preparingNext}
+                    onClick={handlePrepareNextWeek}
+                    className="min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-sm font-medium"
+                  >
+                    {preparingNext ? 'Preparing…' : `Prepare week ${currentWeek + 1}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrepare(false)}
+                    className="min-h-[44px] px-4 rounded-full border border-gray-300 text-sm font-medium text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Current week days */}

@@ -46,13 +46,49 @@ class DomainSplitTests(TestCase):
         for domain in (agent_tools.WORKOUT, agent_tools.FOOD):
             self.assertIn('get_profile', agent_tools.tools_for(domain))
 
-    def test_every_mcp_tool_is_assigned_a_domain(self):
+    def test_every_mcp_tool_is_assigned_a_domain_or_excluded(self):
         """
-        A tool added to MCP without a domain would be silently unreachable
-        by the agent -- present, tested, and never offered to any model.
+        A tool added to MCP without a domain would be silently unreachable by
+        the agent -- present, tested, and never offered to any model.
+
+        Deliberate exclusions are listed, so this still fails for a NEW tool
+        while recording why the health writes are absent: `strict: true`
+        compiles a grammar per tool and the API caps total optional
+        parameters across strict schemas at 24. Those five carry 19 between
+        them, which pushed the surface to 38 and failed every turn with a 400.
         """
-        unassigned = sorted(set(mcp.TOOLS) - set(agent_tools._DOMAIN))
+        unassigned = sorted(set(mcp.TOOLS)
+                            - set(agent_tools._DOMAIN)
+                            - agent_tools.EXCLUDED_FROM_AGENT)
         self.assertEqual(unassigned, [])
+
+    def test_the_strict_optional_parameter_budget_is_respected(self):
+        """
+        The cap is 24 across all strict schemas, and exceeding it fails EVERY
+        turn with a 400 rather than degrading -- so it is worth a test rather
+        than a comment.
+        """
+        for domain in (agent_tools.WORKOUT, agent_tools.FOOD):
+            optional = 0
+            for tool in agent_tools.anthropic_tools(domain):
+                schema = tool['input_schema']
+                required = set(schema.get('required') or [])
+                optional += len([p for p in (schema.get('properties') or {})
+                                 if p not in required])
+            self.assertLessEqual(optional, 24, '%s surface' % domain)
+
+    def test_nested_object_schemas_are_strict_too(self):
+        """
+        `additionalProperties: false` is required at EVERY depth, not just the
+        outermost object. Setting it only at the top produced a 400 naming one
+        nested schema -- and because the turn is wrapped, the user saw a bare
+        "AI request failed" with no clue which tool was at fault.
+        """
+        by_name = {t['name']: t
+                   for t in agent_tools.anthropic_tools(agent_tools.WORKOUT)}
+        changes = (by_name['propose_plan_change']['input_schema']
+                   ['properties']['changes'])
+        self.assertIs(changes['items']['additionalProperties'], False)
 
     def test_no_domain_names_a_tool_that_does_not_exist(self):
         """
