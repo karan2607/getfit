@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
@@ -53,9 +54,12 @@ from .serializers import (
 )
 from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
+from .claude import ClaudeError
 from . import exercise_types
 from . import exercise_names
 from . import plan_changes
+from . import agent_loop
+from . import agent_router
 from .user_time import user_today
 
 User = get_user_model()
@@ -646,14 +650,37 @@ def chat_message_stream(request, session_id):
 
     system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id, meal_id=meal_id)
 
+    # AGENT_CHAT_ENABLED routes workout turns through the tool-calling loop.
+    # Off by default: it changes how every chat turn is answered, and the
+    # flag is what makes that reversible without a deploy.
+    use_agent = os.getenv('AGENT_CHAT_ENABLED', '').lower() in ('1', 'true', 'yes')
+    domain = agent_router.classify(content)
+    run_state = agent_loop.AgentRun()
+
+    def _chunks():
+        """
+        Text for this turn, from whichever engine is in play.
+
+        Both paths are generators yielding plain text, so the SSE framing
+        below is identical either way -- which is what the pinned contract
+        tests in test_chat_stream.py are checking.
+        """
+        if use_agent and domain == agent_router.WORKOUT:
+            return agent_loop.run(
+                user=user, system_prompt=system_prompt, history=history,
+                domain=domain, run_state=run_state, session=session)
+        return stream_gemini_chat(system_prompt=system_prompt, history=history)
+
     def event_stream():
         full_response = ''
         assistant_msg = None
         try:
-            for chunk in stream_gemini_chat(system_prompt=system_prompt, history=history):
+            for chunk in _chunks():
                 full_response += chunk
                 yield f'data: {_json.dumps({"chunk": chunk})}\n\n'
-        except GeminiError as e:
+        # ClaudeError and GeminiError are both failures the user can be told
+        # about; anything else is a bug and should not be dressed up as one.
+        except (GeminiError, ClaudeError) as e:
             yield f'data: {_json.dumps({"error": str(e)})}\n\n'
             return
         finally:
@@ -665,7 +692,19 @@ def chat_message_stream(request, session_id):
                 session.save(update_fields=['title', 'updated_at'])
 
         if assistant_msg:
-            yield f'data: {_json.dumps({"done": True, "message_id": str(assistant_msg.id)})}\n\n'
+            done = {
+                'done': True,
+                'message_id': str(assistant_msg.id),
+                # Additive only. The frontend reads `done` and `message_id`
+                # and ignores the rest until it is taught otherwise, so this
+                # cannot break the existing client.
+                'tool_calls': run_state.tool_calls,
+                'proposed_change': None,
+                'applied_change': None,
+                'verification_diff': None,
+                'needs_confirmation': False,
+            }
+            yield f'data: {_json.dumps(done)}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
     response['X-Accel-Buffering'] = 'no'
