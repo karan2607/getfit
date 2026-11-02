@@ -21,6 +21,7 @@ import {
 } from '../lib/composites'
 import SupersetPicker from '../components/workout/SupersetPicker'
 import ConfirmModal from '../components/ConfirmModal'
+import TemplatePicker from '../components/workout/TemplatePicker'
 import { compressImage } from '../lib/imageUtils'
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
@@ -82,6 +83,10 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
   )
   const [notes, setNotes] = useState('')
 
+  // Set when AI recommendation fails, so the wizard can offer templates
+  // rather than leaving the user on a step with nothing to do.
+  const [recFailed, setRecFailed] = useState(false)
+
   // Step 3 — AI recommendation
   const [loadingRec, setLoadingRec] = useState(false)
   const [targetRec, setTargetRec] = useState<{ message: string; program_target: WorkoutPlan['program_target'] } | null>(null)
@@ -129,7 +134,12 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: (p
       setEditedTarget(result.program_target?.recommended_value ?? null)
       setStep('recommendation')
     } catch (err) {
+      // A toast alone read as silence: the wizard stayed on the same step
+      // with nothing to do next, and generation is the ONLY route to a plan,
+      // so a failure here left the user with no way to use the product at
+      // all. Offer the templates instead of a dead end.
       showToast(getErrorMessage(err), 'error')
+      setRecFailed(true)
     } finally {
       setLoadingRec(false)
     }
@@ -307,6 +317,16 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
         )}
 
         {/* ── STEP 2: Specific Goals ── */}
+        {step === 'goals' && recFailed && (
+          <div className="mb-5">
+            <TemplatePicker
+              reason={"Couldn't generate a recommendation \u2014 the AI is unavailable right now. "
+                + 'You can start from a template instead, or try again below.'}
+              onCreated={(planId) => navigate(`/workouts/${planId}`)}
+            />
+          </div>
+        )}
+
         {step === 'goals' && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-5">
             <div>

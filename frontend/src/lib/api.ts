@@ -156,6 +156,16 @@ export async function request<T>(
   return res.json()
 }
 
+export interface PlanTemplate {
+  key: string
+  name: string
+  summary: string
+  description: string
+  days_per_week: number
+  /** True when contraindications removed something from the template. */
+  adjusted: boolean
+}
+
 export interface VerificationDiff {
   added: Array<{ name: string; day?: string; week?: number }>
   removed: Array<{ name: string; day?: string; week?: number }>
@@ -389,6 +399,22 @@ export const api = {
         preparing_week: number | null; weeks_ready: number
       }>(`/api/workouts/plans/${planId}/weeks/${week}/prepare/`, {
         method: 'POST', body: JSON.stringify({ notes: notes ?? '' }),
+      }),
+
+    /**
+     * Plan templates: a way to start training with the AI down.
+     *
+     * The list is already filtered against this user's contraindications --
+     * offering a barbell-squat template to someone who said their knee is
+     * injured reads as the app having disagreed with their note.
+     */
+    listTemplates: () =>
+      request<{ templates: PlanTemplate[] }>('/api/workouts/plans/templates/'),
+
+    createFromTemplate: (template: string, durationWeeks?: number) =>
+      request<WorkoutPlan>('/api/workouts/plans/templates/', {
+        method: 'POST',
+        body: JSON.stringify({ template, duration_weeks: durationWeeks }),
       }),
 
     /**

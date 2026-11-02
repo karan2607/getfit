@@ -58,6 +58,7 @@ from .claude import ClaudeError
 from . import exercise_types
 from . import exercise_names
 from . import plan_changes
+from . import plan_templates
 from . import agent_loop
 from . import agent_router
 from .user_time import user_today
@@ -2348,6 +2349,67 @@ def workout_plan_apply_change(request, plan_id, change_id):
         # answer to "did this do what was approved".
         'clean': diff['clean'],
     })
+
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_templates(request):
+    """
+    List the plan templates, or create a plan from one.
+
+    GET returns what is on offer for THIS user: anything contraindicated has
+    already been filtered out, because offering someone a barbell-squat
+    template the day after they said their knee is injured reads as the app
+    having read their note and disagreed.
+
+    POST creates the plan through the same path a generated plan takes, so
+    measurement types, canonical names and the field contract are decided by
+    the server identically. A separate write path would be a second place for
+    those rules to drift.
+    """
+    templates = plan_templates.available_templates(request.user)
+
+    if request.method == 'GET':
+        return Response({'templates': [
+            {'key': t['key'], 'name': t['name'], 'summary': t['summary'],
+             'description': t['description'],
+             'days_per_week': len(t['days']),
+             'adjusted': t['adjusted']}
+            for t in templates
+        ]})
+
+    key = request.data.get('template')
+    chosen = next((t for t in templates if t['key'] == key), None)
+    if chosen is None:
+        return Response({'detail': 'unknown template'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    weeks = request.data.get('duration_weeks')
+    payload = plan_templates.to_plan_payload(
+        chosen, duration_weeks=int(weeks) if weeks else 8)
+    try:
+        _validate_plan_json(payload)
+    except ValueError as exc:
+        return Response({'detail': str(exc)},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        plan = WorkoutPlan.objects.create(
+            user=request.user,
+            title=payload['title'],
+            description=payload['description'],
+            duration_weeks=payload['duration_weeks'],
+            generated_by_ai=False,
+            equipment=_accepted_equipment(payload.get('equipment')),
+        )
+        for order, day_data in enumerate(payload['week']):
+            day = _create_day(plan, day_data, 1, order)
+            for i, ex_data in enumerate(day_data.get('exercises', [])):
+                _create_exercise(day, ex_data, i)
+
+    return Response(WorkoutPlanDetailSerializer(plan).data,
+                    status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])

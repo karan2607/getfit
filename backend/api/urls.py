@@ -29,6 +29,8 @@ urlpatterns = [
     # Workout Planner
     path('workouts/plans/suggest-target/', views.workout_plan_suggest_target, name='workout-plan-suggest-target'),
     path('workouts/plans/generate/', views.workout_plan_generate, name='workout-plan-generate'),
+    # A way to start training when generation is down. See plan_templates.
+    path('workouts/plans/templates/', views.workout_plan_templates, name='workout-plan-templates'),
     path('workouts/plans/', views.workout_plans, name='workout-plans'),
     path('workouts/plans/<uuid:plan_id>/', views.workout_plan_detail, name='workout-plan-detail'),
     path('workouts/plans/<uuid:plan_id>/activate/', views.workout_plan_activate, name='workout-plan-activate'),

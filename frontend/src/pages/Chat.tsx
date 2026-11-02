@@ -262,6 +262,10 @@ export default function Chat() {
   const { showToast } = useToast()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [listLoading, setListLoading] = useState(true)
+  // Deleting a chat is irreversible, and the desktop path already confirms.
+  // A mobile button that skipped the guard would be a worse version of the
+  // same action.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   useEffect(() => {
     api.chat.listSessions()
@@ -281,6 +285,7 @@ export default function Chat() {
   }
 
   async function handleDelete(id: string) {
+    // Callers confirm first; this does the deletion.
     try {
       await api.chat.deleteSession(id)
       setSessions((prev) => prev.filter((s) => s.id !== id))
@@ -292,6 +297,20 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+      {pendingDelete && (
+        <ConfirmModal
+          title="Delete this chat?"
+          message="The conversation and its history will be removed. This cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            const id = pendingDelete
+            setPendingDelete(null)
+            handleDelete(id)
+          }}
+          onClose={() => setPendingDelete(null)}
+        />
+      )}
+
       <PageHeader
         title="AI Trainer"
         subtitle="Your personal fitness coach"
@@ -332,6 +351,21 @@ export default function Chat() {
                 <option key={s.id} value={s.id}>{s.title}</option>
               ))}
             </select>
+
+            {/* Delete on MOBILE. The desktop list's delete is
+                `opacity-0 group-hover:opacity-100`, which no touch device can
+                ever reveal -- so on a phone there was no way to remove a chat
+                at all, only to accumulate them. */}
+            {sessionId && (
+              <button
+                type="button"
+                onClick={() => setPendingDelete(sessionId)}
+                aria-label="Delete this chat"
+                className="flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              >
+                🗑
+              </button>
+            )}
           </div>
 
           {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
