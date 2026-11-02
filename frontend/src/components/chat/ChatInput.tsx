@@ -64,7 +64,7 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
       <button
         onClick={handleSend}
         disabled={disabled || !value.trim()}
-        className="flex-shrink-0 w-8 h-8 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-40 flex items-center justify-center transition-colors"
+        className="flex-shrink-0 w-11 h-11 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-40 flex items-center justify-center transition-colors"
         aria-label="Send"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

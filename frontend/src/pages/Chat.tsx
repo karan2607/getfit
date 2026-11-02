@@ -178,7 +178,10 @@ function ChatPane({ sessionId }: { sessionId: string }) {
       )}
 
       {/* Input */}
-      <div className="px-6 pb-6 pt-2">
+      <div
+        className="px-6 pb-6 pt-2"
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <ChatInput onSend={sendMessage} disabled={isSending} />
         <p className="text-xs text-gray-400 text-center mt-2">
           AI can make mistakes. Consult a professional for medical advice.

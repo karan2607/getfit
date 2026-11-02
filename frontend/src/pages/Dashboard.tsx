@@ -166,7 +166,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title={`Hey, ${firstName} 👋`} subtitle={`${todayDay} — let's keep the streak going`} />
+      <PageHeader title={`Hey, ${firstName} 👋`} subtitle={todayDay} />
       <div className="p-4 md:p-6 max-w-2xl">
 
       {/* Quick stats */}
@@ -267,9 +267,20 @@ export default function Dashboard() {
             No session scheduled for today in your active plan.
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-            <p className="text-sm text-gray-500">No active workout plan</p>
-            <Link to="/workouts" className="text-xs text-accent-600 hover:underline font-medium">Generate one →</Link>
+          /* One card, one action. A new user previously met several
+             separate "no plan" notices -- in the stat cards, here, and in
+             the diet section -- none of which was obviously THE next step. */
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <h3 className="text-lg font-semibold text-ink-600">Let's get started</h3>
+            <p className="text-sm text-gray-500 mt-1 mb-4">
+              Set up your plan once, and your workouts, diet and progress show up here.
+            </p>
+            <Link
+              to="/workouts"
+              className="inline-flex items-center justify-center min-h-[44px] px-6 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
+            >
+              Create your plan
+            </Link>
           </div>
         )}
       </div>
