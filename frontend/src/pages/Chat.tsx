@@ -54,7 +54,7 @@ function SessionList({
             <div
               key={s.id}
               className={`group flex items-center gap-1 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
-                s.id === activeId ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-200 text-gray-700'
+                s.id === activeId ? 'bg-accent-100 text-accent-700' : 'hover:bg-gray-200 text-gray-700'
               }`}
               onClick={() => { navigate(`/chat/${s.id}`); onSelect?.() }}
             >

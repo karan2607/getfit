@@ -50,7 +50,7 @@ export default function Sidebar() {
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-[#3E4A3F] text-white border-r border-[#2e3830]">
+    <div className="flex flex-col h-full bg-ink-600 text-white border-r border-ink-500">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-6 overflow-hidden">
         <span className="text-2xl flex-shrink-0">💪</span>
@@ -68,7 +68,7 @@ export default function Sidebar() {
             onClick={() => isMobile && setIsOpen(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors overflow-hidden
-               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-200 hover:bg-[#4a5a4b] hover:text-white'}
+               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-200 hover:bg-ink-400 hover:text-white'}
                ${!isOpen ? 'justify-center px-0' : ''}
               `
             }
@@ -81,7 +81,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User + logout */}
-      <div className={`p-3 border-t border-[#2e3830] overflow-hidden ${!isOpen ? 'flex justify-center' : ''}`}>
+      <div className={`p-3 border-t border-ink-500 overflow-hidden ${!isOpen ? 'flex justify-center' : ''}`}>
         {isOpen ? (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">

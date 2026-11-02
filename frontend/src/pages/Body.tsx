@@ -15,7 +15,7 @@ function BodyScanCard({ scan }: { scan: BodyScanResult }) {
         </div>
         {scan.body_fat_pct != null && (
           <div className="text-right">
-            <p className="text-2xl font-bold text-emerald-600">{scan.body_fat_pct}%</p>
+            <p className="text-2xl font-bold text-accent-600">{scan.body_fat_pct}%</p>
             <p className="text-xs text-gray-400">body fat</p>
           </div>
         )}
@@ -105,13 +105,13 @@ export default function Body() {
         <div
           onClick={() => !scanning && fileRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors mb-6 ${
-            scanning ? 'border-emerald-300 bg-emerald-50 cursor-wait' : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50'
+            scanning ? 'border-accent-200 bg-accent-50 cursor-wait' : 'border-gray-200 hover:border-accent-200 hover:bg-accent-50/50'
           }`}
         >
           {scanning ? (
             <>
               <div className="text-3xl mb-2 animate-pulse">🔬</div>
-              <p className="text-sm font-medium text-emerald-600">Analyzing your physique...</p>
+              <p className="text-sm font-medium text-accent-600">Analyzing your physique...</p>
               <p className="text-xs text-gray-400 mt-1">This may take a moment</p>
             </>
           ) : (

@@ -68,11 +68,11 @@ export default function SupersetCard({
     .filter((r) => roundComplete(r)).length
 
   return (
-    <div className={`bg-white rounded-2xl border-2 overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-brand-200'}`}>
+    <div className={`bg-white rounded-2xl border-2 overflow-hidden transition-colors ${allDone ? 'border-accent-200' : 'border-brand-200'}`}>
       {/* Header: the pairing is the identity of this card, so both names go here. */}
       <div
         onClick={onToggleOpen}
-        className={`px-4 py-3 cursor-pointer select-none ${allDone ? 'bg-emerald-50' : 'bg-brand-50/70'}`}
+        className={`px-4 py-3 cursor-pointer select-none ${allDone ? 'bg-accent-50' : 'bg-brand-50/70'}`}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-2">
@@ -105,7 +105,7 @@ export default function SupersetCard({
           {/* Rounds completed, NOT sets. This read "0/8" for a 2-member
               4-round superset -- members x rounds, a number that corresponds
               to nothing the user is doing. You do rounds. */}
-          <span className={`text-xs font-semibold flex-shrink-0 ${allDone ? 'text-emerald-600' : 'text-gray-400'}`}>
+          <span className={`text-xs font-semibold flex-shrink-0 ${allDone ? 'text-accent-600' : 'text-gray-400'}`}>
             {allDone ? 'done' : `Round ${Math.min(roundsDone + 1, rounds)}/${rounds}`}
           </span>
         </div>
@@ -128,7 +128,7 @@ export default function SupersetCard({
                         onToggleSet(log)
                       }
                     })}
-                    className={`text-[11px] font-semibold transition-colors ${roundComplete(round) ? 'text-emerald-600' : 'text-brand-500 hover:text-brand-600'}`}
+                    className={`text-[11px] font-semibold transition-colors ${roundComplete(round) ? 'text-accent-600' : 'text-brand-500 hover:text-brand-600'}`}
                   >
                     {roundComplete(round) ? '✓ round done' : 'mark round done'}
                   </button>
@@ -147,7 +147,7 @@ export default function SupersetCard({
                   return (
                     <div
                       key={member.planEx.id}
-                      className={`rounded-xl px-3 py-2 ${done ? 'bg-emerald-50/70' : 'bg-gray-50/70'}`}
+                      className={`rounded-xl px-3 py-2 ${done ? 'bg-accent-50/70' : 'bg-gray-50/70'}`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <button
@@ -159,7 +159,7 @@ export default function SupersetCard({
                         <button
                           onClick={!isCompleted ? () => onToggleSet(log) : undefined}
                           disabled={isCompleted}
-                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 text-transparent hover:border-brand-400'}`}
+                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${done ? 'bg-accent-500 border-accent-500 text-white' : 'border-gray-300 text-transparent hover:border-brand-400'}`}
                         >
                           ✓
                         </button>

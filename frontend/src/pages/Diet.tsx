@@ -44,7 +44,7 @@ function MacroDonut({ protein, carbs, fat, calories }: { protein: number; carbs:
       </div>
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-accent-500 flex-shrink-0" />
           <span className="text-gray-600">Protein</span>
           <span className="ml-auto font-semibold text-gray-900">{protein}g</span>
         </div>
@@ -108,7 +108,7 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
         </div>
         <button
           onClick={onGenerate}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+          className="bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
         >
           + Generate plan
         </button>
@@ -121,7 +121,7 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
           <p className="text-sm mb-4">Generate an AI meal plan based on your profile and calorie targets.</p>
           <button
             onClick={onGenerate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+            className="bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
           >
             Generate my first plan
           </button>
@@ -137,7 +137,7 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className="font-semibold text-gray-900 truncate">{plan.title}</p>
                   {plan.is_active && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
+                    <span className="text-[10px] bg-accent-100 text-accent-700 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
                       Active
                     </span>
                   )}
@@ -148,7 +148,7 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
                 {!plan.is_active && (
                   <button
                     onClick={() => handleActivate(plan.id)}
-                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors"
+                    className="text-xs text-accent-600 hover:text-accent-700 font-medium px-3 py-1.5 rounded-lg hover:bg-accent-50 transition-colors"
                   >
                     Activate
                   </button>
@@ -176,7 +176,7 @@ const MEAL_ICONS: Record<string, string> = { breakfast: '🌅', lunch: '☀️',
 function MealCard({ meal, onClick }: { meal: { meal_type: string; name: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; description?: string }; onClick?: () => void }) {
   return (
     <div
-      className={`bg-white rounded-2xl border border-gray-100 p-4 ${onClick ? 'cursor-pointer hover:border-emerald-200 hover:shadow-sm transition-all' : ''}`}
+      className={`bg-white rounded-2xl border border-gray-100 p-4 ${onClick ? 'cursor-pointer hover:border-accent-200 hover:shadow-sm transition-all' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-2 mb-1">
@@ -189,7 +189,7 @@ function MealCard({ meal, onClick }: { meal: { meal_type: string; name: string; 
       </div>
       {meal.description && <p className="text-xs text-gray-500 mt-1 pl-8 line-clamp-2">{meal.description}</p>}
       <div className="flex gap-3 pl-8 mt-1 text-xs text-gray-500">
-        <span className="text-emerald-600 font-medium">{meal.protein_g}g P</span>
+        <span className="text-accent-600 font-medium">{meal.protein_g}g P</span>
         <span className="text-blue-500 font-medium">{meal.carbs_g}g C</span>
         <span className="text-amber-500 font-medium">{meal.fat_g}g F</span>
       </div>
@@ -250,7 +250,7 @@ function MealDrawer({ meal, onClose, onEditWithAI }: {
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
               { label: 'Calories', value: `${meal.calories} kcal`, color: 'bg-gray-50 text-gray-700' },
-              { label: 'Protein', value: `${meal.protein_g}g`, color: 'bg-emerald-50 text-emerald-700' },
+              { label: 'Protein', value: `${meal.protein_g}g`, color: 'bg-accent-50 text-accent-700' },
               { label: 'Carbs', value: `${meal.carbs_g}g`, color: 'bg-blue-50 text-blue-700' },
               { label: 'Fat', value: `${meal.fat_g}g`, color: 'bg-amber-50 text-amber-700' },
             ].map((item) => (
@@ -317,11 +317,11 @@ function MealDrawer({ meal, onClose, onEditWithAI }: {
 
                 {/* Tips */}
                 {guide.tips.length > 0 && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                    <p className="text-xs font-semibold text-emerald-700 mb-2">Tips</p>
+                  <div className="bg-accent-50 border border-accent-100 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-accent-700 mb-2">Tips</p>
                     <ul className="space-y-1.5">
                       {guide.tips.map((tip, i) => (
-                        <li key={i} className="flex gap-2 text-xs text-emerald-800 leading-relaxed">
+                        <li key={i} className="flex gap-2 text-xs text-accent-700 leading-relaxed">
                           <span className="flex-shrink-0 mt-0.5">•</span>
                           <span>{tip}</span>
                         </li>
@@ -440,7 +440,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
         <div className="space-y-4">
           {/* Dietitian document upload. Parse-and-discard — the file is sent to
               the model for extraction and never stored. */}
-          <div className="border border-dashed border-emerald-300 bg-emerald-50/50 rounded-xl p-4">
+          <div className="border border-dashed border-accent-200 bg-accent-50/50 rounded-xl p-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Have a plan from your dietitian?
             </label>
@@ -449,7 +449,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
               your targets. The file isn't stored.
             </p>
             {dietDoc ? (
-              <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2.5">
+              <div className="bg-white border border-accent-200 rounded-lg px-3 py-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">
@@ -477,7 +477,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                 )}
               </div>
             ) : (
-              <label className={`inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg cursor-pointer transition-colors ${parsingDoc ? 'bg-gray-100 text-gray-400' : 'bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50'}`}>
+              <label className={`inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg cursor-pointer transition-colors ${parsingDoc ? 'bg-gray-100 text-gray-400' : 'bg-white border border-accent-200 text-accent-700 hover:bg-accent-50'}`}>
                 {parsingDoc ? 'Reading\u2026' : 'Choose PDF or photo'}
                 <input
                   type="file"
@@ -496,7 +496,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
               placeholder="e.g. United States, India, Mexico"
               value={form.country}
               onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
           <div>
@@ -505,7 +505,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
               placeholder="e.g. Mediterranean, Indian, Asian fusion"
               value={form.cuisine_preference}
               onChange={(e) => setForm((f) => ({ ...f, cuisine_preference: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
           <div>
@@ -515,7 +515,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
               placeholder="e.g. I usually eat rice and lentils, avoid nuts and shellfish"
               value={form.usual_foods}
               onChange={(e) => setForm((f) => ({ ...f, usual_foods: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 resize-none"
             />
           </div>
           <div>
@@ -527,7 +527,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                   onClick={() => setForm((f) => ({ ...f, duration_days: d }))}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${
                     form.duration_days === d
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                      ? 'border-accent-600 bg-accent-50 text-accent-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
@@ -540,7 +540,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
 
         <button
           onClick={handleGenerate}
-          className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+          className="w-full mt-6 bg-accent-600 hover:bg-accent-700 text-white font-medium rounded-xl py-3 text-sm transition-colors"
         >
           Generate my plan
         </button>
@@ -590,7 +590,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
             key={d}
             onClick={() => setPreviewDay(d)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              previewDay === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              previewDay === d ? 'bg-accent-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
             Day {d}
@@ -607,7 +607,7 @@ function GeneratePlanFlow({ onBack, onSaved }: { onBack: () => void; onSaved: ()
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+        className="w-full bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium rounded-xl py-3 text-sm transition-colors"
       >
         {saving ? 'Saving...' : 'Save this plan'}
       </button>
@@ -654,7 +654,7 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-2xl font-bold text-gray-900">{plan.title}</h1>
           {plan.is_active && (
-            <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
+            <span className="text-xs bg-accent-100 text-accent-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
           )}
         </div>
         {plan.description && <p className="text-sm text-gray-500 mb-4">{plan.description}</p>}
@@ -677,7 +677,7 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
                 key={d}
                 onClick={() => setActiveDay(d)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  activeDay === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  activeDay === d ? 'bg-accent-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 Day {d}
@@ -699,7 +699,7 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
       {/* Chat FAB */}
       <button
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-24 right-4 sm:bottom-8 sm:right-6 z-30 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
+        className="fixed bottom-24 right-4 sm:bottom-8 sm:right-6 z-30 bg-accent-600 hover:bg-accent-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-xl"
         title="Chat with AI Nutritionist"
       >
         💬
@@ -740,7 +740,7 @@ function FoodScanCard({ scan }: { scan: FoodScanResult }) {
         <span className="text-sm font-bold text-gray-700">{scan.calories} kcal</span>
       </div>
       <div className="flex gap-3 text-xs">
-        <span className="text-emerald-600 font-medium">{scan.protein_g}g P</span>
+        <span className="text-accent-600 font-medium">{scan.protein_g}g P</span>
         <span className="text-blue-500 font-medium">{scan.carbs_g}g C</span>
         <span className="text-amber-500 font-medium">{scan.fat_g}g F</span>
         {scan.fiber_g != null && <span className="text-gray-400">{scan.fiber_g}g fiber</span>}
@@ -791,13 +791,13 @@ function FoodScannerView() {
       <div
         onClick={() => !scanning && fileRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors mb-6 ${
-          scanning ? 'border-emerald-300 bg-emerald-50 cursor-wait' : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50'
+          scanning ? 'border-accent-200 bg-accent-50 cursor-wait' : 'border-gray-200 hover:border-accent-200 hover:bg-accent-50/50'
         }`}
       >
         {scanning ? (
           <>
             <div className="text-3xl mb-2 animate-bounce">🔍</div>
-            <p className="text-sm font-medium text-emerald-600">Analyzing your food...</p>
+            <p className="text-sm font-medium text-accent-600">Analyzing your food...</p>
           </>
         ) : (
           <>
@@ -930,7 +930,7 @@ function MealLogger() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
         />
       </div>
 
@@ -944,7 +944,7 @@ function MealLogger() {
             </span>
           </div>
           <div className="space-y-2">
-            <MacroBar label="Protein" actual={Math.round(totals.protein_g)} target={activePlan.protein_g} color="bg-emerald-500" />
+            <MacroBar label="Protein" actual={Math.round(totals.protein_g)} target={activePlan.protein_g} color="bg-accent-500" />
             <MacroBar label="Carbs" actual={Math.round(totals.carbs_g)} target={activePlan.carbs_g} color="bg-blue-400" />
             <MacroBar label="Fat" actual={Math.round(totals.fat_g)} target={activePlan.fat_g} color="bg-amber-400" />
           </div>
@@ -990,12 +990,12 @@ function MealLogger() {
               placeholder="Food name"
               value={form.food_name}
               onChange={(e) => setForm((f) => ({ ...f, food_name: e.target.value }))}
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
             <select
               value={form.meal_type}
               onChange={(e) => setForm((f) => ({ ...f, meal_type: e.target.value as MealLog['meal_type'] }))}
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             >
               {MEAL_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -1011,20 +1011,20 @@ function MealLogger() {
                   placeholder="0"
                   value={form[field]}
                   onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                 />
               </div>
             ))}
           </div>
           <div className="flex gap-2">
             <button onClick={() => setShowForm(false)} className="flex-1 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50 border border-gray-200 transition-colors">Cancel</button>
-            <button onClick={handleAdd} disabled={saving || !form.food_name.trim()} className="flex-1 py-2 rounded-xl text-sm bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium transition-colors">
+            <button onClick={handleAdd} disabled={saving || !form.food_name.trim()} className="flex-1 py-2 rounded-xl text-sm bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium transition-colors">
               {saving ? 'Adding...' : 'Add meal'}
             </button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setShowForm(true)} className="w-full py-3 rounded-2xl text-sm text-emerald-600 font-medium border-2 border-dashed border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors">
+        <button onClick={() => setShowForm(true)} className="w-full py-3 rounded-2xl text-sm text-accent-600 font-medium border-2 border-dashed border-accent-200 hover:border-accent-400 hover:bg-accent-50 transition-colors">
           + Log a meal
         </button>
       )}
@@ -1072,7 +1072,7 @@ export default function Diet() {
               onClick={() => setView(tab.key)}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
-                  ? 'border-emerald-600 text-emerald-600'
+                  ? 'border-accent-600 text-accent-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >

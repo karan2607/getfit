@@ -301,9 +301,9 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
   const rb = balance.remaining_burn
   const reDisplay = re != null ? Math.abs(re).toLocaleString() : '—'
   const rbDisplay = rb != null ? Math.abs(rb).toLocaleString() : '—'
-  const reColor = re == null ? 'text-gray-400' : re >= 0 ? 'text-emerald-500' : 'text-red-500'
+  const reColor = re == null ? 'text-gray-400' : re >= 0 ? 'text-accent-500' : 'text-red-500'
   const reLabel = re != null && re < 0 ? 'Over eat goal' : 'Left to eat'
-  const rbColor = rb == null ? 'text-gray-400' : rb <= 0 ? 'text-emerald-500' : 'text-amber-500'
+  const rbColor = rb == null ? 'text-gray-400' : rb <= 0 ? 'text-accent-500' : 'text-amber-500'
   const rbLabel = rb != null && rb <= 0 ? 'Burn goal met' : 'Left to burn'
 
   const divider = <div className="w-px bg-gray-100 self-stretch" />
@@ -450,7 +450,7 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+          <span className="w-2 h-2 rounded-full bg-accent-500 flex-shrink-0" />
           <span className="text-sm font-semibold text-gray-700">🍎 {providerLabel} syncing via Shortcuts</span>
           {lastSyncAt
             ? <span className="text-xs text-gray-400">last sync {fmtDate(lastSyncAt)}{latestSummaryDate ? ` · data up to ${fmtDate(latestSummaryDate)}` : ' · no summary data stored'}</span>
@@ -461,7 +461,7 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
           <button
             onClick={handleSyncNow}
             disabled={syncing}
-            className="text-xs font-semibold text-white bg-[#E69A6B] hover:bg-[#d4875a] rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+            className="text-xs font-semibold text-white bg-accent-500 hover:bg-accent-600 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
           >
             {syncing ? 'Refreshing…' : '↻ Sync Now'}
           </button>

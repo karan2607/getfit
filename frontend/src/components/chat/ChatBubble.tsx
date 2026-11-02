@@ -154,7 +154,7 @@ function InlinePlanCard({
 
   return (
     <>
-      <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl overflow-hidden">
+      <div className="mt-3 bg-accent-50 border border-accent-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <p className="font-semibold text-gray-900 text-sm">{plan.title}</p>
@@ -165,14 +165,14 @@ function InlinePlanCard({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPreviewOpen(true)}
-              className="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2 py-1 rounded-lg hover:bg-emerald-100 transition-colors"
+              className="text-xs text-accent-700 hover:text-accent-700 font-medium px-2 py-1 rounded-lg hover:bg-accent-100 transition-colors"
             >
               Preview
             </button>
             <button
               onClick={handleSave}
               disabled={saving || saved}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
             >
               {saved ? '✓ Applied' : saving ? 'Saving...' : onPreviewUpdate ? 'Use this plan' : planId ? 'Update plan' : 'Save plan'}
             </button>

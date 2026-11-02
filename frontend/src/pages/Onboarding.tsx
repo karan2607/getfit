@@ -78,12 +78,12 @@ export default function Onboarding() {
           {STEPS.map((_, i) => (
             <div
               key={i}
-              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? 'bg-emerald-500' : 'bg-gray-200'}`}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? 'bg-accent-500' : 'bg-gray-200'}`}
             />
           ))}
         </div>
 
-        <p className="text-sm text-emerald-600 font-medium mb-1">
+        <p className="text-sm text-accent-600 font-medium mb-1">
           Step {stepIndex + 1} of {STEPS.length}
         </p>
 
@@ -115,7 +115,7 @@ export default function Onboarding() {
           <button
             onClick={handleNext}
             disabled={saving || blockedReason !== null}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-xl py-2.5 text-sm transition-colors"
+            className="flex-1 bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium rounded-xl py-2.5 text-sm transition-colors"
           >
             {saving ? 'Saving...' : isLast ? 'Get started' : 'Continue'}
           </button>
@@ -141,7 +141,7 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
               placeholder="25"
               value={data.age ?? ''}
               onChange={(e) => onChange({ age: e.target.value ? Number(e.target.value) : undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
           <div>
@@ -149,7 +149,7 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
             <select
               value={data.gender ?? ''}
               onChange={(e) => onChange({ gender: e.target.value as UserProfile['gender'] || null })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 bg-white"
             >
               <option value="">Select</option>
               <option value="male">Male</option>
@@ -168,7 +168,7 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
               placeholder="175"
               value={data.height_cm ?? ''}
               onChange={(e) => onChange({ height_cm: e.target.value ? Number(e.target.value) : undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
           <div>
@@ -180,7 +180,7 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
               placeholder="75"
               value={data.weight_kg ?? ''}
               onChange={(e) => onChange({ weight_kg: e.target.value ? Number(e.target.value) : undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
         </div>
@@ -189,7 +189,7 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
           <select
             value={data.activity_level ?? ''}
             onChange={(e) => onChange({ activity_level: e.target.value as UserProfile['activity_level'] || null })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 bg-white"
           >
             <option value="">Select</option>
             <option value="sedentary">Sedentary (desk job, no exercise)</option>
@@ -226,7 +226,7 @@ function GoalStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
             onClick={() => onChange({ fitness_goal: g.value as UserProfile['fitness_goal'] })}
             className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-colors ${
               data.fitness_goal === g.value
-                ? 'border-emerald-500 bg-emerald-50'
+                ? 'border-accent-500 bg-accent-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -247,7 +247,7 @@ function GoalStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
             onClick={() => onChange({ experience_level: l.value as UserProfile['experience_level'] })}
             className={`p-2 rounded-xl border-2 text-center transition-colors ${
               data.experience_level === l.value
-                ? 'border-emerald-500 bg-emerald-50'
+                ? 'border-accent-500 bg-accent-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -278,7 +278,7 @@ function DietStep({ data, onChange, userName }: { data: Partial<UserProfile>; on
             onClick={() => onChange({ dietary_preference: p.value as UserProfile['dietary_preference'] })}
             className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-colors ${
               data.dietary_preference === p.value
-                ? 'border-emerald-500 bg-emerald-50'
+                ? 'border-accent-500 bg-accent-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >

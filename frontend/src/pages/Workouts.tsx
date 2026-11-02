@@ -923,7 +923,7 @@ function PlanDetail({ planId }: { planId: string }) {
                     && (Date.now() - new Date(day.last_completed_at).getTime()) < 7 * 86_400_000
                   return (
                 <div className="flex items-center gap-3 mb-3">
-                  <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-500'}`}>
+                  <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${completedRecently ? 'bg-accent-100 text-accent-600' : 'bg-brand-100 text-brand-500'}`}>
                     {completedRecently ? '✓' : day.day_number}
                   </span>
                   <p className="font-semibold text-gray-900 text-sm">{day.name}</p>
@@ -954,7 +954,7 @@ function PlanDetail({ planId }: { planId: string }) {
                           return (
                             <button
                               onClick={() => navigate(`/workouts/session/${s.id}`)}
-                              className="text-sm bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                              className="text-sm bg-accent-500 hover:bg-accent-600 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
                             >
                               Done ✓ · Review
                             </button>
@@ -1542,14 +1542,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
               : key === firstUnfinishedKey
 
             return (
-              <div key={key} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-emerald-200' : 'border-gray-100'}`}>
+              <div key={key} className={`bg-white rounded-2xl border overflow-hidden transition-colors ${allDone ? 'border-accent-200' : 'border-gray-100'}`}>
                 {/* Exercise header — the whole row toggles the card. The action
                     buttons stop propagation so they still work, which keeps the
                     original layout intact (wrapping the name in a <button>
                     broke the flex sizing and pushed the actions off-screen). */}
                 <div
                   onClick={() => toggleCard(key, isOpen)}
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${allDone ? 'bg-emerald-50' : 'bg-gray-50/60'}`}
+                  className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${allDone ? 'bg-accent-50' : 'bg-gray-50/60'}`}
                 >
                   <div className="min-w-0 flex items-center gap-2">
                     <span className="text-gray-400 text-[10px] flex-shrink-0 w-2">
@@ -1587,14 +1587,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )}
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       allDone
-                        ? 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-accent-100 text-accent-700'
                         : doneCount > 0
                           ? 'bg-brand-100 text-brand-600'
                           : 'bg-gray-100 text-gray-500'
                     }`}>
                       {doneCount}/{logs.length}
                     </span>
-                    {allDone && <span className="text-emerald-500 font-bold">✓</span>}
+                    {allDone && <span className="text-accent-500 font-bold">✓</span>}
                   </div>
                 </div>
 
@@ -1620,14 +1620,14 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                       )
                     }
                     return (
-                      <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-emerald-50/70' : ''}`}>
+                      <div className={`flex items-center justify-between px-4 py-3 ${logs[0]?.is_completed ? 'bg-accent-50/70' : ''}`}>
                         <span className="text-sm text-gray-600">{planEx?.reps ?? '5-10 min'}</span>
                         <button
                           onClick={!isCompleted ? () => handleToggle(logs[0]) : undefined}
                           disabled={isCompleted}
                           className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
                             logs[0]?.is_completed
-                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                              ? 'bg-accent-500 border-accent-500 text-white shadow-sm'
                               : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
                           } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
                         >✓</button>
@@ -1692,9 +1692,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         {logs.map((log, logIdx) => (
                             <div
                               key={log.id}
-                              className={`grid ${gridCols} gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-emerald-50/70' : ''}`}
+                              className={`grid ${gridCols} gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-accent-50/70' : ''}`}
                             >
-                              <span className={`text-xs font-bold ${log.is_completed ? 'text-emerald-500' : 'text-gray-400'}`}>
+                              <span className={`text-xs font-bold ${log.is_completed ? 'text-accent-500' : 'text-gray-400'}`}>
                                 {log.set_number}
                               </span>
                               {fields.map((field) => {
@@ -1742,7 +1742,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                 disabled={isCompleted}
                                 className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all ${
                                   log.is_completed
-                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                    ? 'bg-accent-500 border-accent-500 text-white shadow-sm'
                                     : 'border-gray-300 text-transparent hover:border-brand-400 hover:scale-110'
                                 } ${isCompleted ? '' : 'cursor-pointer active:scale-95'}`}
                               >✓</button>
@@ -1910,11 +1910,11 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
           ) : (
             <>
               {pb != null && (
-                <div className="mb-4 bg-emerald-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-medium text-emerald-700">
+                <div className="mb-4 bg-accent-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-accent-700">
                     {spec.unit === 'seconds' ? 'Longest hold' : spec.unit === 'reps' ? 'Most reps' : 'Personal best'}
                   </span>
-                  <span className="font-bold text-emerald-700">
+                  <span className="font-bold text-accent-700">
                     {formatChartValue(mType, pb, unit)}
                   </span>
                 </div>
@@ -2180,7 +2180,7 @@ function PlanList({
                   {!plan.is_active && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleActivate(plan.id) }}
-                      className="text-xs text-white bg-emerald-500 hover:bg-emerald-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      className="text-xs text-white bg-accent-500 hover:bg-accent-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                     >
                       Set active
                     </button>

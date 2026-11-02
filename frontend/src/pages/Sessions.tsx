@@ -91,7 +91,7 @@ export default function Sessions() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                            s.is_completed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                            s.is_completed ? 'bg-accent-100 text-accent-700' : 'bg-amber-100 text-amber-700'
                           }`}>
                             {s.is_completed ? 'Done' : 'In progress'}
                           </span>

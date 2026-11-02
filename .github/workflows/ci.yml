@@ -101,8 +101,25 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # The green everyone wanted gone was 183 ad-hoc `emerald-*` classes and
+      # a handful of hardcoded hex values, not the brand token. Each one looks
+      # harmless in its own diff, so the rule is enforced mechanically rather
+      # than by review. NOT chained behind `npm run lint`: that already fails
+      # on 20 pre-existing errors, so `&&` would mean this never runs.
+      - name: Palette
+        run: npm run check:palette
+
       - name: Tests
         run: npm run test
 
       - name: Build
         run: npm run build
+
+      # Layout is asserted at the width the app is actually used at. A
+      # desktop-width screenshot cannot show a bottom nav covering an input
+      # or a tap target under 44px, and this app is used on a phone.
+      - name: Install browsers for the 390px gate
+        run: npx playwright install --with-deps webkit
+
+      - name: Mobile layout gate (390px, WebKit)
+        run: npm run test:e2e

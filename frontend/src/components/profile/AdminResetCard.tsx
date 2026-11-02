@@ -133,11 +133,11 @@ export default function AdminResetCard() {
       </div>
 
       {link && (
-        <div className="mt-4 border border-emerald-200 bg-emerald-50 rounded-xl p-3">
-          <p className="text-xs font-semibold text-emerald-800 mb-1">
+        <div className="mt-4 border border-accent-200 bg-accent-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-accent-700 mb-1">
             Link for {link.email}
           </p>
-          <p className="text-[11px] text-emerald-700 mb-2">
+          <p className="text-[11px] text-accent-700 mb-2">
             Expires {new Date(link.expires_at).toLocaleString()} ·
             {' '}single use
           </p>
@@ -146,16 +146,16 @@ export default function AdminResetCard() {
               readOnly
               value={link.reset_url}
               onFocus={(e) => e.currentTarget.select()}
-              className="flex-1 min-w-0 text-xs font-mono bg-white border border-emerald-200 rounded-lg px-2 py-2"
+              className="flex-1 min-w-0 text-xs font-mono bg-white border border-accent-200 rounded-lg px-2 py-2"
             />
             <button
               onClick={handleCopy}
-              className="flex-shrink-0 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition-colors"
+              className="flex-shrink-0 text-xs font-semibold bg-accent-600 hover:bg-accent-700 text-white px-3 py-2 rounded-lg transition-colors"
             >
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <p className="text-[11px] text-emerald-700 mt-2">
+          <p className="text-[11px] text-accent-700 mt-2">
             Anyone with this link can set that account's password until it
             expires — send it over a private channel.
           </p>

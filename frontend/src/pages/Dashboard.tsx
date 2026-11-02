@@ -9,7 +9,7 @@ function StatCard({ label, value, sub, color = 'emerald' }: {
   label: string; value: string | number; sub?: string; color?: string
 }) {
   const colorMap: Record<string, string> = {
-    emerald: 'bg-emerald-50 text-emerald-600',
+    emerald: 'bg-accent-50 text-accent-600',
     blue: 'bg-blue-50 text-blue-600',
     amber: 'bg-amber-50 text-amber-600',
     purple: 'bg-purple-50 text-purple-600',
@@ -27,7 +27,7 @@ function SectionHeader({ title, to, linkLabel }: { title: string; to?: string; l
   return (
     <div className="flex items-center justify-between mb-3">
       <h2 className="text-base font-bold text-gray-800">{title}</h2>
-      {to && <Link to={to} className="text-xs text-emerald-600 hover:underline">{linkLabel ?? 'View all'}</Link>}
+      {to && <Link to={to} className="text-xs text-accent-600 hover:underline">{linkLabel ?? 'View all'}</Link>}
     </div>
   )
 }
@@ -209,7 +209,7 @@ export default function Dashboard() {
       <div className="mb-6">
         <SectionHeader title="Today's Workout" to="/workouts" linkLabel="All workouts" />
         {activePlan && todayWorkout ? (
-          <div className={`bg-white rounded-2xl border p-4 ${todayCompletedSession ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-100'}`}>
+          <div className={`bg-white rounded-2xl border p-4 ${todayCompletedSession ? 'border-accent-200 bg-accent-50/40' : 'border-gray-100'}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="font-semibold text-gray-900">{todayWorkout.name}</p>
@@ -217,7 +217,7 @@ export default function Dashboard() {
               </div>
               {todayWorkout.is_rest_day ? (
                 todayWorkout.last_completed_at ? (
-                  <span className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full font-medium">Done ✓</span>
+                  <span className="text-xs text-accent-600 bg-accent-50 px-3 py-1 rounded-full font-medium">Done ✓</span>
                 ) : (
                   <button
                     onClick={handleMarkRestDone}
@@ -230,7 +230,7 @@ export default function Dashboard() {
               ) : todayCompletedSession ? (
                 <Link
                   to={`/workouts/session/${todayCompletedSession.id}`}
-                  className="text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors cursor-pointer"
+                  className="text-xs bg-accent-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-accent-600 transition-colors cursor-pointer"
                 >
                   Done ✓ · Review
                 </Link>
@@ -241,7 +241,7 @@ export default function Dashboard() {
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
                     todayInProgressSession
                       ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-accent-600 hover:bg-accent-700 text-white'
                   }`}
                 >
                   {startingWorkout ? 'Opening…' : todayInProgressSession ? 'Continue →' : 'Start'}
@@ -269,7 +269,7 @@ export default function Dashboard() {
         ) : (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
             <p className="text-sm text-gray-500">No active workout plan</p>
-            <Link to="/workouts" className="text-xs text-emerald-600 hover:underline font-medium">Generate one →</Link>
+            <Link to="/workouts" className="text-xs text-accent-600 hover:underline font-medium">Generate one →</Link>
           </div>
         )}
       </div>
@@ -286,7 +286,7 @@ export default function Dashboard() {
               </div>
               <div className="flex-1 grid grid-cols-3 gap-2 text-center text-xs">
                 <div>
-                  <p className="font-semibold text-emerald-600">{activeDiet.protein_g}g</p>
+                  <p className="font-semibold text-accent-600">{activeDiet.protein_g}g</p>
                   <p className="text-gray-400">Protein</p>
                 </div>
                 <div>
@@ -328,7 +328,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                  s.is_completed ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                  s.is_completed ? 'bg-accent-100 text-accent-700' : 'bg-gray-100 text-gray-500'
                 }`}>
                   {s.is_completed ? 'Done' : 'In progress'}
                 </span>
@@ -340,12 +340,12 @@ export default function Dashboard() {
 
       {/* Empty state CTA if everything is blank */}
       {!activePlan && !activeDiet && recentSessions.length === 0 && (
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 text-center">
+        <div className="bg-gradient-to-br from-accent-50 to-accent-100 rounded-2xl p-6 text-center">
           <div className="text-3xl mb-2">🚀</div>
           <p className="font-bold text-gray-900 mb-1">Let's get started</p>
           <p className="text-sm text-gray-600 mb-4">Set up your workout plan and diet to see your progress here.</p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <Link to="/workouts" className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
+            <Link to="/workouts" className="bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
               Create workout plan
             </Link>
             <Link to="/diet" className="bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-xl border border-gray-200 transition-colors">

@@ -94,9 +94,9 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
 
           {/* Coaching note from weekly prep */}
           {guide?.coaching_note && (
-            <div className="mb-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 flex items-start gap-2">
-              <span className="text-emerald-500 mt-0.5">🎯</span>
-              <p className="text-sm text-emerald-700 leading-snug">{guide.coaching_note}</p>
+            <div className="mb-3 bg-accent-50 border border-accent-100 rounded-xl px-4 py-3 flex items-start gap-2">
+              <span className="text-accent-500 mt-0.5">🎯</span>
+              <p className="text-sm text-accent-700 leading-snug">{guide.coaching_note}</p>
             </div>
           )}
 

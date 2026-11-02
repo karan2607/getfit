@@ -56,7 +56,7 @@ export default function Signup() {
               {...register('name')}
               type="text"
               placeholder="Alex"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
           </div>
@@ -67,7 +67,7 @@ export default function Signup() {
               {...register('email')}
               type="email"
               placeholder="you@example.com"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
             {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
           </div>
@@ -77,7 +77,7 @@ export default function Signup() {
             <PasswordInput
               {...register('password')}
               placeholder="••••••••"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
             {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
           </div>
@@ -91,7 +91,7 @@ export default function Signup() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
+            className="w-full bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
           >
             {isSubmitting ? 'Creating account...' : 'Create account'}
           </button>
@@ -99,7 +99,7 @@ export default function Signup() {
 
         <p className="text-sm text-gray-500 text-center mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="text-emerald-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
+          <Link to="/login" className="text-accent-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
             Sign in
           </Link>
         </p>

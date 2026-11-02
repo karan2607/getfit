@@ -36,7 +36,7 @@ export default function ForgotPassword() {
             </p>
             <Link
               to="/login"
-              className="block text-center text-sm text-emerald-600 hover:underline font-medium mt-6"
+              className="block text-center text-sm text-accent-600 hover:underline font-medium mt-6"
             >
               Back to sign in
             </Link>
@@ -55,7 +55,7 @@ export default function ForgotPassword() {
                   type="email"
                   autoFocus
                   placeholder="you@example.com"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                 />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
               </div>
@@ -63,14 +63,14 @@ export default function ForgotPassword() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
+                className="w-full bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition-colors"
               >
                 {isSubmitting ? 'Sending...' : 'Send reset link'}
               </button>
             </form>
 
             <p className="text-sm text-gray-500 text-center mt-6">
-              <Link to="/login" className="text-emerald-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
+              <Link to="/login" className="text-accent-600 hover:underline font-medium inline-flex items-center min-h-[44px]">
                 Back to sign in
               </Link>
             </p>
