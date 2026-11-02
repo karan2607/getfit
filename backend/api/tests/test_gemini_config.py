@@ -272,3 +272,84 @@ class MalformedJsonRetryTests(SimpleTestCase):
         with mock.patch.object(gemini.urllib.request, 'urlopen', opener):
             self.assertEqual(self.call(), {'ok': True})
         self.assertEqual(len(remaining), 1)      # second payload untouched
+
+
+class ChatModelIsSeparateFromGenerationTests(SimpleTestCase):
+    """
+    Chat and plan generation run on different models, deliberately.
+
+    The repo's own eval scored 2.5-flash LOWEST of five on plan generation
+    (0.970 vs Argon's 0.986). It was the only model emitting unconventional
+    rep schemes at all, and the worst on measurement-type agreement -- the
+    exact two faults upgrade steps 4 and 6 exist to clean up afterwards. So a
+    global revert to save money would re-introduce them on the call that runs
+    once a week.
+
+    Chat is the opposite shape: short turns, many of them, no structured plan
+    JSON to get wrong. It ran on Argon with the whole 8-week plan in the
+    system prompt -- about $0.07 to ask a question and $0.38 if the model
+    re-emitted the plan.
+    """
+
+    def test_generation_still_uses_the_generation_model(self):
+        self.assertEqual(gemini._model(), 'gemini-4-argon')
+
+    def test_chat_uses_the_cheaper_model(self):
+        self.assertEqual(gemini._chat_model(), 'gemini-2.5-flash')
+
+    def test_chat_model_is_overridable_per_deployment(self):
+        with mock.patch.dict(os.environ, {'GEMINI_CHAT_MODEL': 'gemini-3.5-flash-lite'}):
+            self.assertEqual(gemini._chat_model(), 'gemini-3.5-flash-lite')
+
+    def test_the_generation_override_does_not_move_chat(self):
+        """GEMINI_MODEL is the generation knob; it must not drag chat with it."""
+        with mock.patch.dict(os.environ, {'GEMINI_MODEL': 'gemini-3.8-flash'}):
+            self.assertEqual(gemini._model(), 'gemini-3.8-flash')
+            self.assertEqual(gemini._chat_model(), 'gemini-2.5-flash')
+
+    def test_a_per_call_override_still_wins(self):
+        """What the eval harness uses to compare models."""
+        self.assertEqual(gemini._chat_model('gemini-4-argon'), 'gemini-4-argon')
+
+
+class UsageLoggingTests(SimpleTestCase):
+    """
+    Every call records what it cost.
+
+    Nothing did before: every log line in gemini.py was an error path, so
+    "where did the spend go?" could not be answered from the logs at all and
+    had to be reconstructed by reading call sites and guessing.
+    """
+
+    def usage(self, **meta):
+        return {'usageMetadata': meta}
+
+    def test_it_logs_model_and_token_counts(self):
+        with self.assertLogs('api.gemini', level='INFO') as captured:
+            gemini._log_usage('generateContent', 'gemini-4-argon',
+                              self.usage(promptTokenCount=32000,
+                                         totalTokenCount=33000))
+        line = captured.output[0]
+        self.assertIn('model=gemini-4-argon', line)
+        self.assertIn('in=32000', line)
+        self.assertIn('out=1000', line)
+
+    def test_it_prices_the_call(self):
+        with self.assertLogs('api.gemini', level='INFO') as captured:
+            gemini._log_usage('generateContent', 'gemini-4-argon',
+                              self.usage(promptTokenCount=1000000,
+                                         totalTokenCount=1000000))
+        self.assertIn('$2.00', captured.output[0])
+
+    def test_an_unknown_model_still_logs_tokens(self):
+        with self.assertLogs('api.gemini', level='INFO') as captured:
+            gemini._log_usage('generateContent', 'something-new',
+                              self.usage(promptTokenCount=10,
+                                         totalTokenCount=20))
+        self.assertIn('in=10', captured.output[0])
+
+    def test_logging_never_raises(self):
+        """A logging failure must not fail the call it describes."""
+        for payload in (None, {}, {'usageMetadata': None},
+                        {'usageMetadata': {'promptTokenCount': 'oops'}}):
+            gemini._log_usage('generateContent', 'gemini-4-argon', payload)

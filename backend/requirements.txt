@@ -10,6 +10,9 @@
 django>=4.2,<7
 djangorestframework
 django-cors-headers
+# Claude Haiku 5.5 drives the workout half of the chat agent. Its floor
+# is Python 3.10, which is why 3.9 left the CI matrix.
+anthropic>=2.3,<3
 psycopg2-binary
 python-dotenv
 gunicorn

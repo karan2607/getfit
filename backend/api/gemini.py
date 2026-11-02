@@ -34,6 +34,22 @@ API_ROOT = 'https://generativelanguage.googleapis.com/v1beta/models'
 # `manage.py eval_plans --live --model=a,b --n=3`.
 DEFAULT_MODEL = 'gemini-4-argon'
 
+# CHAT runs on a cheaper model than generation, deliberately.
+#
+# The table above measures PLAN GENERATION, and it is why this is a separate
+# constant rather than a change to DEFAULT_MODEL: 2.5-flash scored lowest of
+# the five (0.970), was the only model emitting unconventional rep schemes at
+# all, and was worst on measurement-type agreement -- the exact two faults
+# upgrade steps 4 and 6 exist to clean up afterwards. Reverting generation to
+# it would re-introduce them to save money on a call that runs once a week.
+#
+# Chat is the opposite shape: short turns, many of them, and no structured
+# plan JSON to get wrong. $0.30/$2.50 per million against Argon's $2/$10, and
+# free-tier eligible within rate limits.
+#
+# Override per deployment with GEMINI_CHAT_MODEL.
+CHAT_MODEL = 'gemini-2.5-flash'
+
 # Kept so existing imports and log greps keep working; the model used per call
 # now comes from _model() so it can be overridden without editing this file.
 BASE_URL = '%s/%s' % (API_ROOT, DEFAULT_MODEL)
@@ -61,6 +77,56 @@ def _model(override: str = None) -> str:
     unanswerable by construction.
     """
     return override or os.getenv('GEMINI_MODEL') or DEFAULT_MODEL
+
+
+def _chat_model(override: str = None) -> str:
+    """
+    Which model to call for CHAT, which is not the generation model.
+
+    Falls back to DEFAULT_MODEL only if CHAT_MODEL is somehow empty, so a
+    misconfiguration degrades to the better model rather than to none.
+    """
+    return (override or os.getenv('GEMINI_CHAT_MODEL') or CHAT_MODEL
+            or DEFAULT_MODEL)
+
+
+
+# Per-million USD, for the log line only. Rough by design: it exists so a cost
+# question has an answer in the logs, not to bill anyone.
+_PRICES = {
+    'gemini-4-argon': (2.00, 10.00),
+    'gemini-2.5-flash': (0.30, 2.50),
+    'gemini-3.5-flash-lite': (0.30, 2.50),
+    'gemini-3.8-flash': (0.75, 3.75),
+}
+
+
+def _log_usage(action: str, model: str, data: dict):
+    """
+    Record what a call actually cost.
+
+    Nothing logged usage before this: every log line in the module was an
+    error path, so "where did the spend go?" was unanswerable from the logs
+    and had to be reconstructed by reading call sites and guessing.
+
+    It was worth knowing. Chat ran on the generation model with the WHOLE
+    plan in the system prompt -- ~32,000 tokens on every turn, about $0.07 an
+    exchange just to ask a question, and ~$0.38 if the model re-emitted the
+    plan. None of that was visible anywhere.
+
+    Never raises: a logging failure must not fail the call it describes.
+    """
+    try:
+        usage = (data or {}).get('usageMetadata') or {}
+        prompt = usage.get('promptTokenCount') or 0
+        total = usage.get('totalTokenCount') or 0
+        output = max(total - prompt, 0)
+        price_in, price_out = _PRICES.get(model, (0.0, 0.0))
+        cost = prompt / 1e6 * price_in + output / 1e6 * price_out
+        logger.info('gemini usage action=%s model=%s in=%d out=%d ~$%.4f',
+                    action, model, prompt, output, cost)
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def _endpoint(action: str, model: str = None) -> str:
@@ -98,6 +164,7 @@ def call_gemini_json(*, system_prompt: str, user_prompt: str,
         try:
             with urllib.request.urlopen(req) as resp:
                 data = json.loads(resp.read())
+            _log_usage('generateContent', _model(model), data)
             text = data['candidates'][0]['content']['parts'][0]['text']
             return json.loads(text)
         except json.JSONDecodeError as exc:
@@ -157,6 +224,7 @@ def call_gemini_vision_text(*, system_prompt: str, user_prompt: str, image_bytes
     try:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read())
+        _log_usage('vision', _model(model), data)
         return data['candidates'][0]['content']['parts'][0]['text']
     except Exception as exc:
         raise GeminiError('AI request failed') from exc
@@ -204,13 +272,23 @@ def call_gemini_vision_json(*, system_prompt: str, user_prompt: str, image_bytes
 def stream_gemini_chat(*, system_prompt: str, history: list[dict],
                        model: str = None,
                        temperature: float = 0.7) -> Generator[str, None, None]:
+    """
+    Stream a chat reply.
+
+    Defaults to CHAT_MODEL, not DEFAULT_MODEL -- this is the one call site
+    that is chat, so the cheaper model is chosen here rather than at every
+    caller. `model` still overrides, which is what the eval harness uses.
+    """
     payload = json.dumps({
         'system_instruction': {'parts': [{'text': system_prompt}]},
         'contents': history,
         'generationConfig': {'temperature': temperature},
     }).encode()
 
-    url = _endpoint('streamGenerateContent', model) + '&alt=sse'
+    # _chat_model, not _model: chat is the cheap path. See CHAT_MODEL.
+    chosen = _chat_model(model)
+    url = _endpoint('streamGenerateContent', chosen) + '&alt=sse'
+    last_usage = None
     req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
 
     try:
@@ -228,6 +306,10 @@ def stream_gemini_chat(*, system_prompt: str, history: list[dict],
                     if line.startswith(b'data: '):
                         try:
                             data = json.loads(line[6:])
+                            # usageMetadata rides the final frame, and only
+                            # that one carries the totals for the whole turn.
+                            if data.get('usageMetadata'):
+                                last_usage = data
                             text = data['candidates'][0]['content']['parts'][0].get('text', '')
                             if text:
                                 yield text
@@ -242,3 +324,8 @@ def stream_gemini_chat(*, system_prompt: str, history: list[dict],
     except Exception as exc:
         logger.error('Gemini stream error: %s', exc, exc_info=True)
         raise GeminiError('AI stream failed') from exc
+    finally:
+        # In a `finally` so a turn that failed part-way is still costed --
+        # those tokens were spent and billed whether or not the user saw them.
+        if last_usage is not None:
+            _log_usage('streamGenerateContent', chosen, last_usage)

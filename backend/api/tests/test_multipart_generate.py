@@ -109,7 +109,7 @@ class MultipartGenerateTests(APITestCase):
         photo = _png()
         photo.name = 'body.png'
         payload['body_photo'] = photo
-        with patch('api.gemini.call_gemini_json',
+        with patch('api.claude.call_claude_json',
                    return_value=dict(self.FAKE_PLAN)), \
              patch('api.gemini.call_gemini_vision_text', return_value=''):
             return self.client.post(reverse('workout-plan-generate'),
@@ -135,7 +135,7 @@ class MultipartGenerateTests(APITestCase):
 
         photo = _png()
         photo.name = 'body.png'
-        with patch('api.gemini.call_gemini_json', side_effect=_capture), \
+        with patch('api.claude.call_claude_json', side_effect=_capture), \
              patch('api.gemini.call_gemini_vision_text', return_value=''):
             res = self.client.post(reverse('workout-plan-generate'), {
                 'days_per_week': '4', 'duration_weeks': '4',
@@ -161,7 +161,7 @@ class MultipartGenerateTests(APITestCase):
 
         photo = _png()
         photo.name = 'body.png'
-        with patch('api.gemini.call_gemini_json', side_effect=_capture), \
+        with patch('api.claude.call_claude_json', side_effect=_capture), \
              patch('api.gemini.call_gemini_vision_text', return_value=''):
             self.client.post(reverse('workout-plan-generate'), {
                 'days_per_week': '4', 'duration_weeks': '4',
@@ -182,7 +182,7 @@ class MultipartGenerateTests(APITestCase):
 
     def test_the_json_path_still_works(self):
         """The regression guard: no photo, nested dicts, as the web app sends."""
-        with patch('api.gemini.call_gemini_json',
+        with patch('api.claude.call_claude_json',
                    return_value=dict(self.FAKE_PLAN)):
             res = self.client.post(reverse('workout-plan-generate'), {
                 'days_per_week': 4, 'duration_weeks': 4,
@@ -212,7 +212,7 @@ class MultipartSuggestTargetTests(APITestCase):
         fake = {'program_target': {'metric': 'weight', 'label': 'Body weight',
                                    'recommended_value': 70},
                 'message': 'ok'}
-        with patch('api.gemini.call_gemini_json', return_value=fake):
+        with patch('api.claude.call_claude_json', return_value=fake):
             res = self.client.post(reverse('workout-plan-suggest-target'), {
                 'days_per_week': '4', 'duration_weeks': '4',
                 'specific_goals': json.dumps(['lose_weight']),

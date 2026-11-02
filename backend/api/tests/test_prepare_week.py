@@ -20,7 +20,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 
-from api import views, gemini, exercise_types as et
+from api import views, gemini, claude, exercise_types as et
 from api.models import (
     User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     ExerciseGuide,
@@ -102,12 +102,17 @@ class PrepareWeekTests(APITestCase):
                     set_number=n, duration_seconds=60, is_completed=True)
 
     def call(self):
-        # Patch the SOURCE module: prepare_week does `from .gemini import
-        # call_gemini_json` inside the function body, so patching
-        # api.views.call_gemini_json would not reach it and the test would make
-        # a real network request.
+        # Patch the SOURCE module: prepare_week imports its JSON call inside
+        # the function body, so patching api.views.* would not reach it and
+        # the test would make a real network request.
+        #
+        # Workout generation runs on Claude now (the eval put Haiku's only
+        # deficit in exercise naming, which the server canonicalises on write
+        # anyway, at a twentieth of the cost). The Gemini patches stay so a
+        # site still on Gemini is covered too.
         stub = fake_gemini(self.captured)
-        with mock.patch.object(gemini, 'call_gemini_json', stub), \
+        with mock.patch.object(claude, 'call_claude_json', stub), \
+                mock.patch.object(gemini, 'call_gemini_json', stub), \
                 mock.patch.object(views, 'call_gemini_json', stub):
             return self.client.post(self.url, {}, format='json')
 

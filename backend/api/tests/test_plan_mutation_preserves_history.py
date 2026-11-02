@@ -35,6 +35,7 @@ from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 
 from api import exercise_names
+from api.views import _apply_plan_diff, _payload_weeks
 from api.models import (
     User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, Composite,
     WorkoutSession, SetLog,
@@ -240,3 +241,75 @@ class PlanMutationPreservesHistoryTests(APITestCase):
                     .values_list('name', flat=True))
         self.assertIn('Machine Incline Press', names)
         self.assertNotIn('Barbell Bench Press', names)
+
+
+class WeekScopedEditTests(APITestCase):
+    """
+    A payload covering one week must leave the other weeks alone.
+
+    Without this, chat has to send the WHOLE plan and demand the whole plan
+    back -- the live 8-week plan is ~32,000 tokens each way, to change one
+    exercise. Beyond the cost, every one of those 56 re-emitted days is a
+    chance for the model to drop something, which is exactly how the calf
+    raise disappeared.
+
+    `_apply_plan_diff` deletes days the payload does not mention, which is
+    correct for a whole-plan replace and catastrophic for a week-scoped edit.
+    `scope_weeks` is what separates the two.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='scope@test.local', password='x')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=3)
+        for week in (1, 2, 3):
+            day = WorkoutDay.objects.create(
+                plan=self.plan, day_number=1, week_number=week,
+                name='Upper Push', order=week)
+            Exercise.objects.create(
+                day=day, name='Barbell Bench Press', sets=4, reps='6-10',
+                order=0, measurement_type='weight_reps')
+
+    def week_payload(self, week, exercise_name):
+        return {
+            'title': 'P',
+            'days': [{
+                'day_number': 1, 'week_number': week, 'name': 'Upper Push',
+                'is_rest_day': False,
+                'exercises': [{'name': exercise_name, 'sets': 4,
+                               'reps': '6-10',
+                               'measurement_type': 'weight_reps'}],
+            }],
+        }
+
+    def test_a_one_week_payload_leaves_other_weeks_untouched(self):
+        payload = self.week_payload(2, 'Machine Chest Press')
+        _apply_plan_diff(self.plan, payload,
+                         scope_weeks=_payload_weeks(payload))
+
+        self.assertEqual(
+            self.plan.days.count(), 3, 'weeks outside the payload were deleted')
+        by_week = {d.week_number: list(d.exercises.values_list('name', flat=True))
+                   for d in self.plan.days.all()}
+        self.assertEqual(by_week[1], ['Barbell Bench Press'])
+        self.assertEqual(by_week[3], ['Barbell Bench Press'])
+        self.assertEqual(by_week[2], ['Machine Chest Press'])
+
+    def test_without_a_scope_the_other_weeks_are_replaced(self):
+        """
+        The legacy whole-plan replace, kept deliberately: a PUT with no scope
+        means "this IS the plan now".
+        """
+        _apply_plan_diff(self.plan, self.week_payload(2, 'Machine Chest Press'))
+        self.assertEqual(self.plan.days.count(), 1)
+        self.assertEqual(self.plan.days.get().week_number, 2)
+
+    def test_payload_weeks_reads_every_wire_shape(self):
+        self.assertEqual(
+            _payload_weeks(self.week_payload(2, 'X')), {2})
+        self.assertEqual(
+            _payload_weeks({'weeks': [[{'day_number': 1, 'name': 'A',
+                                        'is_rest_day': False}],
+                                      [{'day_number': 1, 'name': 'B',
+                                        'is_rest_day': False}]]}),
+            {1, 2})

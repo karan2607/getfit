@@ -185,6 +185,7 @@ class Command(BaseCommand):
         would report everything as fine.
         """
         from api import views
+        from api.claude import ClaudeError, call_claude_json
         from api.gemini import call_gemini_json, GeminiError
 
         models = [m.strip() for m in (options['model'] or '').split(',') if m.strip()]
@@ -214,10 +215,18 @@ class Command(BaseCommand):
                     kwargs = {'system_prompt': system, 'user_prompt': user}
                     if model:
                         kwargs['model'] = model
-                    if options['temperature'] is not None:
-                        kwargs['temperature'] = options['temperature']
-                    plan = call_gemini_json(**kwargs)
-                except (GeminiError, TypeError) as exc:
+                    # Provider is chosen by the model NAME, so comparing across
+                    # providers is `--model=gemini-4-argon,claude-haiku-5-5`
+                    # with no other change. Both get the identical prompt,
+                    # which is the only way the scores mean anything.
+                    if (model or '').startswith('claude-'):
+                        # Claude rejects non-default temperature with a 400.
+                        plan = call_claude_json(**kwargs)
+                    else:
+                        if options['temperature'] is not None:
+                            kwargs['temperature'] = options['temperature']
+                        plan = call_gemini_json(**kwargs)
+                except (GeminiError, ClaudeError, TypeError) as exc:
                     self.stderr.write('  FAILED: %s' % exc)
                     continue
                 cases.append((label, plan, context))

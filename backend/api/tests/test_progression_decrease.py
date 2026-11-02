@@ -22,7 +22,7 @@ import datetime as dt
 
 from rest_framework.test import APITestCase
 
-from api import views, exercise_types as et
+from api import views, exercise_types as et, claude
 
 KG_PER_LB = 0.453592
 
@@ -226,7 +226,8 @@ class PromptCarriesTargetTests(APITestCase):
                      'category': 'other', 'kb_key': None}
                     for _ in range(count)]
 
-        with mock.patch.object(gemini, 'call_gemini_json', _call), \
+        with mock.patch.object(claude, 'call_claude_json', _call), \
+                mock.patch.object(gemini, 'call_gemini_json', _call), \
                 mock.patch.object(views, 'call_gemini_json', _call):
             res = self.client.post(
                 reverse('workout-plan-prepare-week', args=[self.plan.id]),

@@ -23,7 +23,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 
-from api import views, gemini, exercise_types as et
+from api import views, gemini, exercise_types as et, claude
 from api.models import (
     User, UserProfile, WorkoutPlan, WorkoutDay, Exercise, WorkoutSession,
     SetLog, ExerciseGuide,
@@ -209,7 +209,8 @@ class AdviceVersionTests(APITestCase):
             return {'steps': ['fresh'], 'muscles': ['Quads'], 'tips': ['t'],
                     'category': 'squat', 'kb_key': None}
 
-        with mock.patch.object(gemini, 'call_gemini_json', _call), \
+        with mock.patch.object(claude, 'call_claude_json', _call), \
+                mock.patch.object(gemini, 'call_gemini_json', _call), \
                 mock.patch.object(views, 'call_gemini_json', _call):
             res = self.client.get(self.url, {'name': 'Barbell Squat'})
 
@@ -227,7 +228,8 @@ class AdviceVersionTests(APITestCase):
         def _boom(**kwargs):
             raise AssertionError('must not call the AI for a current guide')
 
-        with mock.patch.object(gemini, 'call_gemini_json', _boom), \
+        with mock.patch.object(claude, 'call_claude_json', _boom), \
+                mock.patch.object(gemini, 'call_gemini_json', _boom), \
                 mock.patch.object(views, 'call_gemini_json', _boom):
             res = self.client.get(self.url, {'name': 'Barbell Squat'})
         self.assertEqual(res.data['steps'], ['cached'])
@@ -237,7 +239,8 @@ class AdviceVersionTests(APITestCase):
             return {'steps': ['s'], 'muscles': ['m'], 'tips': ['t'],
                     'category': 'other', 'kb_key': None}
 
-        with mock.patch.object(gemini, 'call_gemini_json', _call), \
+        with mock.patch.object(claude, 'call_claude_json', _call), \
+                mock.patch.object(gemini, 'call_gemini_json', _call), \
                 mock.patch.object(views, 'call_gemini_json', _call):
             self.client.get(self.url, {'name': 'Some New Lift'})
         cached = ExerciseGuide.objects.get(user=None, name='Some New Lift')
@@ -251,7 +254,8 @@ class AdviceVersionTests(APITestCase):
                     'recommended_weight': 'Start 100lb',
                     'coaching_note': 'stale prose'}
 
-        with mock.patch.object(gemini, 'call_gemini_json', _call), \
+        with mock.patch.object(claude, 'call_claude_json', _call), \
+                mock.patch.object(gemini, 'call_gemini_json', _call), \
                 mock.patch.object(views, 'call_gemini_json', _call):
             self.client.get(self.url, {'name': 'Another Lift'})
         cached = ExerciseGuide.objects.get(user=None, name='Another Lift')
@@ -279,7 +283,8 @@ class PrepareWeekNoLongerCachesAdviceTests(APITestCase):
                      'recommended_weight': 'Start 200lb',
                      'coaching_note': 'should not persist'}]
 
-        with mock.patch.object(gemini, 'call_gemini_json', _call), \
+        with mock.patch.object(claude, 'call_claude_json', _call), \
+                mock.patch.object(gemini, 'call_gemini_json', _call), \
                 mock.patch.object(views, 'call_gemini_json', _call):
             res = self.client.post(
                 reverse('workout-plan-prepare-week', args=[plan.id]), {},

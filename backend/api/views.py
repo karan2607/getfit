@@ -2058,7 +2058,12 @@ def _apply_day_exercises(day, incoming, notes_by_name=None):
     return renames
 
 
-def _apply_plan_diff(plan, data, notes_by_name=None):
+def _payload_weeks(data):
+    """The week numbers a payload actually covers."""
+    return {week for week, _day in _incoming_days(data)}
+
+
+def _apply_plan_diff(plan, data, notes_by_name=None, scope_weeks=None):
     """
     Apply a whole-plan payload by mutating the plan's existing rows.
 
@@ -2078,6 +2083,16 @@ def _apply_plan_diff(plan, data, notes_by_name=None):
 
     Days are matched on (week_number, day_number); exercises within a day by
     `_apply_day_exercises`. Caller is responsible for the transaction.
+
+    `scope_weeks` limits deletion to the weeks named, so a payload carrying
+    ONE week leaves the other seven alone. Without it, a week-scoped edit
+    would delete every week it did not mention -- which is why chat has always
+    had to send and re-emit the whole plan: 8 weeks is ~32,000 tokens in and
+    ~32,000 back out for a one-exercise change, and every one of those 56
+    re-emitted days is a chance for the model to drop something.
+
+    Omitted (the default) keeps whole-plan semantics, which is what the
+    legacy PUT means by a plan replace.
 
     Returns the renames applied, as (old_name, new_name) pairs.
     """
@@ -2102,9 +2117,13 @@ def _apply_plan_diff(plan, data, notes_by_name=None):
         renames.extend(_apply_day_exercises(
             day, day_data.get('exercises', []), notes_by_name))
 
+    scope = set(scope_weeks) if scope_weeks is not None else None
     for key, day in existing_days.items():
-        if key not in seen:
-            day.delete()
+        if key in seen:
+            continue
+        if scope is not None and key[0] not in scope:
+            continue                  # a week this payload does not speak for
+        day.delete()
 
     return renames
 
@@ -2242,8 +2261,13 @@ def workout_plan_apply_change(request, plan_id, change_id):
         return Response({'detail': str(exc)},
                         status=status.HTTP_400_BAD_REQUEST)
 
+    # A draft that speaks for one week must not delete the other seven. The
+    # whole point of week-scoped editing is that chat stops sending and
+    # re-emitting all 8 weeks (~32,000 tokens each way) to change one
+    # exercise -- and every re-emitted day is a chance to drop something.
+    scope_weeks = _payload_weeks(payload)
     with transaction.atomic():
-        _apply_plan_diff(plan, payload)
+        _apply_plan_diff(plan, payload, scope_weeks=scope_weeks)
         after = plan_changes.snapshot_plan(plan)
         diff = plan_changes.diff_snapshots(
             before, after, approved=change.draft,
@@ -2273,7 +2297,7 @@ def workout_plan_apply_change(request, plan_id, change_id):
 @permission_classes([IsAuthenticated])
 def workout_plan_suggest_target(request):
     """Light Gemini call: given user profile + goals, return a recommended measurable target."""
-    from .gemini import call_gemini_json, GeminiError as _GeminiError
+    from .claude import call_claude_json, ClaudeError as _GeminiError
 
     try:
         profile = request.user.profile
@@ -2357,7 +2381,7 @@ def workout_plan_suggest_target(request):
     user_prompt = '\n'.join(p for p in user_parts if p)
 
     try:
-        result = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
+        result = call_claude_json(system_prompt=system, user_prompt=user_prompt)
     except _GeminiError as e:
         return Response({'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
@@ -2367,7 +2391,9 @@ def workout_plan_suggest_target(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def workout_plan_generate(request):
-    from .gemini import call_gemini_json, call_gemini_vision_text, GeminiError as _GeminiError
+    from .claude import call_claude_json, ClaudeError as _AIError
+    # Vision stays on Gemini; Claude handles the workout JSON.
+    from .gemini import call_gemini_vision_text, GeminiError as _GeminiError
     days_per_week = int(request.data.get('days_per_week', 4))
     duration_weeks = int(request.data.get('duration_weeks', 8))
     days_per_week = max(1, min(days_per_week, 7))
@@ -2438,8 +2464,10 @@ def workout_plan_generate(request):
         return Response({'detail': f'Failed to build prompt: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     try:
-        plan_data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
-    except _GeminiError as e:
+        plan_data = call_claude_json(system_prompt=system, user_prompt=user_prompt)
+    # Both providers are in play in this view -- Claude for the plan JSON,
+    # Gemini for the body photo -- so both failure types have to be caught.
+    except (_AIError, _GeminiError) as e:
         return Response({'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     try:
@@ -2782,7 +2810,7 @@ def _bg_cache_plan_guides(plan_id):
     import logging as _logging
     _log = _logging.getLogger(__name__)
     try:
-        from .gemini import call_gemini_json, GeminiError as _GeminiError
+        from .claude import call_claude_json, ClaudeError as _GeminiError
         plan = WorkoutPlan.objects.get(pk=plan_id)
         names = list(
             Exercise.objects.filter(day__plan=plan)
@@ -2808,7 +2836,7 @@ def _bg_cache_plan_guides(plan_id):
             candidates = _get_kb_candidates(name, top_n=8)
             cands_str = ', '.join(candidates[:6]) if candidates else 'none'
             prompt_lines.append(f'{i}. {name} | Image library candidates: {cands_str}')
-        guides_list = call_gemini_json(
+        guides_list = call_claude_json(
             system_prompt='You are a certified personal trainer. Provide exercise instructions.',
             user_prompt='\n'.join(prompt_lines),
         )
@@ -3421,7 +3449,7 @@ def workout_plan_prepare_week(request, plan_id):
     why the personalised weight advice never appeared no matter how many times it
     was "fixed".
     """
-    from .gemini import call_gemini_json, GeminiError as _GeminiError
+    from .claude import call_claude_json, ClaudeError as _GeminiError
     plan = get_object_or_404(WorkoutPlan, pk=plan_id, user=request.user)
     current_week = plan.current_week
 
@@ -3525,7 +3553,7 @@ def workout_plan_prepare_week(request, plan_id):
     prompt = '\n'.join(prompt_lines)
 
     try:
-        guides_list = call_gemini_json(
+        guides_list = call_claude_json(
             system_prompt=(
                 'You are a certified personal trainer providing exercise '
                 f'instructions and progression advice. The user works in {unit}.'
@@ -4004,6 +4032,9 @@ def _get_kb_candidates(name: str, top_n: int = 20) -> list:
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def exercise_guide(request):
+    # The broad `except Exception` below already turns a ClaudeError into a
+    # 503, so only the call is imported here.
+    from .claude import call_claude_json
     name = request.GET.get('name', '').strip()
     if not name:
         return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -4061,7 +4092,7 @@ def exercise_guide(request):
 Return only valid JSON, no extra text."""
 
     try:
-        guide = call_gemini_json(
+        guide = call_claude_json(
             system_prompt='You are a certified personal trainer providing exercise instruction.',
             user_prompt=prompt,
         )
@@ -5683,7 +5714,7 @@ def _generate_week(plan_id, week_number, user_note=''):
     Everything is wrapped so a failure records `prepare_error` and releases the
     lock rather than leaving the plan stuck in "preparing" forever.
     """
-    from .gemini import call_gemini_json, GeminiError as _GeminiError
+    from .claude import call_claude_json, ClaudeError as _GeminiError
 
     plan = WorkoutPlan.objects.filter(pk=plan_id).first()
     if plan is None:
@@ -5700,7 +5731,7 @@ def _generate_week(plan_id, week_number, user_note=''):
             plan, week_number, profile, preferred_unit=unit,
             user_note=user_note, history=history, previous_week=previous)
 
-        data = call_gemini_json(system_prompt=system, user_prompt=user_prompt)
+        data = call_claude_json(system_prompt=system, user_prompt=user_prompt)
         days = _plan_days(data)
         if not days:
             raise ValueError('no days returned')
