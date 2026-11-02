@@ -26,14 +26,17 @@ const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'
 
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const lastActiveRef = useRef(Date.now())
+  // Derived from whether a token exists, rather than defaulting to `true` and
+  // immediately setting it false in an effect. The effect version renders a
+  // loading screen for one frame on every signed-out visit, and is a
+  // synchronous setState inside an effect -- the cascading-render pattern.
+  const [isLoading, setIsLoading] = useState(() => Boolean(getToken()))
+  // Not Date.now(): calling it during render is impure. It is written by the
+  // inactivity effect before anything reads it.
+  const lastActiveRef = useRef(0)
 
   useEffect(() => {
-    if (!getToken()) {
-      setIsLoading(false)
-      return
-    }
+    if (!getToken()) return
     api.auth.me()
       .then(setUser)
       .catch((err) => {
@@ -53,7 +56,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (!user) return
-    let detected = ''
+    let detected: string
     try {
       detected = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
     } catch {
@@ -63,7 +66,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
     api.profile.update({ timezone: detected })
       .then((profile) => setUser({ ...user, profile }))
       .catch(() => {})   // never block the app on this
-  }, [user?.id, user?.profile?.timezone]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.profile?.timezone])
 
   function login(token: string, userData: User) {
     setToken(token)
@@ -79,6 +82,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return
+
+    // Seeded here rather than at render, so the clock starts when the
+    // listeners do.
+    lastActiveRef.current = Date.now()
 
     function onActivity() {
       lastActiveRef.current = Date.now()

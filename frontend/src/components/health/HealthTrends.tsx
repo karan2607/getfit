@@ -211,8 +211,12 @@ export default function HealthTrends({ latestSummaryDate }: {
 
   // If the newest data is weeks old, the charts will look empty for no obvious
   // reason. Name the likely cause rather than showing a blank panel.
+  // Captured once per mount via a lazy initialiser: Date.now() during render
+  // is impure, and writing a ref during render is flagged for the same
+  // reason. A day boundary crossing mid-session is not worth a re-render.
+  const [now] = useState(() => Date.now())
   const staleDays = latestSummaryDate
-    ? Math.floor((Date.now() - new Date(latestSummaryDate).getTime()) / 86_400_000)
+    ? Math.floor((now - new Date(latestSummaryDate).getTime()) / 86_400_000)
     : null
 
   return (

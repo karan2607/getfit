@@ -14,6 +14,11 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
+// The hook and its provider belong together. Splitting them across two files
+// to satisfy Fast Refresh would make the context harder to follow than the
+// warning is worth, and Fast Refresh degrades to a full reload rather than
+// breaking.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within ToastProvider')

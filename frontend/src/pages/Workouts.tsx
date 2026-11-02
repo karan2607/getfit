@@ -499,7 +499,8 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                       className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                       onClick={() => setExpandedPreviewWeeks((prev) => {
                         const next = new Set(prev)
-                        next.has(weekNum) ? next.delete(weekNum) : next.add(weekNum)
+                        if (next.has(weekNum)) next.delete(weekNum)
+                        else next.add(weekNum)
                         return next
                       })}
                     >
@@ -1134,7 +1135,15 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey)
-    if (saved) { try { setPendingLogs(JSON.parse(saved)) } catch {} }
+    if (saved) {
+      try {
+        setPendingLogs(JSON.parse(saved))
+      } catch {
+        // Corrupt draft: drop it rather than wedging the page, but say so.
+        console.warn('discarding unreadable pending set logs for', storageKey)
+        localStorage.removeItem(storageKey)
+      }
+    }
     api.workouts.getSession(sessionId)
       .then(setSession)
       .catch(() => showToast('Failed to load session', 'error'))
