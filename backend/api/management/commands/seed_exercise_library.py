@@ -31,6 +31,20 @@ So three sources, deduplicated by canonical key:
   3. names already stored on `Exercise` rows -- so no existing plan becomes
      uneditable because its exercise predates the library
 
+The library is therefore SELF-EXTENDING, and is meant to be. It runs on every
+deploy alongside `upgrade_data`, so any movement that has entered a plan since
+the last deploy becomes a library entry. That is what keeps the catalogue
+honest over time: 876 records is whatever one upstream dataset happened to
+cover, not the set of exercises a person can actually do, and freezing it
+there would slowly make the library wrong.
+
+A draft naming something absent is WARNED about, never rejected -- "Weighted
+Dips: new, not in your library" -- so a genuinely new movement is surfaced for
+confirmation and then becomes part of the library on the next deploy. What
+stays banned is silent near-matching: no draft name is ever resolved onto an
+existing entry by similarity, which is the failure that sent Push-ups to
+`handstand push-ups` and scored Bench Press 0.87 against Overhead Press.
+
 Idempotent. Catalogue rows (user=NULL) are updated in place, so re-running
 after a registry change refreshes them without touching per-user rows.
 

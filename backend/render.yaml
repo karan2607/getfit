@@ -16,7 +16,7 @@ services:
     runtime: python
     # upgrade_data repairs already-created plans in place after the schema
     # migrations land. It is idempotent, so re-running on every deploy is safe.
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py seed_exercise_library
     startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
     envVars:
       - key: SECRET_KEY
@@ -69,7 +69,7 @@ services:
     # The trailing --counts prints row counts into the BUILD LOG, which is the
     # only way to read them without a shell. Diff them against production
     # before promoting a row-mutating migration.
-    buildCommand: pip install -r requirements.txt && python manage.py reset_staging --check && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py reset_staging --counts
+    buildCommand: pip install -r requirements.txt && python manage.py reset_staging --check && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py seed_exercise_library && python manage.py reset_staging --counts
     startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
     envVars:
       - key: SECRET_KEY

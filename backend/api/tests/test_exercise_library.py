@@ -130,3 +130,49 @@ class SeedExerciseLibraryTests(TestCase):
         output = self.seed()
         self.assertTrue(
             'without muscle data' in output or 'created' in output)
+
+
+class TheLibraryGrowsWithUseTests(TestCase):
+    """
+    The library has to be everything a person can do, not everything one
+    upstream dataset happened to list.
+
+    876 catalogue records is a starting point, not the set of real exercises.
+    Freezing there would make the library quietly wrong as soon as anyone used
+    a movement it had never heard of -- and since a draft is checked against
+    the library, a frozen library means a shrinking set of usable exercises.
+
+    So the seed runs on every deploy and picks up anything that has entered a
+    plan since the last one.
+    """
+
+    def test_an_exercise_new_to_a_plan_joins_the_library(self):
+        from api.models import WorkoutDay, WorkoutPlan
+
+        call_command('seed_exercise_library', stdout=StringIO())
+        before = ExerciseLibraryEntry.objects.count()
+
+        user = User.objects.create_user(email='grow@test.local', password='x')
+        plan = WorkoutPlan.objects.create(user=user, title='P')
+        day = WorkoutDay.objects.create(
+            plan=plan, day_number=1, week_number=1, name='Day')
+        from api.models import Exercise
+        Exercise.objects.create(
+            day=day, name='Jefferson Curl With A Kettlebell', sets=3,
+            reps='8-12', order=0, measurement_type='weight_reps')
+
+        call_command('seed_exercise_library', stdout=StringIO())
+
+        self.assertEqual(ExerciseLibraryEntry.objects.count(), before + 1)
+        self.assertTrue(ExerciseLibraryEntry.objects.filter(
+            canonical_key=canonical_key_for('Jefferson Curl With A Kettlebell')
+        ).exists())
+
+    def test_the_library_is_far_wider_than_any_one_plan(self):
+        """
+        Sanity check on scope. Four live plans use 76 distinct names; the
+        library is an order of magnitude larger, so a draft is not confined
+        to movements already in use.
+        """
+        call_command('seed_exercise_library', stdout=StringIO())
+        self.assertGreater(ExerciseLibraryEntry.objects.count(), 800)
