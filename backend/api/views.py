@@ -1864,6 +1864,248 @@ def _create_exercise(day, ex_data: dict, order: int, notes_by_name=None):
     )
 
 
+def _incoming_days(data):
+    """
+    The payload's days with their week numbers, across all three wire shapes.
+
+    'weeks' (legacy whole-plan), 'week' (one week, per-week generation) and
+    'days' (older single week). The old PUT branch handled only two of the
+    three and raised KeyError on 'week'.
+    """
+    if 'weeks' in data:
+        for week_idx, week_days in enumerate(data['weeks'], start=1):
+            for day_data in week_days:
+                yield week_idx, day_data
+        return
+    for day_data in (data.get('week') or data.get('days') or []):
+        yield day_data.get('week_number', 1), day_data
+
+
+def _looks_like_a_rename(old_name, new_name):
+    """
+    True when two names at the same position are the same movement renamed.
+
+    `same_movement` is exact token-set identity -- correct for reuniting
+    history, too strict here. The model freely writes "Barbell Bench Press
+    (Flat)" for "Barbell Bench Press", and a strict comparison reads that as a
+    replacement. A subset relation covers the qualifier case while keeping a
+    genuinely different movement out: "Barbell Bench Press" and "Machine
+    Incline Press" have no subset relation, so that stays a replace.
+
+    This distinction is not cosmetic. If a replacement were treated as a
+    rename, the row would keep its pk, its SetLogs would stay attached, and
+    upgrade step 9 would then rewrite `SetLog.exercise_name` to match the new
+    name -- silently relabelling bench-press history as machine-press history.
+    A replace orphans the FK instead, which keeps the logged rows and their
+    denormalised `exercise_name` intact for history lookups by name.
+    """
+    if exercise_names.same_movement(old_name, new_name):
+        return True
+    old_tokens = set(exercise_names.tokens(old_name))
+    new_tokens = set(exercise_names.tokens(new_name))
+    if not old_tokens or not new_tokens:
+        return False
+    return old_tokens <= new_tokens or new_tokens <= old_tokens
+
+
+def _seed_composite_cache(day, incoming, matches):
+    """
+    Pre-load `_composite_for`'s cache with the containers a group already uses.
+
+    Without this, a grouping that did not change still gets a brand-new
+    `Composite` row on every edit, because the wire format carries only a
+    group integer and has no way to name the container it means.
+    """
+    groups = {}
+    for ex_data, matched in zip(incoming, matches):
+        group = ex_data.get('superset_group')
+        if group is None:
+            continue
+        groups.setdefault(group, []).append(matched)
+
+    cache = {}
+    for group, members in groups.items():
+        ids = {m.composite_id for m in members if m is not None and m.composite_id}
+        if len(ids) != 1:
+            continue                      # split, merged or brand new -- rebuild
+        composite = Composite.objects.filter(id=ids.pop()).first()
+        if composite is not None:
+            cache[group] = composite
+    day._composite_cache = cache
+
+
+def _prune_composites(day):
+    """
+    Drop containers that no longer hold a group, and renumber the survivors.
+
+    A composite with one member is not a superset; `_validate_superset_groups`
+    already strips those from the payload, so one left here means the edit
+    removed a member.
+    """
+    survivors = []
+    for composite in day.composites.all():
+        members = list(composite.exercises.all())
+        if len(members) < 2:
+            Exercise.objects.filter(composite=composite).update(composite=None)
+            composite.delete()
+        else:
+            survivors.append((min(m.order for m in members), composite))
+
+    for index, (_, composite) in enumerate(sorted(survivors, key=lambda p: p[0])):
+        if composite.order != index:
+            composite.order = index
+            composite.save(update_fields=['order'])
+
+
+def _update_exercise(exercise, day, ex_data, name, order, notes_by_name=None):
+    """
+    The in-place twin of `_create_exercise` -- same fields, same server-side
+    decisions, same single path for `measurement_type`. Kept adjacent to it so
+    a field added to one is obviously missing from the other.
+    """
+    reps = exercise_types.normalize_reps(str(ex_data.get('reps', '10')))
+    exercise.name = name
+    exercise.sets = ex_data.get('sets', 3)
+    exercise.reps = reps
+    exercise.rest_seconds = ex_data.get('rest_seconds')
+    exercise.notes = _clean_exercise_notes(
+        _exercise_note(ex_data, name, notes_by_name))
+    exercise.order = order
+    exercise.measurement_type = exercise_types.normalize(
+        ex_data.get('measurement_type'),
+        name,
+        day_name=getattr(day, 'name', None),
+        reps=reps,
+    )
+    exercise.composite = _composite_for(day, ex_data.get('superset_group'),
+                                        ex_data.get('rest_seconds'))
+    exercise.save()
+    return exercise
+
+
+def _apply_day_exercises(day, incoming, notes_by_name=None):
+    """
+    Reconcile one day's exercises with the payload, reusing rows where we can.
+
+    Three matching passes, in this order:
+
+      1. same position AND same movement -- the overwhelmingly common case
+      2. same movement at a different position -- a reorder
+      3. same position, a renamed movement (see `_looks_like_a_rename`)
+
+    Position is a co-primary key rather than a tiebreak because the model
+    regenerates whole days and varies names between weeks; matching on name
+    alone reads a qualifier change as a delete plus a create and throws the
+    row's identity away.
+
+    Returns the renames it applied, so the caller can report them.
+    """
+    existing = list(day.exercises.order_by('order'))
+    names = [exercise_names.canonical(str(ex_data['name']).strip())
+             for ex_data in incoming]
+    matches = [None] * len(incoming)
+    claimed = set()
+
+    for index, name in enumerate(names):
+        if index < len(existing) and existing[index].id not in claimed \
+                and exercise_names.same_movement(existing[index].name, name):
+            matches[index] = existing[index]
+            claimed.add(existing[index].id)
+
+    for index, name in enumerate(names):
+        if matches[index] is not None:
+            continue
+        for candidate in existing:
+            if candidate.id in claimed:
+                continue
+            if exercise_names.same_movement(candidate.name, name):
+                matches[index] = candidate
+                claimed.add(candidate.id)
+                break
+
+    renames = []
+    for index, name in enumerate(names):
+        if matches[index] is not None or index >= len(existing):
+            continue
+        candidate = existing[index]
+        if candidate.id in claimed or not _looks_like_a_rename(candidate.name, name):
+            continue
+        matches[index] = candidate
+        claimed.add(candidate.id)
+        renames.append((candidate.name, name))
+
+    # Remove dropped rows before writing orders, so no unique/order collision
+    # can occur mid-pass. SetLog rows survive this: `SetLog.exercise` is
+    # SET_NULL and `exercise_name` is denormalised, so history looked up by
+    # name is unaffected by an exercise leaving the plan.
+    for candidate in existing:
+        if candidate.id not in claimed:
+            candidate.delete()
+
+    _seed_composite_cache(day, incoming, matches)
+
+    for index, ex_data in enumerate(incoming):
+        if matches[index] is None:
+            _create_exercise(day, ex_data, index, notes_by_name)
+        else:
+            _update_exercise(matches[index], day, ex_data, names[index],
+                             index, notes_by_name)
+
+    _prune_composites(day)
+    return renames
+
+
+def _apply_plan_diff(plan, data, notes_by_name=None):
+    """
+    Apply a whole-plan payload by mutating the plan's existing rows.
+
+    This replaced `plan.days.all().delete()` followed by a full rebuild, which
+    was the most destructive line in the codebase and ran on EVERY AI chat plan
+    edit. Deleting the days cascaded `Composite` (every superset in the plan),
+    and SET_NULL'd both `SetLog.exercise` (every logged set orphaned from the
+    movement it was performed on) and `WorkoutSession.exercise_day`, while
+    `WorkoutDay.last_completed_at` went with the row. None of it was visible in
+    the UI, and upgrade step 9 deliberately leaves orphans alone, so the damage
+    accumulated permanently.
+
+    It is also why an exercise could "disappear" after an edit: the server
+    rebuilt the plan from whatever JSON came back, so anything the model
+    omitted was deleted along with its history. That is a server behaviour, not
+    a model failure, and no better model or confirmation flow fixes it.
+
+    Days are matched on (week_number, day_number); exercises within a day by
+    `_apply_day_exercises`. Caller is responsible for the transaction.
+
+    Returns the renames applied, as (old_name, new_name) pairs.
+    """
+    existing_days = {(d.week_number, d.day_number): d for d in plan.days.all()}
+    seen = set()
+    renames = []
+    order_counter = 0
+
+    for week_number, day_data in _incoming_days(data):
+        key = (week_number, day_data['day_number'])
+        day = existing_days.get(key)
+        if day is None:
+            day = _create_day(plan, day_data, week_number, order_counter)
+        else:
+            day.name = day_data['name']
+            day.focus = day_data.get('focus', '')
+            day.is_rest_day = day_data.get('is_rest_day', False)
+            day.order = order_counter
+            day.save(update_fields=['name', 'focus', 'is_rest_day', 'order'])
+        seen.add(key)
+        order_counter += 1
+        renames.extend(_apply_day_exercises(
+            day, day_data.get('exercises', []), notes_by_name))
+
+    for key, day in existing_days.items():
+        if key not in seen:
+            day.delete()
+
+    return renames
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def workout_plan_suggest_target(request):
@@ -2155,37 +2397,14 @@ def workout_plan_detail(request, plan_id):
             plan.duration_weeks = data.get('duration_weeks', plan.duration_weeks)
             plan.save()
 
-            # Replace all days and exercises — support both weeks[][] and days[] formats
-            plan.days.all().delete()
-            order_counter = 0
-            if 'weeks' in data:
-                for week_idx, week_days in enumerate(data['weeks'], start=1):
-                    for day_data in week_days:
-                        day = WorkoutDay.objects.create(
-                            plan=plan,
-                            day_number=day_data['day_number'],
-                            week_number=week_idx,
-                            name=day_data['name'],
-                            focus=day_data.get('focus', ''),
-                            is_rest_day=day_data.get('is_rest_day', False),
-                            order=order_counter,
-                        )
-                        order_counter += 1
-                        for j, ex_data in enumerate(day_data.get('exercises', [])):
-                            _create_exercise(day, ex_data, j)
-            else:
-                for i, day_data in enumerate(data['days']):
-                    day = WorkoutDay.objects.create(
-                        plan=plan,
-                        day_number=day_data['day_number'],
-                        week_number=day_data.get('week_number', 1),
-                        name=day_data['name'],
-                        focus=day_data.get('focus', ''),
-                        is_rest_day=day_data.get('is_rest_day', False),
-                        order=i,
-                    )
-                    for j, ex_data in enumerate(day_data.get('exercises', [])):
-                        _create_exercise(day, ex_data, j)
+            # Mutate the existing rows rather than deleting and rebuilding.
+            # The rebuild cascaded every Composite in the plan and orphaned
+            # every logged set from its exercise, on every AI chat edit. See
+            # `_apply_plan_diff`.
+            renames = _apply_plan_diff(plan, data)
+            for old_name, new_name in renames:
+                logger.info('plan %s: renamed %r -> %r',
+                            plan.id, old_name, new_name)
         return Response(WorkoutPlanDetailSerializer(plan).data)
 
     plan.delete()
