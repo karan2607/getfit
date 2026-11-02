@@ -5,9 +5,11 @@ and the one running in production.
 Why this file exists
 --------------------
 `requirements.txt` pins only `django>=4.2`, so the Python version decides the
-Django major. Production is Python **3.14**, which resolves Django to 5.x; a
-local venv on an older Python resolves to 4.2.x, and a removed API is then
-invisible locally.
+Django major -- and more than that, the BUILD DATE does. `django>=4.2` has no
+upper bound, so every deploy installs whatever Django is newest at that
+moment. On Python 3.14 that is Django **6.1.2** today, not the 5.x this file
+used to claim. Production re-resolves it on each deploy, so the framework can
+change major version with no commit at all.
 
 CI covers 3.12 / 3.13 / **3.14**, so the production version is tested. The
 local venv is a separate matter: it must be Python >= 3.10 for the `anthropic`

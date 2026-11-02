@@ -1,5 +1,7 @@
 # Python
 venv/
+# Kept around while swapping Python versions; 56MB and never wanted in git.
+venv-*/
 .venv/
 __pycache__/
 *.pyc
