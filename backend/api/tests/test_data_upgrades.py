@@ -310,3 +310,63 @@ class ReclassifyForNewTypesTests(TestCase):
             for log in SetLog.objects.all()
         }
         self.assertEqual(before, after)
+
+
+class LibrarySeedsOnDeployTests(TestCase):
+    """
+    The exercise library must be seeded by something that actually runs.
+
+    It was added to `render.yaml`'s build commands, which changed nothing:
+    both Render services were created by hand in the dashboard, so the
+    blueprint is documentation and the deployed command lives elsewhere.
+    Staging therefore ran with an EMPTY library and reported every exercise --
+    Plank included -- as "not in your library", which would have made the
+    unknown-exercise warning meaningless noise on every draft.
+
+    `upgrade_data` is already in the deployed build command, so the seed hangs
+    off that instead and cannot drift from the repo again.
+    """
+
+    def test_upgrade_data_seeds_the_library(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from api.models import ExerciseLibraryEntry
+
+        self.assertEqual(ExerciseLibraryEntry.objects.count(), 0)
+        call_command('upgrade_data', stdout=StringIO())
+        self.assertGreater(ExerciseLibraryEntry.objects.count(), 800)
+
+    def test_it_seeds_even_when_no_plan_needs_upgrading(self):
+        """
+        The seed runs BEFORE the early return. A deploy with no stale plans is
+        the common case, and it is exactly when a new exercise still needs to
+        reach the library.
+        """
+        from io import StringIO
+        from django.core.management import call_command
+        from api.models import ExerciseLibraryEntry
+
+        out = StringIO()
+        call_command('upgrade_data', stdout=out)
+        self.assertIn('nothing to do', out.getvalue())
+        self.assertGreater(ExerciseLibraryEntry.objects.count(), 800)
+
+    def test_a_seed_failure_does_not_fail_the_deploy(self):
+        """
+        A stale library is survivable -- unknown exercises warn rather than
+        block. A deploy that dies on it is not.
+        """
+        from io import StringIO
+        from unittest import mock
+        from django.core.management import call_command
+
+        out = StringIO()
+        with mock.patch('django.core.management.call_command',
+                        side_effect=RuntimeError('boom')):
+            # Only the nested seed call is patched out; the outer command is
+            # invoked directly so the failure path is what gets exercised.
+            from api.management.commands.upgrade_data import Command
+            cmd = Command()
+            cmd.stdout = out
+            cmd._seed_library()
+        self.assertIn('continuing', out.getvalue())

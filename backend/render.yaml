@@ -1,5 +1,16 @@
 # Two environments, same blueprint.
 #
+# THIS FILE IS DOCUMENTATION, NOT THE MECHANISM. Both services were created by
+# hand in the Render dashboard, so the deployed build command lives there and
+# editing this file changes nothing about what runs. That is not theoretical:
+# `seed_exercise_library` was added to the build commands here and never ran,
+# so staging served an empty exercise library and reported every exercise --
+# Plank included -- as "not in your library".
+#
+# Anything that MUST run on deploy belongs in code that an already-deployed
+# command calls. The library seed now runs from `upgrade_data` for exactly
+# that reason.
+#
 # Everything deploys to STAGING first and is promoted to main by hand. Before
 # this existed, `main` went straight to production with only the local test
 # gate in front of it -- which is how the Django 5 outage shipped (green
@@ -16,7 +27,7 @@ services:
     runtime: python
     # upgrade_data repairs already-created plans in place after the schema
     # migrations land. It is idempotent, so re-running on every deploy is safe.
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py seed_exercise_library
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data
     startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
     envVars:
       - key: SECRET_KEY
@@ -69,7 +80,7 @@ services:
     # The trailing --counts prints row counts into the BUILD LOG, which is the
     # only way to read them without a shell. Diff them against production
     # before promoting a row-mutating migration.
-    buildCommand: pip install -r requirements.txt && python manage.py reset_staging --check && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py seed_exercise_library && python manage.py reset_staging --counts
+    buildCommand: pip install -r requirements.txt && python manage.py reset_staging --check && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py upgrade_data && python manage.py reset_staging --counts
     startCommand: gunicorn config.wsgi --workers 1 --threads 4 --log-file -
     envVars:
       - key: SECRET_KEY
