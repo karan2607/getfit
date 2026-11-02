@@ -25,6 +25,7 @@ from .models import (
     ExerciseGuide, MealGuide,
     HealthConnection, HealthDailySummary, HealthWorkout,
     Feedback, ApiKey,
+    PlanChange, PlanSnapshot,
 )
 from .serializers import (
     RegisterSerializer,
@@ -54,6 +55,7 @@ from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
 from . import exercise_types
 from . import exercise_names
+from . import plan_changes
 from .user_time import user_today
 
 User = get_user_model()
@@ -2105,6 +2107,166 @@ def _apply_plan_diff(plan, data, notes_by_name=None):
             day.delete()
 
     return renames
+
+
+
+# ---------------------------------------------------------------------------
+# Plan changes: draft -> confirm -> apply -> verify
+# ---------------------------------------------------------------------------
+#
+# Real @api_view decorators here, unlike chat_message_stream where
+# @permission_classes sits on a plain Django view and DRF never reads it. That
+# one is gated by a hand-rolled TokenAuthentication block in the body; do not
+# copy the shape.
+
+def _owned_plan(request, plan_id):
+    return WorkoutPlan.objects.filter(pk=plan_id, user=request.user).first()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def workout_plan_snapshot(request, plan_id):
+    """The plan's full recorded contents, optionally scoped to ?weeks=1,2."""
+    plan = _owned_plan(request, plan_id)
+    if plan is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    weeks = request.GET.get('weeks')
+    week_numbers = None
+    if weeks:
+        try:
+            week_numbers = [int(w) for w in weeks.split(',') if w.strip()]
+        except ValueError:
+            return Response({'detail': 'weeks must be integers'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    snapshot = plan_changes.snapshot_plan(plan, week_numbers)
+    return Response({'snapshot': snapshot,
+                     'digest': plan_changes.plan_digest(snapshot)})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_propose_change(request, plan_id):
+    """
+    Record a draft. Applies NOTHING.
+
+    The draft is stored verbatim so the verification diff is checked against
+    exactly what the user was shown, not against a later re-description of it.
+    """
+    plan = _owned_plan(request, plan_id)
+    if plan is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    draft = request.data.get('changes')
+    if not isinstance(draft, list) or not draft:
+        return Response({'detail': 'changes must be a non-empty list'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    for item in draft:
+        if not isinstance(item, dict) or not (item.get('name') or '').strip():
+            return Response({'detail': 'each change needs a name'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    keep_list = request.data.get('keep_list') or []
+    if not isinstance(keep_list, list):
+        return Response({'detail': 'keep_list must be a list'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    snapshot = plan_changes.snapshot_plan(plan)
+    change = PlanChange.objects.create(
+        plan=plan,
+        draft=draft,
+        keep_list=keep_list,
+        warnings=plan_changes.library_warnings(draft, user=request.user),
+        base_hash=plan_changes.plan_digest(snapshot),
+    )
+    PlanSnapshot.objects.create(
+        plan=plan, change_id=change.id, phase=PlanSnapshot.BEFORE,
+        data=snapshot)
+
+    return Response({
+        'change_id': str(change.id),
+        'draft': change.draft,
+        'keep_list': change.keep_list,
+        'warnings': change.warnings,
+        'needs_confirmation': True,
+        'applied': False,
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_plan_apply_change(request, plan_id, change_id):
+    """
+    Apply a confirmed draft, then read the plan back and diff it.
+
+    Idempotent: re-sending a confirmed change_id returns the recorded result
+    instead of applying twice. A timed-out request that actually succeeded is
+    the normal way this happens, and double-applying would be a silent edit
+    the user never approved.
+    """
+    plan = _owned_plan(request, plan_id)
+    if plan is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    change = PlanChange.objects.filter(pk=change_id, plan=plan).first()
+    if change is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if change.is_applied:
+        return Response({
+            'change_id': str(change.id),
+            'applied': True,
+            'already_applied': True,
+            'verification_diff': change.verification_diff,
+        })
+
+    before = plan_changes.snapshot_plan(plan)
+    if plan_changes.plan_digest(before) != change.base_hash:
+        # The plan moved on since the draft was made. Applying anyway would
+        # overwrite work the user never saw.
+        return Response({
+            'detail': 'This plan changed since the draft was made. '
+                      'Re-propose the change so you can see it against the '
+                      'current plan.',
+            'code': 'stale_draft',
+        }, status=status.HTTP_409_CONFLICT)
+
+    payload = request.data.get('plan')
+    if not isinstance(payload, dict):
+        return Response({'detail': 'plan payload required'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    try:
+        _validate_plan_json(payload)
+    except ValueError as exc:
+        return Response({'detail': str(exc)},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        _apply_plan_diff(plan, payload)
+        after = plan_changes.snapshot_plan(plan)
+        diff = plan_changes.diff_snapshots(
+            before, after, approved=change.draft,
+            keep_list=change.keep_list)
+
+        PlanSnapshot.objects.create(
+            plan=plan, change_id=change.id, phase=PlanSnapshot.AFTER,
+            data=after)
+        change.status = PlanChange.APPLIED
+        change.applied_at = timezone.now()
+        change.verification_diff = diff
+        change.save(update_fields=['status', 'applied_at',
+                                   'verification_diff'])
+
+    return Response({
+        'change_id': str(change.id),
+        'applied': True,
+        'verification_diff': diff,
+        # The caller must NOT report success on a non-clean diff. Surfaced as
+        # a field rather than left for the caller to derive, so there is one
+        # answer to "did this do what was approved".
+        'clean': diff['clean'],
+    })
 
 
 @api_view(['POST'])

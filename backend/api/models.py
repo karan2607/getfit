@@ -876,6 +876,62 @@ class PlanSnapshot(models.Model):
         return '%s snapshot of %s' % (self.phase, self.plan_id)
 
 
+class PlanChange(models.Model):
+    """
+    A proposed plan edit, held between the draft and the user's confirmation.
+
+    The draft/confirm split exists because the model cannot be trusted to
+    apply a change faithfully -- that is the whole premise. So it proposes,
+    the row sits here unapplied, the user confirms the exact draft they were
+    shown, and only then does the server mutate anything.
+
+    Staleness
+    ---------
+    `base_hash` is a digest of the plan as it stood when the draft was made.
+    If the plan moves on -- another edit, a week generated, a superset
+    regrouped -- applying the draft would silently overwrite work the user
+    never saw. That is the same data-loss class as the rebuild this project
+    just removed, only narrower, so apply refuses on a mismatch and asks for a
+    fresh draft rather than guessing which version was meant.
+
+    A timestamp would not do: not every mutation touches `WorkoutPlan.save()`
+    (the supersets endpoint writes Exercise rows directly), so `updated_at`
+    can stay still while the plan changes underneath. The digest is of the
+    content itself.
+    """
+
+    PROPOSED = 'proposed'
+    APPLIED = 'applied'
+    STATUS_CHOICES = [(PROPOSED, 'Proposed'), (APPLIED, 'Applied')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plan = models.ForeignKey('WorkoutPlan', on_delete=models.CASCADE,
+                             related_name='changes')
+    # The exact draft shown to the user, stored verbatim. The diff is checked
+    # against THIS, not against a later re-description of it.
+    draft = models.JSONField(default=dict)
+    keep_list = models.JSONField(default=list, blank=True)
+    # Things the user should see before confirming: an exercise not in their
+    # library, a pairing that will be ungrouped. Warnings never block.
+    warnings = models.JSONField(default=list, blank=True)
+    base_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES,
+                              default=PROPOSED)
+    verification_diff = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def is_applied(self):
+        return self.status == self.APPLIED
+
+    def __str__(self):
+        return '%s change on %s' % (self.status, self.plan_id)
+
+
 class ExerciseGuide(models.Model):
     # user=NULL is the shared generic guide (form steps, muscles, images).
     # A row with a user is that user's personalised copy, carrying their weight

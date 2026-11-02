@@ -39,6 +39,10 @@ urlpatterns = [
     path('workouts/plans/<uuid:plan_id>/weeks/<int:week_number>/prepare/',
          views.workout_plan_prepare_next_week, name='workout-plan-prepare-next-week'),
     path('workouts/plans/<uuid:plan_id>/mark-rest-day/', views.workout_plan_mark_rest_day, name='workout-plan-mark-rest-day'),
+    # Draft -> confirm -> apply -> verify. See api/plan_changes.py.
+    path('workouts/plans/<uuid:plan_id>/snapshot/', views.workout_plan_snapshot, name='workout-plan-snapshot'),
+    path('workouts/plans/<uuid:plan_id>/changes/', views.workout_plan_propose_change, name='workout-plan-propose-change'),
+    path('workouts/plans/<uuid:plan_id>/changes/<uuid:change_id>/apply/', views.workout_plan_apply_change, name='workout-plan-apply-change'),
     path('workouts/sessions/', views.workout_sessions, name='workout-sessions'),
     path('workouts/sessions/<uuid:session_id>/', views.workout_session_detail, name='workout-session-detail'),
     path('workouts/sessions/<uuid:session_id>/sets/', views.workout_session_log_set, name='workout-session-log-set'),

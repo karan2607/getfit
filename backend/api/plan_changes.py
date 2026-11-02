@@ -184,3 +184,71 @@ def _was_approved(entry, approved):
             continue
         return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Propose / apply
+# ---------------------------------------------------------------------------
+
+def plan_digest(snapshot):
+    """
+    A content digest of a plan snapshot, for detecting that it moved on.
+
+    Content rather than a timestamp: not every mutation calls
+    `WorkoutPlan.save()` -- the supersets endpoint writes Exercise rows
+    directly -- so `updated_at` can sit still while the plan changes
+    underneath. `sort_keys` so an equal plan always digests equal.
+    """
+    import hashlib
+    import json
+
+    payload = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def library_warnings(draft, user=None):
+    """
+    Exercises in a draft that the library has never heard of.
+
+    A WARNING, never a rejection. Rejecting would stop the model ever
+    introducing a new movement, and plans legitimately introduce new work --
+    the library is seeded from one upstream dataset and is not the set of
+    exercises a person can do. The entry joins the library on the next deploy.
+
+    What stays banned is the other half: a draft name is never resolved onto
+    an existing entry by similarity. That is the actual hazard, and the reason
+    this project does exact token-set identity everywhere -- a score threshold
+    sent Push-ups to `handstand push-ups` and scored Bench Press 0.87 against
+    Overhead Press.
+    """
+    from .models import ExerciseLibraryEntry
+
+    known = set(ExerciseLibraryEntry.objects
+                .filter(models_q_user(user))
+                .values_list('canonical_key', flat=True))
+
+    out = []
+    seen = set()
+    for item in draft or []:
+        name = (item.get('name') or '').strip()
+        if not name:
+            continue
+        key = ' '.join(sorted(exercise_names.key(name)))
+        if not key or key in known or key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            'type': 'unknown_exercise',
+            'name': name,
+            'message': '%s: new, not in your library' % name,
+        })
+    return out
+
+
+def models_q_user(user):
+    """Catalogue rows plus this user's own overrides."""
+    from django.db.models import Q
+
+    if user is None:
+        return Q(user__isnull=True)
+    return Q(user__isnull=True) | Q(user=user)
