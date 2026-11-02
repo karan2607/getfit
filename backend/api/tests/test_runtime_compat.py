@@ -4,10 +4,14 @@ and the one running in production.
 
 Why this file exists
 --------------------
-`requirements.txt` pins only `django>=4.2`, and nothing pins Python. The local
-venv is Python 3.9, which caps Django at 4.2.30. Production is Python **3.14**,
-which resolves Django to 5.x. So the two environments run different Django
-majors, and a removed API is invisible locally.
+`requirements.txt` pins only `django>=4.2`, so the Python version decides the
+Django major. Production is Python **3.14**, which resolves Django to 5.x; a
+local venv on an older Python resolves to 4.2.x, and a removed API is then
+invisible locally.
+
+CI covers 3.12 / 3.13 / **3.14**, so the production version is tested. The
+local venv is a separate matter: it must be Python >= 3.10 for the `anthropic`
+SDK, and the closer it is to 3.14 the less this file has to carry.
 
 That is not hypothetical. `api/user_time.py` shipped using
 `django.utils.timezone.utc` -- deprecated in Django 4.1, **removed in 5.0**.

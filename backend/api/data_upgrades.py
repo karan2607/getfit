@@ -413,6 +413,116 @@ def _step_9_realign_logged_names(plan, stdout):
     return changed
 
 
+def _step_10_reattach_orphaned_setlogs(plan, stdout):
+    """
+    Re-link logged sets that lost their exercise to a plan rebuild.
+
+    Until `views._apply_plan_diff` landed, every plan edit ran
+    `plan.days.all().delete()` and rebuilt from the incoming JSON. That
+    SET_NULL'd `SetLog.exercise` for every logged set in the plan AND
+    `WorkoutSession.exercise_day` for every session, on every AI chat edit.
+    Step 9 deliberately leaves orphans alone -- correctly, since it has no way
+    to tell what they belonged to -- so the damage accumulated permanently.
+
+    This step is the repair. The fix in views.py stops new orphans; this
+    reattaches the ones already in the database.
+
+    A new step number, not a change to step 9, because `data_version` gates by
+    NUMBER and step 9 has already run -- the same reason step 6 could not be a
+    fix to step 1 and step 9 could not be a fix to step 8.
+
+    How an orphan is identified
+    ---------------------------
+    `SetLog.exercise_name` is denormalised and survives, and
+    `WorkoutSession.day_name` survives too, so between them the row usually
+    still says what it was. The day is resolved from the surviving FK when the
+    session kept one, otherwise from `day_name`, and the exercise is then
+    matched by canonical identity WITHIN those days.
+
+    Deliberately conservative -- a wrong reattachment is worse than no
+    reattachment, because step 9 would then rewrite `exercise_name` to match
+    the exercise we guessed and destroy the evidence. So a row is only
+    reattached when the match is UNIQUE. Anything ambiguous is left alone and
+    reported:
+
+      * the same day name across several weeks, with no way to know which
+      * a duplicated exercise name on one day (the live plan has Barbell Bench
+        Press twice on Upper Push in weeks 5-7)
+      * a set number already taken on the target exercise
+
+    Sessions that started before this plan existed are skipped, so one user's
+    orphan cannot be adopted by a later plan that happens to reuse a day name.
+
+    Idempotent: a log that already has an exercise is never considered.
+    """
+    from . import exercise_names
+    from .models import SetLog
+
+    orphans = list(
+        SetLog.objects
+        .filter(exercise__isnull=True,
+                workout_session__user=plan.user,
+                workout_session__started_at__gte=plan.created_at)
+        .select_related('workout_session', 'workout_session__exercise_day'))
+    if not orphans:
+        return 0
+
+    # Canonical identity -> exercises, per day, built once.
+    days = list(plan.days.all())
+    by_day = {}
+    for day in days:
+        index = {}
+        for exercise in day.exercises.all():
+            index.setdefault(exercise_names.key(exercise.name), []).append(exercise)
+        by_day[day.id] = index
+
+    days_by_name = {}
+    for day in days:
+        days_by_name.setdefault((day.name or '').strip().lower(), []).append(day)
+
+    changed = 0
+    ambiguous = 0
+    for log in orphans:
+        session = log.workout_session
+        day = session.exercise_day
+        if day is not None and day.plan_id != plan.id:
+            continue                      # belongs to a different plan
+        if day is not None:
+            candidate_days = [day]
+        else:
+            candidate_days = days_by_name.get(
+                (session.day_name or '').strip().lower(), [])
+        if not candidate_days:
+            ambiguous += 1
+            continue
+
+        key = exercise_names.key(log.exercise_name or '')
+        matches = []
+        for candidate in candidate_days:
+            matches.extend(by_day.get(candidate.id, {}).get(key, []))
+        if len(matches) != 1:
+            ambiguous += 1
+            continue
+
+        target = matches[0]
+        # `unique_together = (workout_session, exercise, set_number)` -- a
+        # re-logged set may already occupy this slot.
+        if SetLog.objects.filter(workout_session=session, exercise=target,
+                                 set_number=log.set_number).exists():
+            ambiguous += 1
+            continue
+
+        log.exercise = target
+        log.save(update_fields=['exercise'])
+        changed += 1
+
+    if changed:
+        stdout('    reattached %d orphaned log(s)' % changed)
+    if ambiguous:
+        stdout('    left %d orphaned log(s) alone (ambiguous)' % ambiguous)
+    return changed
+
+
 # step number -> (label, callable). Append only.
 UPGRADES = {
     1: ('reclassify measurement types', _step_1_reclassify_measurement_types),
@@ -428,6 +538,8 @@ UPGRADES = {
         _step_8_split_merged_exercises),
     9: ('realign logged names with their exercise',
         _step_9_realign_logged_names),
+    10: ('reattach logged sets orphaned by a plan rebuild',
+         _step_10_reattach_orphaned_setlogs),
 }
 
 LATEST_VERSION = max(UPGRADES) if UPGRADES else 0

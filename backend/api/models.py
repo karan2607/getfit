@@ -6,6 +6,8 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
 
+from . import exercise_types
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -432,13 +434,11 @@ class Composite(models.Model):
 
 
 class Exercise(models.Model):
-    MEASUREMENT_TYPE_CHOICES = [
-        ('weight_reps', 'Weight + Reps'),
-        ('weight_duration', 'Weight + Duration'),
-        ('duration', 'Duration only'),
-        ('warmup', 'Warmup/Mobility'),
-        ('bodyweight_reps', 'Bodyweight + Reps'),
-    ]
+    # Derived from exercise_types, never written out by hand. The hardcoded
+    # list that used to live here fell two types behind when cardio_machine
+    # and weight_distance were added -- the same drift class that shipped
+    # weight inputs on a treadmill, just on the server side.
+    MEASUREMENT_TYPE_CHOICES = exercise_types.CHOICES
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     day = models.ForeignKey(WorkoutDay, on_delete=models.CASCADE, related_name='exercises')

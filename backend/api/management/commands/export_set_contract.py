@@ -53,6 +53,29 @@ def serialise():
     return json.dumps(build(), indent=2, sort_keys=True) + '\n'
 
 
+def _check_model_choices():
+    """
+    The server-side half of the same drift.
+
+    `frontend/src/lib/units.ts` falling behind the contract shipped weight
+    inputs on a treadmill. `Exercise.MEASUREMENT_TYPE_CHOICES` falling behind
+    is the same bug one layer down: it listed five types while ALL_TYPES had
+    seven, so `full_clean()`, the admin and any ModelForm rejected rows the
+    app writes routinely. models.py now derives its choices, which makes the
+    drift impossible -- this check is here so that hardcoding the list again
+    fails the build rather than going unnoticed for another two types.
+    """
+    from api.models import Exercise
+
+    declared = tuple(value for value, _label in Exercise.MEASUREMENT_TYPE_CHOICES)
+    if declared != tuple(exercise_types.ALL_TYPES):
+        raise CommandError(
+            'Exercise.MEASUREMENT_TYPE_CHOICES is out of step with '
+            'exercise_types.ALL_TYPES.\n  model:     %s\n  ALL_TYPES: %s\n'
+            'Derive the choices from exercise_types.CHOICES instead of '
+            'listing them by hand.' % (list(declared), list(exercise_types.ALL_TYPES)))
+
+
 class Command(BaseCommand):
     help = 'Export the measurement-type contract for the frontend tests.'
 
@@ -68,6 +91,7 @@ class Command(BaseCommand):
         payload = serialise()
 
         if options['check']:
+            _check_model_choices()
             try:
                 with open(path) as handle:
                     current = handle.read()

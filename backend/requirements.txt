@@ -1,3 +1,6 @@
+# Python >= 3.10 (the `anthropic` SDK's floor). Production runs 3.14 and CI
+# covers 3.12/3.13/3.14; `django>=4.2` is unpinned on purpose, so the Python
+# version is what decides the Django major -- see api/tests/test_runtime_compat.py.
 django>=4.2
 djangorestframework
 django-cors-headers

@@ -38,6 +38,24 @@ ALL_TYPES = (WEIGHT_REPS, WEIGHT_DURATION, DURATION, WARMUP, BODYWEIGHT_REPS,
 
 DEFAULT_TYPE = WEIGHT_REPS
 
+# Human-readable labels, kept HERE rather than on the model so that adding a
+# type is a single edit. `Exercise.MEASUREMENT_TYPE_CHOICES` derives from this
+# tuple; it used to hardcode its own list and silently fell two types behind
+# when cardio_machine and weight_distance were added, so `full_clean()`, the
+# admin and any ModelForm would reject rows the app writes routinely.
+TYPE_LABELS = {
+    WEIGHT_REPS: 'Weight + Reps',
+    WEIGHT_DURATION: 'Weight + Duration',
+    DURATION: 'Duration only',
+    WARMUP: 'Warmup/Mobility',
+    BODYWEIGHT_REPS: 'Bodyweight + Reps',
+    CARDIO_MACHINE: 'Cardio machine',
+    WEIGHT_DISTANCE: 'Weight + Distance',
+}
+
+#: ``(value, label)`` pairs in `ALL_TYPES` order, for a Django field's choices.
+CHOICES = tuple((t, TYPE_LABELS[t]) for t in ALL_TYPES)
+
 # ---------------------------------------------------------------------------
 # Read/write contract
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ best. The history endpoints filtered on `weight_kg` with no type discriminator,
 so bodyweight work was invisible entirely.
 """
 
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
@@ -254,3 +255,44 @@ class ExerciseHistoryTests(APITestCase):
         res = self.history('Plank')
         self.assertEqual(res.data['measurement_type'], et.DURATION)
         self.assertEqual(res.data['logs'][0]['duration_seconds'], 180)
+
+
+class ModelChoicesStayInStepTests(TestCase):
+    """
+    `Exercise.MEASUREMENT_TYPE_CHOICES` must cover every type the app writes.
+
+    It listed five while `exercise_types.ALL_TYPES` had seven: cardio_machine
+    and weight_distance were added server-side, upgrade step 6 reclassified
+    rows onto them, and the model was never told. Django does not enforce
+    choices at the database level, so nothing broke loudly -- but full_clean(),
+    the admin and any ModelForm rejected rows the app writes routinely.
+
+    This is the same drift class as the frontend contract mirror, which shipped
+    weight inputs on a treadmill. Both now fail the build instead.
+    """
+
+    def test_model_choices_match_all_types(self):
+        from api.models import Exercise
+        self.assertEqual(
+            tuple(v for v, _ in Exercise.MEASUREMENT_TYPE_CHOICES),
+            tuple(et.ALL_TYPES))
+
+    def test_every_type_has_a_label(self):
+        missing = [t for t in et.ALL_TYPES
+                   if not et.TYPE_LABELS.get(t)]
+        self.assertEqual(missing, [], 'measurement types with no label')
+
+    def test_the_export_check_rejects_a_hardcoded_list(self):
+        """The guard has to actually fire, not just exist."""
+        from django.core.management.base import CommandError
+        from api.models import Exercise
+        from api.management.commands import export_set_contract as cmd
+
+        original = Exercise.MEASUREMENT_TYPE_CHOICES
+        Exercise.MEASUREMENT_TYPE_CHOICES = [('weight_reps', 'Weight + Reps')]
+        try:
+            with self.assertRaises(CommandError) as ctx:
+                cmd._check_model_choices()
+        finally:
+            Exercise.MEASUREMENT_TYPE_CHOICES = original
+        self.assertIn('out of step', str(ctx.exception))
