@@ -154,3 +154,38 @@ test('the full-screen editor covers the bottom nav', async ({ page }) => {
     (el) => parseInt(getComputedStyle(el).zIndex || '0', 10))
   expect(dialogZ).toBeGreaterThan(navZ)
 })
+
+test('the AI panel owns the whole screen on a phone', async ({ page }) => {
+  /*
+   * It was a 400px side panel at every width. On a 390px screen that leaves
+   * a 32px sliver of the page behind it -- it reads as a broken layout, not
+   * a panel -- and at z-40 it sat UNDER the bottom nav, which drew six tabs
+   * across it. At this width the thing being revealed is already the size of
+   * the screen, so it owns the screen.
+   */
+  await signIn(page, '/chat/s1')
+  const vw = page.viewportSize()!.width
+
+  // Any fixed panel that is nearly the viewport width must BE the viewport
+  // width, and must sit above the nav.
+  const navZ = await page.locator('nav').first().evaluate(
+    (el) => parseInt(getComputedStyle(el).zIndex || '0', 10))
+
+  const panels = await page.evaluate(() => {
+    const out: Array<{ w: number; left: number; z: number }> = []
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('div'))) {
+      const cs = getComputedStyle(el)
+      if (cs.position !== 'fixed') continue
+      const r = el.getBoundingClientRect()
+      if (r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6) {
+        out.push({ w: r.width, left: r.left, z: parseInt(cs.zIndex || '0', 10) })
+      }
+    }
+    return out
+  })
+  for (const p of panels) {
+    expect(p.w, 'a near-full-width panel must be full width').toBeGreaterThanOrEqual(vw - 1)
+    expect(p.left, 'and flush to the left edge').toBeLessThanOrEqual(1)
+    expect(p.z, 'and above the bottom nav').toBeGreaterThan(navZ)
+  }
+})

@@ -49,10 +49,21 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40 animate-fade-in" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-80 z-50 bg-white shadow-2xl flex flex-col animate-slide-in">
+      {/* Same rule as the AI panel: a side drawer on desktop, the whole
+          screen on a phone. At w-80 on a 390px screen this left a 70px
+          strip of the page beside it and sat level with the bottom nav
+          (both z-50), so the nav drew over its own content. */}
+      <div
+        className="fixed inset-0 z-[55] bg-black/40 animate-fade-in hidden md:block"
+        onClick={onClose}
+      />
+      <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-slide-in
+                      md:inset-y-0 md:left-auto md:right-0 md:w-80 md:shadow-2xl">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+        <div
+          className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+        >
           <h2 className="text-lg font-bold text-gray-900 leading-tight">{exercise.name}</h2>
           <button
             onClick={onClose}

@@ -149,10 +149,28 @@ export default function WorkoutChatDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-30 bg-black/30 animate-fade-in" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[400px] max-w-[calc(100vw-2rem)] z-40 bg-white shadow-2xl flex flex-col animate-slide-in">
+      {/*
+        A side panel on desktop, a full screen on a phone.
+
+        It used to be a 400px panel everywhere. On a 390px screen that is the
+        whole width bar a 32px sliver of the page behind it, so it read as a
+        broken layout rather than a panel -- and at z-40 it sat UNDER the
+        bottom nav (z-50), which drew six tabs straight across it. There is
+        no room for a drawer at this width: the thing being revealed is
+        already the size of the screen, so it may as well own the screen.
+      */}
+      <div
+        className="fixed inset-0 z-[55] bg-black/30 animate-fade-in hidden md:block"
+        onClick={onClose}
+      />
+      <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-slide-in
+                      md:inset-y-0 md:left-auto md:right-0 md:w-[400px]
+                      md:max-w-[calc(100vw-2rem)] md:shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-brand-500">
+        <div
+          className="flex items-center justify-between px-5 py-4 bg-brand-500"
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+        >
           <div>
             <p className="text-base font-bold text-white">AI Trainer</p>
             <p className="text-xs text-white/75">
@@ -238,7 +256,13 @@ export default function WorkoutChatDrawer({
         </div>
 
         {/* Input — pb accounts for mobile bottom nav bar (~64px) */}
-        <div className="px-4 pb-[calc(1rem+4rem)] sm:pb-4 pt-2 border-t border-gray-100">
+        {/* The 4rem was clearance for the bottom nav. The panel now covers
+            the nav, so that was 64px of dead space between the composer and
+            the keyboard. Safe-area inset instead, for the home indicator. */}
+        <div
+          className="px-4 pt-2 border-t border-gray-100"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
           {hasUnsavedSets && isEditDayMode && (
             <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
               You have unticked sets. They'll be saved automatically before any

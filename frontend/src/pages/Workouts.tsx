@@ -1781,9 +1781,18 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                     )
                   }
 
-                  const gridCols = fields.length === 2
-                    ? 'grid-cols-[2rem_1fr_1fr_2.5rem]'
-                    : 'grid-cols-[2rem_1fr_2.5rem]'
+                  // Built from the field count, not enumerated. The ternary
+                  // here knew only about 1 and 2 fields, so `cardio_machine`
+                  // -- time, speed AND incline -- put three inputs into a
+                  // two-column grid and wrapped them onto extra rows: the
+                  // Treadmill HIIT card had its labels on one line, its
+                  // inputs on another, and the completion tick orphaned
+                  // below. Any future measurement type gets the right grid
+                  // without another branch.
+                  const gridStyle = {
+                    gridTemplateColumns:
+                      `2rem repeat(${fields.length}, minmax(0, 1fr)) 2.5rem`,
+                  }
 
                   return (
                     <>
@@ -1806,7 +1815,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                           </div>
                         )
                       })()}
-                      <div className={`grid ${gridCols} gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide`}>
+                      <div style={gridStyle} className="grid gap-2 px-4 pt-2 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
                         <span>#</span>
                         {fields.map((f) => (
                           <span key={f}>{fieldLabel(f, unit, exerciseName, timeUnit, distanceUnit)}</span>
@@ -1829,7 +1838,8 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         {logs.map((log, logIdx) => (
                             <div
                               key={log.id}
-                              className={`grid ${gridCols} gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-accent-50/70' : ''}`}
+                              style={gridStyle}
+                              className={`grid gap-2 items-center px-4 py-2.5 transition-colors ${log.is_completed ? 'bg-accent-50/70' : ''}`}
                             >
                               <span className={`text-xs font-bold ${log.is_completed ? 'text-accent-500' : 'text-gray-400'}`}>
                                 {log.set_number}
