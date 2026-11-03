@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, type WorkoutPlanDetail, type ProgramPhase } from '../../lib/api'
 import { getErrorMessage } from '../../lib/errors'
 import { useToast } from '../Toast'
@@ -59,6 +59,22 @@ export default function UpcomingWeeks({ plan, onChanged }: {
       setBusy(false)
     }
   }
+
+  /**
+   * Poll while a week is preparing.
+   *
+   * The copy below promised "this page updates when it's ready" and NOTHING
+   * ever checked. `onChanged()` fires once, immediately after the POST
+   * returns 202, and generation happens in a background thread afterwards --
+   * so the page showed "preparing" until you navigated away, then showed the
+   * stale state forever. Pressing Prepare and finding the button still there
+   * is exactly what that looks like.
+   */
+  useEffect(() => {
+    if (!plan.is_preparing) return
+    const id = setInterval(onChanged, 5000)
+    return () => clearInterval(id)
+  }, [plan.is_preparing, plan.preparing_week, onChanged])
 
   return (
     <div className="mt-8">

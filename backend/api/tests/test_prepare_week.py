@@ -372,3 +372,65 @@ class KbAliasTests(APITestCase):
         kb = views._load_exercise_kb()
         missing = [(k, v) for k, v in views._KB_ALIASES.items() if v not in kb]
         self.assertEqual(missing, [], 'alias points at a non-existent KB key')
+
+
+class SilentSuccessIsImpossibleTests(APITestCase):
+    """
+    Preparation must never report success without producing a week.
+
+    Observed in production: a plan sat at weeks_ready=1 with
+    is_preparing=False and prepare_error='' -- "not preparing, no error, week
+    still missing". The user had pressed Prepare, watched it start, and was
+    left with a button that appeared to do nothing and no way to find out why.
+
+    The old code released the lock and cleared the error on the success path
+    without checking that any day existed, so the skip-if-exists branch and a
+    day written under the wrong week number both ended as silent no-ops.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='silent@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=4,
+            current_week=1)
+        day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Day A')
+        Exercise.objects.create(
+            day=day, name='Barbell Bench Press', sets=3, reps='8-12',
+            order=0, measurement_type='weight_reps')
+
+    def test_a_week_that_produces_nothing_records_an_error(self):
+        """The failure the user actually hit: no week, no error, no clue."""
+        def produces_nothing(**_kwargs):
+            # Shaped like a valid reply, but for a week nobody asked for, so
+            # nothing lands under week_number.
+            return {'week': [{'day_number': 1, 'name': 'Day A',
+                              'is_rest_day': False, 'exercises': []}]}
+
+        with mock.patch.object(claude, 'call_claude_json',
+                               side_effect=produces_nothing), \
+                mock.patch.object(views, '_plan_days', return_value=[]):
+            views._generate_week(self.plan.pk, 2)
+
+        self.plan.refresh_from_db()
+        self.assertIsNone(self.plan.preparing_week)
+        self.assertTrue(self.plan.prepare_error,
+                        'a week that produced nothing reported success')
+
+    def test_a_real_week_still_succeeds_cleanly(self):
+        def produces_a_week(**_kwargs):
+            return {'week': [{
+                'day_number': 1, 'name': 'Day A', 'is_rest_day': False,
+                'exercises': [{'name': 'Barbell Bench Press', 'sets': 3,
+                               'reps': '8-12'}],
+            }]}
+
+        with mock.patch.object(claude, 'call_claude_json',
+                               side_effect=produces_a_week):
+            views._generate_week(self.plan.pk, 2)
+
+        self.plan.refresh_from_db()
+        self.assertIsNone(self.plan.preparing_week)
+        self.assertEqual(self.plan.prepare_error, '')
+        self.assertTrue(self.plan.days.filter(week_number=2).exists())

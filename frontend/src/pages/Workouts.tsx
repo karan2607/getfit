@@ -813,8 +813,12 @@ function PlanDetail({ planId }: { planId: string }) {
     if (!plan) return
     setPreparingNext(true)
     try {
+      // weeks_ready + 1, NOT current_week + 1. They diverge: a plan on
+      // week 2 with only week 1 built needs week 2 prepared, and asking for
+      // week 3 would be refused for skipping a week -- or worse, build it
+      // and leave a hole.
       const res = await api.workouts.prepareNextWeek(
-        plan.id, (plan.current_week ?? 1) + 1, prepareNote,
+        plan.id, (plan.weeks_ready ?? 0) + 1, prepareNote,
       )
       showToast(res.started ? `Week ${res.preparing_week} is preparing…` : res.detail)
       setShowPrepare(false)
@@ -890,6 +894,7 @@ function PlanDetail({ planId }: { planId: string }) {
   // the weeks that actually have days, so it cannot claim a week exists
   // before its days do.
   const nextWeekReady = (plan.weeks_ready ?? 0) > currentWeek
+  const weekToPrepare = (plan.weeks_ready ?? 0) + 1
   // Prompt once most of the week's training is done. Counting COMPLETED days
   // rather than using a fixed day number, because a 3-day week and a 6-day
   // week reach "nearly finished" at different points.
@@ -974,7 +979,7 @@ function PlanDetail({ planId }: { planId: string }) {
                 onClick={() => setShowPrepare(true)}
                 className="mt-3 inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
               >
-                Prepare week {currentWeek + 1}
+                Prepare week {weekToPrepare}
               </button>
             )}
 
@@ -1000,7 +1005,7 @@ function PlanDetail({ planId }: { planId: string }) {
                     onClick={handlePrepareNextWeek}
                     className="min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-sm font-medium"
                   >
-                    {preparingNext ? 'Preparing…' : `Prepare week ${currentWeek + 1}`}
+                    {preparingNext ? 'Preparing…' : `Prepare week ${weekToPrepare}`}
                   </button>
                   <button
                     type="button"

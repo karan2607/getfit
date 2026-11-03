@@ -5872,10 +5872,21 @@ def _generate_week(plan_id, week_number, user_note=''):
                     for j, ex_data in enumerate(day_data.get('exercises', [])):
                         _create_exercise(day, ex_data, j, notes_by_name)
 
+        # VERIFY before claiming success. The branch above skips creation when
+        # the week already exists, and a day written under the wrong week
+        # number would also leave nothing here -- either way the old code
+        # released the lock with an empty error, so the plan reported "not
+        # preparing, no error, week still missing" and the user was left with
+        # a button that appeared to do nothing.
+        created = plan.days.filter(week_number=week_number).count()
+        if not created:
+            raise ValueError(
+                'week %d produced no days' % week_number)
+
         WorkoutPlan.objects.filter(pk=plan_id).update(
             preparing_week=None, prepare_started_at=None, prepare_error='')
         logger.info('prepared week %d of plan %s (%d days)',
-                    week_number, plan_id, len(days))
+                    week_number, plan_id, created)
 
     except (_GeminiError, ValueError, KeyError, TypeError) as exc:
         logger.exception('week %d of plan %s failed', week_number, plan_id)
