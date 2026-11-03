@@ -301,3 +301,59 @@ class PlanMutationToolTests(TestCase):
 def json_dumps(value):
     import json
     return json.dumps(value)
+
+
+class DraftSchemaCanExpressWhatTheServerNeedsTests(TestCase):
+    """
+    The tool schema must be able to say everything `build_payload` reads.
+
+    It could not. There was no `replaces` field and `action` was a bare
+    string, so with additionalProperties:false the model had no way to
+    express "replace X with Y" -- and on staging it did the only thing left,
+    putting the whole intent in prose:
+
+        {"day": "Upper Push", "name": "Leg Extension",
+         "action": "replace with Leg Press (week 1)"}
+
+    The user confirmed, and apply returned
+    400 "unknown action 'replace with leg press (week 1)'". The model was not
+    at fault: it used the fields it was given.
+    """
+
+    def schema(self):
+        by_name = {t['name']: t
+                   for t in agent_tools.anthropic_tools(agent_tools.WORKOUT)}
+        return by_name['propose_plan_change']['input_schema']
+
+    def item_schema(self):
+        return self.schema()['properties']['changes']['items']
+
+    def test_a_replacement_can_name_both_sides(self):
+        props = self.item_schema()['properties']
+        self.assertIn('replaces', props)
+        self.assertIn('name', props)
+
+    def test_action_is_constrained_to_what_the_server_accepts(self):
+        """A free string invited prose. The enum makes that impossible."""
+        from api import plan_changes
+
+        allowed = set(self.item_schema()['properties']['action']['enum'])
+        self.assertEqual(allowed, set(plan_changes.ACTIONS))
+
+    def test_the_schema_covers_every_field_the_builder_reads(self):
+        """
+        Guards the drift that caused this: a field build_payload consults but
+        the schema cannot carry is a field the model can never send.
+        """
+        props = set(self.item_schema()['properties'])
+        for field in ('day', 'week', 'action', 'name', 'replaces',
+                      'sets', 'reps', 'rest_seconds'):
+            self.assertIn(field, props, field)
+
+    def test_an_action_is_required(self):
+        """Leaving it optional is what let a change arrive without one."""
+        self.assertIn('action', self.item_schema()['required'])
+
+    def test_the_description_tells_the_model_not_to_use_prose(self):
+        spec = agent_tools._spec('propose_plan_change')
+        self.assertIn('prose', spec['description'].lower())

@@ -322,10 +322,16 @@ _PLAN_TOOL_SPECS = {
     'propose_plan_change': {
         'description': (
             'Propose a change to a plan for the user to confirm. This applies '
-            'NOTHING. Describe each change as the day and the exercise name, '
-            'and list in keep_list any exercise that must survive the change. '
-            'The user confirms the returned change_id; you cannot apply it '
-            'yourself.'),
+            'NOTHING: the user confirms the returned change_id, and you cannot '
+            'apply it yourself. '
+            'Each change states an action on one exercise. For a swap use '
+            'action="replace" with `replaces` set to the exercise going OUT '
+            'and `name` to the one coming IN. '
+            'Omit `week` to change every week -- "take bench press out" means '
+            'out of the whole programme, not out of one week. '
+            'List in keep_list any exercise that must survive the change. '
+            'Do NOT describe the change in prose: every part of it goes in a '
+            'field, or the server cannot carry it out.'),
         'schema': {
             'type': 'object',
             'properties': {
@@ -335,12 +341,44 @@ _PLAN_TOOL_SPECS = {
                     'items': {
                         'type': 'object',
                         'properties': {
-                            'day': {'type': 'string'},
-                            'name': {'type': 'string'},
-                            'week': {'type': 'integer'},
-                            'action': {'type': 'string'},
+                            'day': {
+                                'type': 'string',
+                                'description': 'The day name, e.g. "Upper Push".',
+                            },
+                            # An ENUM, because a free string invited prose.
+                            # With additionalProperties:false and no
+                            # `replaces` field, the model had no way to say
+                            # "replace X with Y" and put the whole intent into
+                            # action as 'replace with Leg Press (week 1)' --
+                            # which the server then refused as an unknown
+                            # action. The schema has to be able to express
+                            # what the server requires.
+                            'action': {
+                                'type': 'string',
+                                'enum': ['add', 'remove', 'replace', 'update'],
+                            },
+                            'name': {
+                                'type': 'string',
+                                'description':
+                                    'The exercise this change results in: the '
+                                    'one added, removed, updated, or swapped IN.',
+                            },
+                            'replaces': {
+                                'type': 'string',
+                                'description':
+                                    'For action="replace": the exercise being '
+                                    'swapped OUT.',
+                            },
+                            'week': {
+                                'type': 'integer',
+                                'description':
+                                    'Optional. Omit to apply to every week.',
+                            },
+                            'sets': {'type': 'integer'},
+                            'reps': {'type': 'string'},
+                            'rest_seconds': {'type': 'integer'},
                         },
-                        'required': ['day', 'name'],
+                        'required': ['day', 'action', 'name'],
                     },
                 },
                 'keep_list': {'type': 'array', 'items': {'type': 'string'}},
