@@ -98,3 +98,71 @@ describe('PlanChangeResult', () => {
     expect(screen.queryByText(/untouched/i)).not.toBeInTheDocument()
   })
 })
+
+describe('the replace/with shape', () => {
+  it('pairs a removal with what replaced it instead of two loose lines', () => {
+    render(
+      <PlanChangeResult
+        diff={diff({
+          removed: [{ name: 'Barbell Bench Press', day: 'Upper Push' }],
+          added: [{ name: 'Machine Chest Press', day: 'Upper Push' }],
+        })}
+      />,
+    )
+    const gone = screen.getByText('Barbell Bench Press')
+    // Struck through, so the swap reads as ONE change rather than something
+    // leaving and something unrelated arriving.
+    expect(gone).toHaveClass('line-through')
+    expect(screen.getByText('Machine Chest Press')).toBeInTheDocument()
+  })
+
+  it('shows the draft as Replace / With before anything is applied', () => {
+    render(
+      <PlanChangeDraft
+        change={{
+          change_id: 'c1', needs_confirmation: true, applied: false,
+          draft: [{
+            day: 'Upper Push', action: 'replace',
+            replaces: 'Barbell Bench Press', name: 'Machine Chest Press',
+          }],
+        }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/^Replace$/i)).toBeInTheDocument()
+    expect(screen.getByText('Barbell Bench Press')).toHaveClass('line-through')
+    expect(screen.getByText(/^With$/i)).toBeInTheDocument()
+  })
+
+  it('says which exercises are protected before the user commits', () => {
+    render(
+      <PlanChangeDraft
+        change={{
+          change_id: 'c1', needs_confirmation: true, applied: false,
+          draft: [{ day: 'Upper Push', action: 'remove', name: 'X' }],
+          keep_list: ['Standing Calf Raises (Machine)'],
+        }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/Protected: Standing Calf Raises/)).toBeInTheDocument()
+  })
+
+  it('says when a change applies to every week', () => {
+    render(
+      <PlanChangeDraft
+        change={{
+          change_id: 'c1', needs_confirmation: true, applied: false,
+          draft: [{ day: 'Upper Push', action: 'remove', name: 'X' }],
+        }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    // Omitting the week means the whole programme; not saying so would let
+    // the user approve a far bigger change than they expected.
+    expect(screen.getByText(/all weeks/i)).toBeInTheDocument()
+  })
+})

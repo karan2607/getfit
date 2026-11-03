@@ -460,15 +460,54 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
 
   return (
     <div className="p-6 max-w-2xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-2 h-2 rounded-full bg-accent-500 flex-shrink-0" />
-          <span className="text-sm font-semibold text-gray-700">🍎 {providerLabel} syncing via Shortcuts</span>
-          {lastSyncAt
-            ? <span className="text-xs text-gray-400">last sync {fmtDate(lastSyncAt)}{latestSummaryDate ? ` · data up to ${fmtDate(latestSummaryDate)}` : ' · no summary data stored'}</span>
-            : connectedAt && <span className="text-xs text-gray-400">connected {fmtDate(connectedAt)} · shortcut not run yet</span>
-          }
+      {/* A status CARD, not a status strip.
+          "Is this working?" is the only question this page has to answer on
+          arrival, and a one-line strip of grey text made it something you
+          squint at rather than something you read. */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 mb-5">
+        <div className="flex items-start gap-3">
+          <span className="flex-shrink-0 w-7 h-7 rounded-full bg-accent-500 text-white flex items-center justify-center text-sm" aria-hidden>
+            ✓
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-ink-600">
+              Connected: {providerLabel} via Shortcuts
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {lastSyncAt
+                ? `Last synced ${fmtDate(lastSyncAt)}${latestSummaryDate ? ` · data up to ${fmtDate(latestSummaryDate)}` : ' · no summary data stored'}`
+                : connectedAt
+                  ? `Connected ${fmtDate(connectedAt)} · the shortcut hasn't run yet`
+                  : 'Not synced yet'}
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* What actually arrived, by day. A "last sync" timestamp says the
+          shortcut ran; it does not say whether it brought anything, which is
+          the failure people actually hit. */}
+      {summaries.length > 0 && (
+        <div className="mb-5">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+            Sync history
+          </p>
+          <div className="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
+            {summaries.slice(0, 7).map((s) => (
+              <div key={s.date} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-sm text-ink-600">{fmtDate(s.date)}</span>
+                <span className="text-sm text-gray-500">
+                  {s.steps != null ? `${s.steps.toLocaleString()} steps` : 'no steps'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* The status moved into the card above, so this row is now just the
+          actions. */}
+      <div className="flex items-center justify-end mb-6">
         <div className="flex items-center gap-3">
           <button
             onClick={handleSyncNow}

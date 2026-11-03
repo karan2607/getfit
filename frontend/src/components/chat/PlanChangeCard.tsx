@@ -16,7 +16,14 @@ export interface ProposedChange {
   plan_id?: string
   needs_confirmation: boolean
   applied: boolean
-  draft: Array<{ day?: string; name?: string; week?: number; action?: string }>
+  draft: Array<{
+    day?: string
+    name?: string
+    week?: number
+    action?: string
+    replaces?: string
+  }>
+  keep_list?: string[]
   warnings?: Array<{ type: string; name: string; message: string }>
 }
 
@@ -57,19 +64,38 @@ export function PlanChangeDraft({
 
       {expanded && (
         <div className="px-4 py-3">
-          <ul className="space-y-1">
+          <div className="space-y-3">
             {change.draft.map((item, i) => (
-              <li key={i} className="text-sm text-ink-600">
-                <span className="text-ink-400">
+              <div key={i}>
+                <p className="text-xs text-ink-400">
                   {item.day ?? 'Plan'}
-                  {item.week ? ` · week ${item.week}` : ''}
-                </span>
-                {' — '}
-                <span className="font-medium">{item.name}</span>
-                {item.action ? <span className="text-ink-400"> ({item.action})</span> : null}
-              </li>
+                  {item.week ? ` · week ${item.week}` : ' · all weeks'}
+                </p>
+                {item.replaces ? (
+                  <div className="mt-1">
+                    <p className="text-xs uppercase tracking-wide text-ink-400">Replace</p>
+                    <p className="text-sm text-ink-500 line-through">{item.replaces}</p>
+                    <p className="text-xs uppercase tracking-wide text-ink-400 mt-1">With</p>
+                    <p className="text-sm font-semibold text-ink-600">{item.name}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium text-ink-600 mt-0.5">
+                    {item.action === 'remove' ? 'Remove ' : item.action === 'add' ? 'Add ' : ''}
+                    {item.name}
+                  </p>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
+
+          {/* The reassurance belongs on the DRAFT too, not only afterwards:
+              the worry is "what else will this touch?", and answering it
+              before the user commits is the point of showing a draft. */}
+          {change.keep_list?.length ? (
+            <p className="text-xs text-ink-400 mt-3">
+              Protected: {change.keep_list.join(', ')}
+            </p>
+          ) : null}
 
           {/* Unknown exercises are a WARNING, never a block: refusing them
               would stop the coach ever introducing a new movement. */}
@@ -129,24 +155,52 @@ export function PlanChangeResult({
         {failed ? 'Applied, but not as approved' : 'Done'}
       </p>
 
+      {/* Removed exercises are struck through and paired with what replaced
+          them, rather than listed as two unrelated lines. A swap is ONE
+          change, and reading it as "something left, something arrived" is
+          what makes a plan edit feel unaccountable. */}
       {diff.changed.length + diff.added.length + diff.removed.length > 0 && (
-        <ul className="mt-2 space-y-1">
-          {diff.removed.map((e, i) => (
-            <li key={`r${i}`} className="text-sm text-ink-500">
-              − {e.name} <span className="text-ink-400">({e.day})</span>
-            </li>
+        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+          {diff.removed.map((gone, i) => {
+            const arrived = diff.added[i]
+            return (
+              <div key={`r${i}`} className="flex items-start gap-2">
+                <span className="text-ink-300 mt-0.5" aria-hidden>⊘</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink-400 line-through">{gone.name}</p>
+                  {arrived && (
+                    <p className="text-sm font-medium text-ink-600 mt-1">
+                      <span className="text-accent-500" aria-hidden>→ </span>
+                      {arrived.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-ink-400 mt-0.5">{gone.day}</p>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Additions with no matching removal: genuinely new work. */}
+          {diff.added.slice(diff.removed.length).map((e, i) => (
+            <div key={`a${i}`} className="flex items-start gap-2">
+              <span className="text-accent-500 mt-0.5" aria-hidden>＋</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink-600">{e.name}</p>
+                <p className="text-xs text-ink-400">{e.day}</p>
+              </div>
+            </div>
           ))}
-          {diff.added.map((e, i) => (
-            <li key={`a${i}`} className="text-sm text-ink-600">
-              + {e.name} <span className="text-ink-400">({e.day})</span>
-            </li>
-          ))}
+
           {diff.changed.map((e, i) => (
-            <li key={`c${i}`} className="text-sm text-ink-600">
-              ~ {e.name} <span className="text-ink-400">({e.day})</span>
-            </li>
+            <div key={`c${i}`} className="flex items-start gap-2">
+              <span className="text-ink-400 mt-0.5" aria-hidden>～</span>
+              <div className="min-w-0">
+                <p className="text-sm text-ink-600">{e.name}</p>
+                <p className="text-xs text-ink-400">{e.day}</p>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {/* Proof of restraint. "24 other exercises untouched" is the sentence
