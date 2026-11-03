@@ -234,6 +234,91 @@ def _wire_group_numbers(exercises):
     return numbers
 
 
+#: "week 3", "in week 12". Bounded to two digits so a rep scheme ("week of
+#: 8-12") or a year cannot be read as a week number.
+_WEEK_MENTION = re.compile(r'\bweeks?\s*(\d{1,2})\b', re.I)
+
+
+def agent_week_context(user, plan_id, message, day_id=None):
+    """
+    The one week the turn is about, inlined for the agent.
+
+    Measured on staging: a turn took 31.9s, of which 30.7s was before the
+    first character appeared, across three tool rounds -- two of them
+    `list_workout_plans`, asking for the plan the user was already looking
+    at. Text only streams in the final round, so every lookup round is dead
+    air. Handing the model the week up front removes the reason to ask.
+
+    This is NOT the whole-plan blob `_build_system_prompt` builds. That one
+    inlines all eight weeks (~32,000 tokens) and instructs the model to echo
+    the complete plan back, which is both the cost and the original data-loss
+    bug: anything the model failed to re-emit was deleted. The agent edits
+    through `propose_plan_change`, naming only what changes, so it needs the
+    week in front of it and nothing else.
+
+    The phase map travels with the week regardless. Without it a week-local
+    edit cannot tell accumulation from a deload, and will add volume to the
+    week that exists to remove it.
+
+    Returns '' when there is no plan to speak for, so the caller falls back.
+    """
+    from .models import WorkoutDay, WorkoutPlan
+    from .plan_changes import snapshot_plan
+
+    plan = WorkoutPlan.objects.filter(pk=plan_id, user=user).first() if plan_id else None
+    if plan is None:
+        return ''
+
+    # An explicit "week 3" in the request wins over wherever the user has
+    # reached, because asking about a week is not the same as being in it.
+    week = plan.current_week or 1
+    match = _WEEK_MENTION.search(message or '')
+    if match:
+        asked = int(match.group(1))
+        if 1 <= asked <= (plan.duration_weeks or asked):
+            week = asked
+
+    try:
+        snapshot = snapshot_plan(plan, week_numbers=[week])
+    except Exception:                                   # noqa: BLE001
+        logger.exception('agent week context failed for plan %s', plan.id)
+        return ''
+
+    days = snapshot.get('weeks', {}).get(str(week), [])
+    if not days:
+        return ''
+
+    payload = {
+        'plan_id': str(plan.id),
+        'title': plan.title,
+        'week_number': week,
+        'weeks_total': plan.duration_weeks,
+        'program_outline': plan.program_outline or [],
+        'days': days,
+    }
+
+    focus = ''
+    if day_id:
+        day = WorkoutDay.objects.filter(pk=day_id, plan=plan).first()
+        if day is not None:
+            focus = (f'\n\nThe user is looking at Day {day.day_number}: '
+                     f'{day.name}. Changes they describe without naming a day '
+                     'belong to this one.')
+
+    return (
+        '\n\nTHE WEEK THIS CONVERSATION IS ABOUT (already loaded for you):\n'
+        f'```json\n{json.dumps(payload, indent=2, default=str)}\n```\n'
+        'This is week '
+        f'{week} of {plan.duration_weeks}. You do NOT need to call '
+        '`list_workout_plans` or `get_plan_week` to see it -- it is above, '
+        'and calling them for this week wastes a round the user spends '
+        'waiting. Call `get_plan_week` only for a DIFFERENT week.\n'
+        'To change this plan, call `propose_plan_change` with plan_id '
+        f'"{plan.id}", naming only what changes. Never restate the week.'
+        + focus
+    )
+
+
 def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, diet_plan_id=None, meal_id=None) -> str:
     preferred_unit = 'lb'
     try:
@@ -649,8 +734,6 @@ def chat_message_stream(request, session_id):
         for msg in reversed(list(session.messages.order_by('-created_at')[:20]))
     ]
 
-    system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id, meal_id=meal_id)
-
     # AGENT_CHAT_ENABLED routes workout turns through the tool-calling loop.
     #
     # ON by default, with the flag kept as an off switch. It shipped off so
@@ -665,6 +748,24 @@ def chat_message_stream(request, session_id):
     domain = agent_router.classify(content)
     run_state = agent_loop.AgentRun()
 
+    # The agent gets ONE week inlined; the Gemini path still gets the
+    # whole-plan blob it has always been given, because it has no tools and
+    # answers from the prompt alone. Passing plan_id=None here is what keeps
+    # the eight-week blob (and its "echo the complete plan back" instruction)
+    # out of the agent's context -- the two cannot both be present without
+    # telling the model to do the thing the tools exist to replace.
+    agent_turn = use_agent and domain == agent_router.WORKOUT
+    week_context = (
+        agent_week_context(user, plan_id, content, day_id=day_id)
+        if agent_turn else '')
+    system_prompt = _build_system_prompt(
+        user,
+        plan_id=None if week_context else plan_id,
+        plan_context=None if week_context else plan_context,
+        day_id=None if week_context else day_id,
+        diet_plan_id=diet_plan_id, meal_id=meal_id,
+    ) + week_context
+
     def _chunks():
         """
         Text for this turn, from whichever engine is in play.
@@ -673,7 +774,7 @@ def chat_message_stream(request, session_id):
         below is identical either way -- which is what the pinned contract
         tests in test_chat_stream.py are checking.
         """
-        if use_agent and domain == agent_router.WORKOUT:
+        if agent_turn:
             return agent_loop.run(
                 user=user, system_prompt=system_prompt, history=history,
                 domain=domain, run_state=run_state, session=session)
@@ -684,6 +785,12 @@ def chat_message_stream(request, session_id):
         assistant_msg = None
         try:
             for chunk in _chunks():
+                # A dict is a progress frame, not an answer. It gets its own
+                # frame and is deliberately NOT accumulated: the saved reply
+                # is what the AI said, not a transcript of it working.
+                if isinstance(chunk, dict):
+                    yield f'data: {_json.dumps(chunk)}\n\n'
+                    continue
                 full_response += chunk
                 yield f'data: {_json.dumps({"chunk": chunk})}\n\n'
         # ClaudeError and GeminiError are both failures the user can be told

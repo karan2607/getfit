@@ -11,7 +11,9 @@ from the database.
 Contract
 --------
 `run` is a GENERATOR yielding text chunks, matching `stream_gemini_chat`, so
-`chat_message_stream`'s SSE framing is untouched. Everything the view needs
+`chat_message_stream`'s SSE framing is untouched. It may also yield a dict
+`{'status': ...}`, which the view emits as its own frame and does NOT append
+to the saved reply -- progress is not part of the answer. Everything the view needs
 afterwards -- tool calls made, a proposed change -- is collected on the
 `AgentRun` the caller passes in, because a generator cannot return a value
 the caller can see.
@@ -69,6 +71,54 @@ class AgentRun:
                 self.proposed_change = result
 
 
+#: What each tool is doing, in the user's terms. The tool name is a poor
+#: status line -- "list_workout_plans" tells someone waiting nothing about
+#: whether anything is happening.
+_DOING = {
+    'get_plan_week': 'Reading week {week_number} of your plan',
+    'get_workout_plan': 'Reading your plan',
+    'list_workout_plans': 'Finding your plan',
+    'get_todays_workout': "Looking up today's workout",
+    'get_exercise_history': 'Checking your history for {exercise_name}',
+    'list_workout_sessions': 'Looking through your recent sessions',
+    'get_workout_session': 'Reading that session',
+    'get_profile': 'Checking your profile',
+    'get_health_summary': 'Reading your health data',
+    'get_health_series': 'Reading your health trend',
+    'propose_plan_change': 'Drafting the change for you to confirm',
+    'log_set': 'Logging that set',
+    'log_meal': 'Logging that meal',
+    'set_body_weight': 'Saving your weight',
+    'update_personal_notes': 'Updating your notes',
+    'update_exercise_notes': 'Updating the exercise notes',
+    'get_meal_logs': 'Reading your meal log',
+    'list_diet_plans': 'Finding your diet plan',
+    'get_diet_plan': 'Reading your diet plan',
+}
+
+
+def describe(name, arguments):
+    """
+    A human line for one tool call.
+
+    Falls back to the tool name rather than inventing a description: a
+    status line that guesses is worse than one that is merely terse.
+    """
+    template = _DOING.get(name)
+    if not template:
+        return name.replace('_', ' ')
+    try:
+        return template.format(**{k: v for k, v in (arguments or {}).items()
+                                  if v not in (None, '')})
+    except (KeyError, IndexError):
+        return template.split(' {')[0]
+
+
+def _signature(name, arguments):
+    """A stable key for one tool call, so a repeat is recognisable."""
+    return name + '|' + json.dumps(arguments, sort_keys=True, default=str)
+
+
 def _result_block(tool_use_id, payload, error):
     """One tool_result. A failure is returned, never dropped."""
     if error:
@@ -110,6 +160,8 @@ def run(*, user, system_prompt, history, domain, run_state,
         })
 
     client = claude._client()
+    #: Read-tool results already fetched this turn, keyed by call signature.
+    seen = {}
 
     for round_number in range(MAX_ROUNDS):
         run_state.rounds = round_number + 1
@@ -146,11 +198,38 @@ def run(*, user, system_prompt, history, domain, run_state,
         results = []
         for call in calls:
             arguments = dict(call.input or {})
-            payload, error = agent_tools.run_tool(
-                user, call.name, arguments, session=session, model=chosen)
-            run_state.record(call.name, arguments,
-                             error or agent_tools._summarise(payload),
-                             result=payload)
+            signature = _signature(call.name, arguments)
+            # A status frame, not text: the view must not fold it into the
+            # saved reply. Measured on staging, 30.7s of a 31.9s turn passed
+            # before the first character -- all of it in rounds like this
+            # one, with nothing on screen. Saying what is happening does not
+            # make it faster, but it makes the wait legible instead of
+            # looking like a hang.
+            yield {'status': describe(call.name, arguments)}
+
+            # A repeat of a call already made THIS turn is served from what
+            # it returned the first time. Measured on staging:
+            # `list_workout_plans` ran twice in one turn, and because text
+            # only streams in the final round, that repeat cost a whole
+            # round of silence. Re-running it could also return something
+            # different mid-turn, which is worse than slow.
+            #
+            # Only read tools are cached. A write is never replayed from a
+            # cache: the model asking to propose the same change twice means
+            # two drafts, and quietly returning the first one would hide
+            # that it tried.
+            if signature in seen and call.name not in agent_tools.WRITE_TOOLS:
+                payload, error = seen[signature]
+                run_state.record(call.name, arguments,
+                                 'repeat of an earlier call this turn',
+                                 result=payload)
+            else:
+                payload, error = agent_tools.run_tool(
+                    user, call.name, arguments, session=session, model=chosen)
+                seen[signature] = (payload, error)
+                run_state.record(call.name, arguments,
+                                 error or agent_tools._summarise(payload),
+                                 result=payload)
             results.append(_result_block(call.id, payload, error))
         messages.append({'role': 'user', 'content': results})
 

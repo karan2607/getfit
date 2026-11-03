@@ -12,6 +12,13 @@ const IDLE_TIMEOUT_MS = 90_000
 
 export interface StreamEvent {
   chunk?: string
+  /**
+   * What the AI is doing right now, e.g. "Reading week 4 of your plan".
+   *
+   * Its own frame rather than a text chunk, because progress is not part of
+   * the answer and must not be saved as something the AI said.
+   */
+  status?: string
   done?: boolean
   message_id?: string
   error?: string

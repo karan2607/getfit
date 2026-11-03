@@ -36,6 +36,12 @@ export function useChatSession(sessionId: string | undefined) {
   const [elapsed, setElapsed] = useState(0)
   const [lastEvent, setLastEvent] = useState<StreamEvent | null>(null)
   /**
+   * The step in progress. Measured on staging, 30.7s of a 31.9s turn passed
+   * before the first character arrived -- all of it in tool rounds, with
+   * nothing on screen but dots. This says what is actually happening.
+   */
+  const [status, setStatus] = useState<string | null>(null)
+  /**
    * The draft awaiting confirmation, taken from the `done` payload rather
    * than parsed out of the reply text -- the card has to show exactly what
    * the server recorded, and the change_id has to tie the confirmation to it.
@@ -125,6 +131,7 @@ export function useChatSession(sessionId: string | undefined) {
       setError(null)
       setFailedTurn(null)
       setLastEvent(null)
+      setStatus(null)
       setProposedChange(null)
 
       let accumulated = ''
@@ -146,7 +153,12 @@ export function useChatSession(sessionId: string | undefined) {
             })
             return
           }
+          if (event.status) {
+            setStatus(event.status)
+          }
           if (event.chunk) {
+            // Text has started; the step line has served its purpose.
+            setStatus(null)
             accumulated += event.chunk
             setStreamingContent(accumulated)
             if (Date.now() - lastWrite > 1000) {
@@ -183,6 +195,7 @@ export function useChatSession(sessionId: string | undefined) {
       } finally {
         abortRef.current = null
         setIsSending(false)
+        setStatus(null)
       }
     },
     [sessionId, isSending],
@@ -207,7 +220,7 @@ export function useChatSession(sessionId: string | undefined) {
 
   return {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, lastEvent, proposedChange,
+    failedTurn, elapsed, lastEvent, proposedChange, status,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
     setSession,
   }

@@ -74,6 +74,20 @@ _DOMAIN = {
 }
 
 
+#: Tools that CHANGE something. Their results are never replayed from the
+#: per-turn cache the loop keeps for repeats: a model asking to propose the
+#: same change twice means two drafts, and silently handing back the first
+#: would hide that it tried. Reads are safe to serve twice; writes are not.
+WRITE_TOOLS = frozenset((
+    'propose_plan_change',
+    'log_set',
+    'log_meal',
+    'set_body_weight',
+    'update_personal_notes',
+    'update_exercise_notes',
+))
+
+
 #: MCP tools deliberately NOT offered to the agent, with the reason recorded
 #: so the invariant test can tell an exclusion from an oversight.
 #:

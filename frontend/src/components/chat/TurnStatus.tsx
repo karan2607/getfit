@@ -18,7 +18,12 @@ function waitingCopy(seconds: number) {
   return `Waking up the server — this can take up to ~45s on the free tier. ${seconds}s`
 }
 
-export function InFlight({ elapsed, onStop }: { elapsed: number; onStop: () => void }) {
+export function InFlight({ elapsed, onStop, status }: {
+  elapsed: number
+  onStop: () => void
+  /** The step in progress, when the agent has told us one. */
+  status?: string | null
+}) {
   return (
     <div className="mb-4">
       <div className="flex items-center gap-3">
@@ -31,8 +36,13 @@ export function InFlight({ elapsed, onStop }: { elapsed: number; onStop: () => v
             />
           ))}
         </span>
+        {/* The real step beats the generic timer whenever we have one: at
+            40 seconds, "Reading week 4 of your plan" and "Still working…"
+            are the same wait, but only one of them is evidence that
+            something is happening. The timer stays alongside it, because a
+            step with no elapsed time is how a hang looks too. */}
         <span className="text-sm text-gray-500" role="status" aria-live="polite">
-          {waitingCopy(elapsed)}
+          {status ? `${status}… ${elapsed}s` : waitingCopy(elapsed)}
         </span>
         <button
           type="button"

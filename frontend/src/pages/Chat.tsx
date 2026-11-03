@@ -80,7 +80,7 @@ function SessionList({
 function ChatPane({ sessionId }: { sessionId: string }) {
   const {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, proposedChange,
+    failedTurn, elapsed, proposedChange, status,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
   } = useChatSession(sessionId)
   const [applying, setApplying] = useState(false)
@@ -178,7 +178,7 @@ function ChatPane({ sessionId }: { sessionId: string }) {
           <ChatBubble role="assistant" content={failedTurn.partial} />
         )}
 
-        {isSending && <InFlight elapsed={elapsed} onStop={stop} />}
+        {isSending && <InFlight elapsed={elapsed} onStop={stop} status={status} />}
 
         {proposedChange && (
           <PlanChangeDraft
