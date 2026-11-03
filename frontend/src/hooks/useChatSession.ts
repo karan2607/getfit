@@ -4,6 +4,7 @@ import { streamChatMessage, type StreamEvent } from '../lib/stream'
 import { getToken } from '../lib/auth'
 import { getErrorMessage, toFriendlyError, type FriendlyError } from '../lib/errors'
 import type { ProposedChange } from '../components/chat/PlanChangeCard'
+import * as pendingTurn from '../lib/pendingTurn'
 
 /**
  * A turn that failed or was stopped, kept so the user can act on it.
@@ -42,6 +43,28 @@ export function useChatSession(sessionId: string | undefined) {
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+
+  /*
+   * A turn still on record when we mount was interrupted -- the tab was
+   * backgrounded and discarded mid-stream, which on iOS Safari is routine.
+   * Restoring it as a failed turn means the question and the partial reply
+   * come back with Retry attached, instead of the message vanishing and the
+   * user retyping it.
+   */
+  useEffect(() => {
+    if (!sessionId) return
+    const stored = pendingTurn.read(sessionId)
+    if (!stored) return
+    pendingTurn.endTurn(sessionId)
+    setFailedTurn({
+      content: stored.content,
+      extra: stored.extra,
+      partial: stored.partial,
+      stopped: false,
+      error: toFriendlyError(new Error(
+        'This reply was interrupted when the app went to the background.')),
+    })
+  }, [sessionId])
 
   // The timer lives in its own effect so the send path does not have to
   // manage an interval while it is also managing a stream.
@@ -105,6 +128,10 @@ export function useChatSession(sessionId: string | undefined) {
       setProposedChange(null)
 
       let accumulated = ''
+      pendingTurn.beginTurn(sessionId, content, extra)
+      // Throttled: one write per chunk would hit localStorage hundreds of
+      // times a turn, synchronously, on the main thread.
+      let lastWrite = 0
       try {
         for await (const event of streamChatMessage(
           sessionId, content, token, extra, controller.signal,
@@ -112,6 +139,7 @@ export function useChatSession(sessionId: string | undefined) {
           if (event.error) {
             // An `error` frame is never followed by `done` -- the server
             // returns immediately after sending it.
+            pendingTurn.endTurn(sessionId)
             setFailedTurn({
               content, extra, partial: accumulated, stopped: false,
               error: toFriendlyError(new Error(event.error)),
@@ -121,8 +149,13 @@ export function useChatSession(sessionId: string | undefined) {
           if (event.chunk) {
             accumulated += event.chunk
             setStreamingContent(accumulated)
+            if (Date.now() - lastWrite > 1000) {
+              lastWrite = Date.now()
+              pendingTurn.updatePartial(sessionId, accumulated)
+            }
           }
           if (event.done && event.message_id) {
+            pendingTurn.endTurn(sessionId)
             setLastEvent(event)
             setProposedChange(
               (event.proposed_change as ProposedChange | null) ?? null,
@@ -140,6 +173,7 @@ export function useChatSession(sessionId: string | undefined) {
           }
         }
       } catch (err) {
+        pendingTurn.endTurn(sessionId)
         const friendly = toFriendlyError(err)
         setFailedTurn({
           content, extra, partial: accumulated,
@@ -165,7 +199,10 @@ export function useChatSession(sessionId: string | undefined) {
     return send(failedTurn.content, failedTurn.extra, true)
   }, [failedTurn, send])
 
-  const dismissFailure = useCallback(() => setFailedTurn(null), [])
+  const dismissFailure = useCallback(() => {
+    if (sessionId) pendingTurn.endTurn(sessionId)
+    setFailedTurn(null)
+  }, [sessionId])
   const clearProposal = useCallback(() => setProposedChange(null), [])
 
   return {

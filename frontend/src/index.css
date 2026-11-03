@@ -11,3 +11,36 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/*
+ * Stop iOS Safari zooming when a field is focused.
+ *
+ * Safari auto-zooms any focused input whose font-size is under 16px. Every
+ * field in this app was `text-sm` (14px), so tapping the chat composer
+ * triggered a zoom -- and that one behaviour produced everything reported
+ * from a real iPhone: the composer appearing to take half the screen, the
+ * view "moving weirdly", the fixed bottom nav clipped at BOTH edges with
+ * "Home" rendering as "ome" and "Profile" as "Prof", and fragments of
+ * background content visible past the left edge.
+ *
+ * None of those were layout bugs. The nav is laid out at the full viewport
+ * width while the zoomed VISUAL viewport is narrower, so its ends fall
+ * outside what you can see. Shrinking the font to make it fit would have
+ * chased the symptom.
+ *
+ * Scoped to touch pointers so desktop keeps its typography, and applied
+ * globally rather than per-field because there are 39 of them and the next
+ * one added would have reintroduced it.
+ */
+@media (hover: none) and (pointer: coarse) {
+  /* `!important` because almost every field carries Tailwind's `text-sm`,
+     and a class beats an element selector. Without it this rule is dead
+     code that reads like a fix -- which is how it shipped the first time.
+     Checkbox and radio are excluded: they have no text to zoom, and sizing
+     them by font-size changes their box. */
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

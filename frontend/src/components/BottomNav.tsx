@@ -1,12 +1,15 @@
 import { NavLink } from 'react-router-dom'
+import {
+  ChatIcon, DietIcon, HealthIcon, HomeIcon, ProfileIcon, WorkoutsIcon,
+} from './NavIcons'
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: '🏠', label: 'Home' },
-  { to: '/workouts', icon: '🏋️', label: 'Workouts' },
-  { to: '/chat', icon: '💬', label: 'AI' },
-  { to: '/diet', icon: '🥗', label: 'Diet' },
-  { to: '/health', icon: '❤️', label: 'Health' },
-  { to: '/profile', icon: '👤', label: 'Profile' },
+  { to: '/dashboard', Icon: HomeIcon, label: 'Home' },
+  { to: '/workouts', Icon: WorkoutsIcon, label: 'Workouts' },
+  { to: '/chat', Icon: ChatIcon, label: 'AI' },
+  { to: '/diet', Icon: DietIcon, label: 'Diet' },
+  { to: '/health', Icon: HealthIcon, label: 'Health' },
+  { to: '/profile', Icon: ProfileIcon, label: 'Profile' },
 ]
 
 export default function BottomNav() {
@@ -28,7 +31,7 @@ export default function BottomNav() {
              ${isActive ? 'text-accent-500' : 'text-ink-200'}`
           }
         >
-          <span className="text-xl leading-none">{item.icon}</span>
+          <item.Icon />
           <span>{item.label}</span>
         </NavLink>
       ))}

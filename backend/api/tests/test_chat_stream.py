@@ -26,12 +26,14 @@ with the test updated in the same commit.
 """
 
 import json
+import os
 from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.authtoken.models import Token
 
+from api import agent_router
 from api.gemini import GeminiError
 from api.models import ChatMessage, ChatSession, User, UserProfile
 
@@ -48,7 +50,21 @@ def _frames(response):
 
 
 class ChatStreamContractTests(TestCase):
+    """
+    The SSE contract, pinned on the Gemini engine.
+
+    The engine is pinned explicitly rather than inherited from the
+    AGENT_CHAT_ENABLED default. These tests used to pass because the agent
+    was off by default, so flipping that default silently moved them onto an
+    engine they do not mock -- a test that reads as a contract check but is
+    really a check on a deployment flag. `test_the_framing_is_identical_on
+    _the_agent_engine` covers the other side.
+    """
+
     def setUp(self):
+        patcher = mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '0'})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.user = User.objects.create_user(email='chat@test.local', password='x')
         UserProfile.objects.create(user=self.user, preferred_unit='lb')
         self.token = Token.objects.get_or_create(user=self.user)[0]
@@ -100,6 +116,32 @@ class ChatStreamContractTests(TestCase):
         with self.stream(['Hello ', 'world']):
             frames = _frames(self.post())
         self.assertEqual([f.get('chunk') for f in frames[:2]], ['Hello ', 'world'])
+        self.assertIs(frames[-1]['done'], True)
+        saved = ChatMessage.objects.get(session=self.session, role='assistant')
+        self.assertEqual(frames[-1]['message_id'], str(saved.id))
+        self.assertEqual(saved.content, 'Hello world')
+
+    def test_the_framing_is_identical_on_the_agent_engine(self):
+        """
+        Swapping the engine must not change a single frame.
+
+        The agent was introduced on the promise that it replaced only the
+        model call inside the view, leaving the SSE contract untouched. That
+        promise is only worth something if something checks it on the agent
+        side too.
+        """
+        with mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '1'}), \
+                mock.patch('api.views.agent_router.classify',
+                           return_value=agent_router.WORKOUT), \
+                mock.patch('api.views.agent_loop.run',
+                           return_value=iter(['Hello ', 'world'])):
+            resp = self.post()
+            body = b''.join(resp.streaming_content).decode()
+        frames = [json.loads(b[len('data: '):])
+                  for b in body.split('\n\n') if b.strip()]
+        self.assertNotIn('event:', body)
+        self.assertEqual([f.get('chunk') for f in frames[:2]],
+                         ['Hello ', 'world'])
         self.assertIs(frames[-1]['done'], True)
         saved = ChatMessage.objects.get(session=self.session, role='assistant')
         self.assertEqual(frames[-1]['message_id'], str(saved.id))

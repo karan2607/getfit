@@ -652,9 +652,16 @@ def chat_message_stream(request, session_id):
     system_prompt = _build_system_prompt(user, plan_id=plan_id, plan_context=plan_context, day_id=day_id, diet_plan_id=diet_plan_id, meal_id=meal_id)
 
     # AGENT_CHAT_ENABLED routes workout turns through the tool-calling loop.
-    # Off by default: it changes how every chat turn is answered, and the
-    # flag is what makes that reversible without a deploy.
-    use_agent = os.getenv('AGENT_CHAT_ENABLED', '').lower() in ('1', 'true', 'yes')
+    #
+    # ON by default, with the flag kept as an off switch. It shipped off so
+    # the rollout was reversible without a deploy, but off is the path that
+    # asks the model for all 56 days of an 8-week plan and offers no draft to
+    # confirm: minutes of silence, and an edit that lands unreviewed. Leaving
+    # the fix behind a variable someone has to remember to set in a dashboard
+    # means a deploy that looks successful and changes nothing.
+    #
+    # Set AGENT_CHAT_ENABLED=0 to fall back.
+    use_agent = os.getenv('AGENT_CHAT_ENABLED', '1').lower() in ('1', 'true', 'yes')
     domain = agent_router.classify(content)
     run_state = agent_loop.AgentRun()
 
