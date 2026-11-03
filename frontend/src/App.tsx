@@ -141,12 +141,40 @@ function AppLayout({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * The first screen of every session.
+ *
+ * "Loading..." said nothing about a wait that can genuinely run to ~45
+ * seconds: the backend is on Render's free tier and cold-starts, so a bare
+ * word on a blank screen reads as a frozen app. People close frozen apps.
+ *
+ * The copy escalates with the actual elapsed time rather than guessing in
+ * advance, so a fast load stays quiet and a slow one explains itself.
+ */
 function Spinner() {
+  const [seconds, setSeconds] = useState(0)
+
+  useEffect(() => {
+    const started = Date.now()
+    const id = setInterval(
+      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    )
+    return () => clearInterval(id)
+  }, [])
+
   return (
-    <div className="flex items-center justify-center min-h-screen text-gray-400 bg-gray-50">
-      <div className="text-center">
-        <div className="text-3xl mb-2">💪</div>
-        <p className="text-sm">Loading...</p>
+    <div className="flex items-center justify-center min-h-screen text-gray-500 bg-gray-50 px-6">
+      <div className="text-center max-w-xs">
+        <div className="text-3xl mb-3 animate-pulse">💪</div>
+        <p className="text-sm font-medium text-ink-600">
+          {seconds < 6 ? 'Loading…' : 'Waking up the server'}
+        </p>
+        {seconds >= 6 && (
+          <p className="text-xs text-gray-500 mt-2">
+            This can take up to ~45 seconds on the free tier. {seconds}s
+          </p>
+        )}
       </div>
     </div>
   )

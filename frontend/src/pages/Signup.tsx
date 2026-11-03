@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '../lib/api'
 import { getErrorMessage } from '../lib/errors'
 import { useAuth } from '../hooks/useAuth'
+import PasswordStrength from '../components/PasswordStrength'
 import PasswordInput from '../components/PasswordInput'
 
 const schema = z.object({
@@ -23,8 +24,10 @@ export default function Signup() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) })
+  const passwordValue = watch('password')
 
   async function onSubmit(data: FormData) {
     setServerError(null)
@@ -80,6 +83,11 @@ export default function Signup() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
             {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
+            {/* Shown as you type rather than after a refused submit: rules you
+                discover by breaking them mean choosing a password, being
+                rejected, and starting again without knowing what else is
+                wrong. */}
+            <PasswordStrength password={passwordValue ?? ''} />
           </div>
 
           {serverError && (
