@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { api, type Feedback } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import { statusLine } from '../lib/feedbackStatus'
+import FeedbackConversation from './feedback/FeedbackConversation'
 
 /**
  * Superuser bell: what the automation did with the things you filed.
  *
- * Each row opens the thread. The panel is a summary, not the content -- it
- * says which issue and whether it is fixed, and the conversation lives on
- * its own page where there is room to reply.
+ * Two panes on ONE surface. Opening a thread slides the list left and the
+ * conversation in from the right; back slides it home. It used to navigate
+ * to /feedback/:id, which tore down the page you were on, remounted it on
+ * the way back, and refetched everything that page needed -- all to read
+ * three sentences and type one. The panel already had the thread in hand,
+ * so none of that bought anything.
+ *
+ * It also put the composer at the bottom of a full page, underneath the
+ * fixed bottom nav, where it could not be typed into. In the panel the
+ * composer is the panel's own bottom edge, well clear of the nav.
  *
  * Renders nothing at all for ordinary users. That is presentation; the
  * server refuses them regardless, which is the actual boundary.
@@ -147,10 +154,13 @@ function Row({ item, onOpen, onDismiss }: RowProps) {
 
 export default function NotificationBell() {
   const { user } = useAuth()
-  const navigate = useNavigate()
   const isSuperuser = !!user?.is_superuser
   const [items, setItems] = useState<Feedback[]>([])
   const [open, setOpen] = useState(false)
+  /** The thread being read, or null for the list. Drives the slide. */
+  const [active, setActive] = useState<Feedback | null>(null)
+  const [sending, setSending] = useState(false)
+  const [threadError, setThreadError] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
@@ -177,20 +187,45 @@ export default function NotificationBell() {
     if (open) refresh()
   }, [open, refresh])
 
-  const openThread = useCallback(
-    (item: Feedback) => {
-      setOpen(false)
-      // Reading is what marks it read -- the thread endpoint does that. The
-      // count drops locally at once so the badge does not lag a whole poll
-      // behind the navigation.
-      if (item.unread > 0) {
-        setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, unread: 0 } : i)),
-        )
+  const openThread = useCallback(async (item: Feedback) => {
+    // Shown from what the list already holds, so the pane slides in with
+    // content rather than a spinner. The fetch behind it only adds turns
+    // that arrived since the last poll -- and marks the thread read, which
+    // is what reading it means.
+    setActive(item)
+    setThreadError('')
+    if (item.unread > 0) {
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, unread: 0 } : i)),
+      )
+    }
+    try {
+      const fresh = await api.feedback.thread(item.id)
+      setActive((cur) => (cur?.id === fresh.id ? fresh : cur))
+      setItems((prev) => prev.map((i) => (i.id === fresh.id ? fresh : i)))
+    } catch {
+      // The pane is already readable from the list copy, so a failed
+      // refresh is a note, not a blank screen.
+      setThreadError('Could not load the latest messages.')
+    }
+  }, [])
+
+  const reply = useCallback(
+    async (body: string) => {
+      if (!active) return
+      setSending(true)
+      try {
+        const fresh = await api.feedback.reply(active.id, body)
+        setActive(fresh)
+        setItems((prev) => prev.map((i) => (i.id === fresh.id ? fresh : i)))
+        setThreadError('')
+      } catch {
+        setThreadError('Could not send that. Try again.')
+      } finally {
+        setSending(false)
       }
-      navigate(`/feedback/${item.id}`)
     },
-    [navigate],
+    [active],
   )
 
   const markAllRead = useCallback(async () => {
@@ -230,7 +265,11 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (!panelRef.current?.contains(e.target as Node)) setOpen(false)
+      if (panelRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+      // Next open starts at the list. Reopening into whatever thread you
+      // last read, with no memory of having left it, is disorienting.
+      setActive(null)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -266,40 +305,107 @@ export default function NotificationBell() {
            panel's right edge under the button beside it, so on every page
            with a header action it opened half off its anchor. The bell is
            now last in the header, which is what makes this correct -- see
-           PageHeader. */
-        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 sticky top-0 bg-white">
-            <p className="text-sm font-bold text-gray-900">Feedback updates</p>
-            <div className="flex items-center gap-3">
-              {count > 0 && (
-                <button onClick={markAllRead} className="text-xs font-semibold text-accent-600 hover:underline">
-                  Mark all read
-                </button>
-              )}
-              {items.length > 0 && (
-                <button onClick={clearAll} className="text-xs font-semibold text-gray-400 hover:text-gray-600 hover:underline">
-                  Clear all
-                </button>
+           PageHeader.
+
+           Fixed height in thread view so the composer has a bottom edge to
+           sit on; height-to-content in list view so a single notification
+           is not a tall empty box. Both stay well above the bottom nav. */
+        <div
+          className={`absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden flex flex-col ${
+            active ? 'h-[min(70vh,30rem)]' : 'max-h-[70vh]'
+          }`}
+        >
+          {/* One track, two panes, each the full width of the panel. The
+              list keeps its scroll position while the thread is open
+              because it is never unmounted. */}
+          <div
+            className="flex-1 min-h-0 flex transition-transform duration-300 ease-out"
+            style={{
+              width: '200%',
+              transform: active ? 'translateX(-50%)' : 'translateX(0)',
+            }}
+          >
+            {/* ---- pane 1: the list ---- */}
+            <div
+              className="w-1/2 flex flex-col min-h-0"
+              aria-hidden={active ? 'true' : undefined}
+            >
+              <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-bold text-gray-900">Feedback updates</p>
+                <div className="flex items-center gap-3">
+                  {count > 0 && (
+                    <button onClick={markAllRead} className="text-xs font-semibold text-accent-600 hover:underline">
+                      Mark all read
+                    </button>
+                  )}
+                  {items.length > 0 && (
+                    <button onClick={clearAll} className="text-xs font-semibold text-gray-400 hover:text-gray-600 hover:underline">
+                      Clear all
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {items.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-gray-400 text-center">
+                    Nothing here. You'll see items as the automation picks them up.
+                  </p>
+                ) : (
+                  <>
+                    <ul>
+                      {items.map((item) => (
+                        <Row key={item.id} item={item} onOpen={openThread} onDismiss={dismiss} />
+                      ))}
+                    </ul>
+                    <p className="px-4 py-2 text-[11px] text-gray-400 text-center border-t border-gray-100">
+                      Swipe a row left to clear it.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ---- pane 2: the conversation ---- */}
+            <div
+              className="w-1/2 flex flex-col min-h-0"
+              aria-hidden={active ? undefined : 'true'}
+            >
+              {active && (
+                <>
+                  <div className="flex-shrink-0 flex items-center gap-1 px-2 py-2 border-b border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setActive(null)}
+                      aria-label="Back to notifications"
+                      className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-gray-900 truncate">
+                        {statusLine(active).label}
+                      </p>
+                      {active.page && (
+                        <p className="text-[11px] text-gray-400 truncate">{active.page}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {threadError && (
+                    <p className="flex-shrink-0 px-3 py-1.5 text-[11px] text-red-600 bg-red-50">
+                      {threadError}
+                    </p>
+                  )}
+
+                  <FeedbackConversation item={active} sending={sending} onReply={reply} />
+                </>
               )}
             </div>
           </div>
-
-          {items.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-gray-400 text-center">
-              Nothing here. You'll see items as the automation picks them up.
-            </p>
-          ) : (
-            <>
-              <ul>
-                {items.map((item) => (
-                  <Row key={item.id} item={item} onOpen={openThread} onDismiss={dismiss} />
-                ))}
-              </ul>
-              <p className="px-4 py-2 text-[11px] text-gray-400 text-center border-t border-gray-100">
-                Swipe a row left to clear it.
-              </p>
-            </>
-          )}
         </div>
       )}
     </div>

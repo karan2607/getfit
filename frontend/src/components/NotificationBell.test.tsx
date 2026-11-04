@@ -1,18 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import NotificationBell from './NotificationBell'
 import { api, type Feedback, type FeedbackMessage } from '../lib/api'
 
 const mockUser = vi.fn()
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => mockUser() }))
-
-const navigate = vi.fn()
-vi.mock('react-router-dom', async () => ({
-  ...(await vi.importActual<typeof import('react-router-dom')>('react-router-dom')),
-  useNavigate: () => navigate,
-}))
 
 const reply = (over: Partial<FeedbackMessage> = {}): FeedbackMessage => ({
   id: 'm1', role: 'agent', body: 'Anchored the panel to the header edge.',
@@ -27,12 +20,11 @@ const item = (over: Partial<Feedback> = {}): Feedback => ({
   messages: [], unread: 1, ...over,
 })
 
-const show = () => render(<MemoryRouter><NotificationBell /></MemoryRouter>)
+const show = () => render(<NotificationBell />)
 
 describe('NotificationBell', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    navigate.mockClear()
     mockUser.mockReturnValue({ user: { is_superuser: true } })
   })
 
@@ -113,18 +105,92 @@ describe('NotificationBell', () => {
     expect(screen.getByLabelText('2 new messages')).toBeInTheDocument()
   })
 
-  it('opens the thread and drops that thread from the count', async () => {
+  it('opens the thread inside the panel, not on a new page', async () => {
+    // It used to navigate to /feedback/:id, which tore down the page you
+    // were on and refetched everything it needed to read three sentences.
     vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
       unseen: 2,
       items: [item({ unread: 1 }),
               item({ id: 'f2', body: 'Fix the treadmill card', unread: 1 })],
     })
+    // unread: 0 because the GET is what marks a thread read, server-side.
+    const thread = vi.spyOn(api.feedback, 'thread').mockResolvedValue(
+      item({ messages: [reply()], unread: 0 }),
+    )
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 2 unread'))
     await userEvent.click(screen.getByText('Add a bell for superusers'))
-    expect(navigate).toHaveBeenCalledWith('/feedback/f1')
+
+    // Same surface: the list is still mounted behind the open thread.
+    expect(await screen.findByLabelText('Reply to the agent')).toBeInTheDocument()
+    expect(screen.getByText('Fix the treadmill card')).toBeInTheDocument()
+    await waitFor(() => expect(thread).toHaveBeenCalledWith('f1'))
     // Decremented, not cleared: the other thread is still waiting.
     expect(await screen.findByLabelText('Notifications, 1 unread')).toBeInTheDocument()
+  })
+
+  it('shows the thread from the list copy before the fetch lands', async () => {
+    // So the pane slides in with content instead of a spinner.
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 1, items: [item({ messages: [reply()] })],
+    })
+    vi.spyOn(api.feedback, 'thread').mockImplementation(
+      () => new Promise(() => {}) as Promise<Feedback>,
+    )
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    // Twice: the list row's summary line, and the bubble in the open pane.
+    // Both panes stay mounted, which is what makes the slide a slide.
+    expect(screen.getAllByText('Anchored the panel to the header edge.')).toHaveLength(2)
+  })
+
+  it('goes back to the list without closing the panel', async () => {
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 1, items: [item()] })
+    vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(await screen.findByLabelText('Back to notifications'))
+    expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
+    expect(screen.getByText('Feedback updates')).toBeInTheDocument()
+  })
+
+  it('sends a reply from the panel and shows it reopened', async () => {
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 1, items: [item()] })
+    vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
+    const send = vi.spyOn(api.feedback, 'reply').mockResolvedValue(
+      item({
+        status: 'new',
+        messages: [reply({ id: 'm9', role: 'user', body: 'still off on Diet' })],
+      }),
+    )
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    const box = await screen.findByLabelText('Reply to the agent')
+    await userEvent.type(box, 'still off on Diet')
+    await userEvent.click(screen.getByLabelText('Send'))
+    await waitFor(() => expect(send).toHaveBeenCalledWith('f1', 'still off on Diet'))
+    expect(await screen.findByText(/polls every few minutes/)).toBeInTheDocument()
+  })
+
+  it('keeps the thread readable when the refresh fails', async () => {
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 1, items: [item({ messages: [reply()] })],
+    })
+    vi.spyOn(api.feedback, 'thread').mockRejectedValue(new Error('offline'))
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    expect(await screen.findByText(/Could not load the latest/)).toBeInTheDocument()
+    // The list copy is enough to read, so a failed refresh is a note and
+    // not a blank pane.
+    expect(screen.getAllByText('Anchored the panel to the header edge.').length)
+      .toBeGreaterThan(1)
+    expect(screen.getByLabelText('Reply to the agent')).toBeInTheDocument()
   })
 
   it('keeps a read thread in the list', async () => {
@@ -169,7 +235,7 @@ describe('NotificationBell', () => {
     fireEvent.touchMove(row, { touches: [{ clientX: 100 }] })
     fireEvent.touchEnd(row)
     await waitFor(() => expect(dismiss).toHaveBeenCalledWith(['f1']))
-    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
   })
 
   it('does not open the thread on a swipe that was abandoned', async () => {
@@ -184,18 +250,19 @@ describe('NotificationBell', () => {
     fireEvent.touchMove(row, { touches: [{ clientX: 170 }] })
     fireEvent.touchEnd(row)
     expect(dismiss).not.toHaveBeenCalled()
-    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
   })
 
   it('opens the thread on a tap that barely moved', async () => {
     vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
+    vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
     const row = screen.getByText('Add a bell for superusers').closest('button')!
     fireEvent.touchStart(row, { touches: [{ clientX: 200 }] })
     fireEvent.touchMove(row, { touches: [{ clientX: 197 }] })
     fireEvent.touchEnd(row)
-    expect(navigate).toHaveBeenCalledWith('/feedback/f1')
+    expect(await screen.findByLabelText('Reply to the agent')).toBeInTheDocument()
   })
 
   it('stays quiet when a poll fails', async () => {

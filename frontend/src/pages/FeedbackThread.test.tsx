@@ -8,9 +8,6 @@ import { api, type Feedback, type FeedbackMessage } from '../lib/api'
 const mockUser = vi.fn()
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => mockUser() }))
 
-const showToast = vi.fn()
-vi.mock('../components/Toast', () => ({ useToast: () => ({ showToast }) }))
-
 const msg = (over: Partial<FeedbackMessage> = {}): FeedbackMessage => ({
   id: 'm1', role: 'agent', body: 'Anchored the panel to the header edge.',
   seen_at: null, created_at: '2026-11-03T10:00:00Z', ...over,
@@ -36,7 +33,6 @@ const show = () =>
 describe('FeedbackThread', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    showToast.mockClear()
     mockUser.mockReturnValue({ user: { is_superuser: true } })
   })
 
@@ -81,11 +77,8 @@ describe('FeedbackThread', () => {
     )
     show()
     await screen.findByText('The bell opens the wrong way')
-    await userEvent.type(
-      screen.getByPlaceholderText(/./),
-      'still off on Diet',
-    )
-    await userEvent.click(screen.getByRole('button', { name: /send/i }))
+    await userEvent.type(screen.getByLabelText('Reply to the agent'), 'still off on Diet')
+    await userEvent.click(screen.getByLabelText('Send'))
     await waitFor(() => expect(reply).toHaveBeenCalledWith('f1', 'still off on Diet'))
     expect(await screen.findByText('still off on Diet')).toBeInTheDocument()
     // Reopened: the item is back in the same queue the loop polls.
@@ -97,11 +90,9 @@ describe('FeedbackThread', () => {
     vi.spyOn(api.feedback, 'reply').mockRejectedValue(new Error('offline'))
     show()
     await screen.findByText('The bell opens the wrong way')
-    await userEvent.type(screen.getByPlaceholderText(/./), 'again please')
-    await userEvent.click(screen.getByRole('button', { name: /send/i }))
-    await waitFor(() =>
-      expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/Could not send/), 'error'),
-    )
+    await userEvent.type(screen.getByLabelText('Reply to the agent'), 'again please')
+    await userEvent.click(screen.getByLabelText('Send'))
+    expect(await screen.findByText(/Could not send/)).toBeInTheDocument()
   })
 
   it('surfaces a load failure rather than an empty page', async () => {

@@ -127,23 +127,54 @@ test('the bell is the last thing in the header', async ({ page }) => {
   expect(after, 'something sits to the right of the bell').toBe(0)
 })
 
-test('a row opens the thread, and the thread fits the phone', async ({ page }) => {
+test('a row opens the thread in the panel, without leaving the page', async ({ page }) => {
   await signInAsSuperuser(page, '/diet')
   await bell(page).click()
-  await page.getByText(/opens towards the left/).click()
+  await page.getByText(/opens towards the left/).first().click()
 
-  await expect(page).toHaveURL(/\/feedback\//)
-  // The conversation, your question first.
-  await expect(page.getByText(/opens towards the left/)).toBeVisible()
-  await expect(page.getByText(/Anchored the panel/)).toBeVisible()
-  // And a composer to answer in.
-  await expect(page.locator('textarea')).toBeVisible()
+  // Same surface: no navigation, so nothing the page had is torn down.
+  await expect(page).toHaveURL(/\/diet$/)
+  await expect(page.getByLabel('Reply to the agent')).toBeVisible()
+  await expect(page.getByText(/Anchored the panel/).first()).toBeVisible()
 
+  // And back again, still on the same page.
+  await page.getByLabel('Back to notifications').click()
+  await expect(page.getByText('Feedback updates')).toBeVisible()
+  await expect(page.getByLabel('Reply to the agent')).toBeHidden()
+})
+
+test('the reply box is not under the bottom nav', async ({ page }) => {
+  // The reported defect, measured: the nav is `fixed ... z-50` across the
+  // bottom of every mobile screen. A composer behind it cannot be tapped at
+  // all, which is not something a desktop render or a screenshot shows.
+  await signInAsSuperuser(page, '/diet')
+  await bell(page).click()
+  await page.getByText(/opens towards the left/).first().click()
+
+  const box = (await page.getByLabel('Reply to the agent').boundingBox())!
+  const nav = (await page.locator('nav, .fixed.bottom-0').first().boundingBox())!
+  expect(
+    Math.round(box.y + box.height),
+    `reply box bottom ${Math.round(box.y + box.height)} is under the nav at ${Math.round(nav.y)}`,
+  ).toBeLessThanOrEqual(Math.round(nav.y))
+
+  // And it is genuinely typeable, not merely positioned well.
+  await page.getByLabel('Reply to the agent').fill('still off on Diet')
+  await expect(page.getByLabel('Reply to the agent')).toHaveValue('still off on Diet')
+})
+
+test('the panel does not overflow sideways with a thread open', async ({ page }) => {
+  await signInAsSuperuser(page, '/diet')
+  await bell(page).click()
+  await page.getByText(/opens towards the left/).first().click()
+
+  // Two panes on a 200%-wide track, so a mistake here scrolls the whole
+  // document sideways rather than clipping quietly.
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
   }))
-  expect(overflow.scrollWidth, 'the thread page overflows sideways')
+  expect(overflow.scrollWidth, 'the open thread overflows sideways')
     .toBeLessThanOrEqual(overflow.innerWidth + 1)
 })
 
@@ -153,12 +184,35 @@ test('the unread tag says how many messages are waiting', async ({ page }) => {
   await expect(page.getByLabel('2 new messages')).toBeVisible()
 })
 
-test('the composer clears the keyboard zone on the thread page', async ({ page }) => {
+test('the reply box does not trigger iOS auto-zoom', async ({ page }) => {
   // 16px minimum or iOS Safari zooms the whole viewport on focus, which is
   // what made the chat drawer feel like it "takes up 50% of the screen".
-  await signInAsSuperuser(page, `/feedback/${THREAD.id}`)
-  const size = await page.locator('textarea').evaluate(
+  await signInAsSuperuser(page, '/diet')
+  await bell(page).click()
+  await page.getByText(/opens towards the left/).first().click()
+  const size = await page.getByLabel('Reply to the agent').evaluate(
     (el) => parseFloat(getComputedStyle(el).fontSize),
   )
   expect(size, 'textarea under 16px triggers iOS auto-zoom').toBeGreaterThanOrEqual(16)
+})
+
+test('the standalone page clears the bottom nav too', async ({ page }) => {
+  // Not the normal way in -- the bell reads threads in place -- but it is a
+  // real route, and it is where the composer was unreachable.
+  await signInAsSuperuser(page, `/feedback/${THREAD.id}`)
+  const box = (await page.getByLabel('Reply to the agent').boundingBox())!
+  const nav = await page.locator('nav, .fixed.bottom-0').first().boundingBox()
+  // z-[60] puts the page over the nav, so either the nav is not painted or
+  // the box sits above it. Both are fine; the box being behind it is not.
+  if (nav) {
+    const covered = box.y + box.height > nav.y && box.y < nav.y + nav.height
+    const above = await page.getByLabel('Reply to the agent').evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return el.contains(top) || el === top
+    })
+    expect(covered && !above, 'the reply box is behind the bottom nav').toBe(false)
+  }
+  await page.getByLabel('Reply to the agent').fill('typed')
+  await expect(page.getByLabel('Reply to the agent')).toHaveValue('typed')
 })
