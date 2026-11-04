@@ -101,6 +101,14 @@ export interface ApiKey {
 
 export type FeedbackStatus = 'new' | 'in_progress' | 'done' | 'failed' | 'skipped'
 
+export interface FeedbackMessage {
+  id: string
+  role: 'user' | 'agent'
+  body: string
+  seen_at: string | null
+  created_at: string
+}
+
 export interface Feedback {
   id: string
   body: string
@@ -112,6 +120,11 @@ export interface Feedback {
   created_at: string
   updated_at: string
   seen_at: string | null
+  dismissed_at: string | null
+  /** The conversation, oldest first. The original `body` is its first turn. */
+  messages: FeedbackMessage[]
+  /** Agent replies waiting to be read. This is what the badge counts. */
+  unread: number
 }
 
 export interface AuthResponse {
@@ -648,6 +661,29 @@ export const api = {
       request<{ marked: number }>('/api/feedback/notifications/', {
         method: 'POST',
         body: JSON.stringify(ids ? { ids } : {}),
+      }),
+
+    /**
+     * Hide threads from the bell WITHOUT deleting them.
+     *
+     * The queue is the audit trail for an automation that writes code, so
+     * clearing your list must not erase the record of what it shipped.
+     */
+    dismiss: (ids?: string[]) =>
+      request<{ dismissed: number }>('/api/feedback/notifications/', {
+        method: 'DELETE',
+        body: JSON.stringify(ids ? { ids } : {}),
+      }),
+
+    /** The thread, and marking its replies read. */
+    thread: (id: string) =>
+      request<Feedback>(`/api/feedback/${id}/messages/`),
+
+    /** Reply to the agent. This reopens the item into the same queue. */
+    reply: (id: string, body: string) =>
+      request<Feedback>(`/api/feedback/${id}/messages/`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
       }),
   },
 }

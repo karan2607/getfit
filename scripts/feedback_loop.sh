@@ -131,10 +131,27 @@ $out"; return 1
 }
 
 # ---------------------------------------------------------------------------
+# The reply shown to the person who filed the item.
+#
+# `tail -1` used to be enough, when the summary was one line and nothing read
+# it but a log. It is now the agent's turn in a conversation, so it is the
+# whole final paragraph -- everything after the last blank line, capped so a
+# run that forgets to summarise cannot paste its entire transcript into the
+# notification panel.
+# ---------------------------------------------------------------------------
+final_paragraph() {
+  printf '%s' "$1" | awk '
+    /^[[:space:]]*$/ { buf = ""; next }
+    { buf = buf (buf == "" ? "" : "\n") $0 }
+    END { print buf }
+  ' | head -c 1200
+}
+
+# ---------------------------------------------------------------------------
 # Process one item
 # ---------------------------------------------------------------------------
 process_item() {
-  local id="$1" body="$2" page="$3"
+  local id="$1" body="$2" page="$3" messages="${4:-[]}"
 
   log "---- item $id ----"
   log "  body: $body"
@@ -187,6 +204,32 @@ EOF
 )"
   fi
 
+  # A reply reopens the item rather than filing a new one, so by the time it
+  # comes back round there may be a conversation attached. Reading only
+  # `body` would re-implement the original request and lose the follow-up --
+  # which is the whole reason the thread exists.
+  local thread_block=""
+  local turns
+  turns="$(printf '%s' "$messages" | jq -r '
+    if type == "array" and length > 0 then
+      .[] | (if .role == "agent" then "YOU" else "USER" end) + ": " + .body
+    else empty end' 2>/dev/null)"
+  if [[ -n "$turns" ]]; then
+    thread_block="$(cat <<EOF
+
+THIS IS A CONTINUING CONVERSATION. The request above is where it started.
+What follows is every turn since, oldest first:
+
+$turns
+
+Address the LAST user message. The earlier turns are context: work you have
+already done is already committed, so do not redo it. If the last message
+says your previous fix did not work, treat your own earlier summary as a
+claim to re-check rather than a fact.
+EOF
+)"
+  fi
+
   local prompt
   prompt="$(cat <<EOF
 You are running unattended in the GetFit repo as an automated feedback loop.
@@ -194,6 +237,7 @@ Implement this single user-submitted request and nothing else.
 
 REQUEST: $body
 SUBMITTED FROM PAGE: $page
+$thread_block
 
 Rules:
 - Make the smallest correct change that addresses the request.
@@ -206,7 +250,11 @@ Rules:
   If the request requires that, make no change and say exactly:
   ESCALATE: security-sensitive, needs review
 - Do NOT commit or push. The runner handles git.
-- When done, print a one-line summary of what you changed.
+- When done, print a summary as the LAST thing you output. It is shown to the
+  person who filed this, verbatim, as your reply in the conversation -- so
+  write it to them, not to a log. Two or three short sentences: what was
+  actually wrong, and what you changed. No file paths, no test counts, no
+  "the user reported that". If you could not fix it, say what stopped you.
 $verify_block
 EOF
 )"
@@ -262,7 +310,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" >>"$LOG" 2>&1
   fi
 
   log "  pushed $sha"
-  set_status "$id" done "$(printf '%s' "$claude_out" | tail -1)" "$sha"
+  set_status "$id" done "$(final_paragraph "$claude_out")" "$sha"
 }
 
 # ---------------------------------------------------------------------------
@@ -308,7 +356,8 @@ run_pass() {
     process_item \
       "$(printf '%s' "$row" | jq -r '.id')" \
       "$(printf '%s' "$row" | jq -r '.body')" \
-      "$(printf '%s' "$row" | jq -r '.page // ""')"
+      "$(printf '%s' "$row" | jq -r '.page // ""')" \
+      "$(printf '%s' "$row" | jq -c '.messages // []')"
   done < <(printf '%s' "$items" | jq -c 'reverse | .[]')
   log "pass complete ($n processed)"
 }

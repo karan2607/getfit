@@ -95,6 +95,8 @@ urlpatterns = [
     path('feedback/notifications/', views.feedback_notifications,
          name='feedback-notifications'),
     path('feedback/<uuid:feedback_id>/', views.feedback_detail, name='feedback-detail'),
+    path('feedback/<uuid:feedback_id>/messages/', views.feedback_messages,
+         name='feedback-messages'),
     # MCP — JSON-RPC for external AI agents, Token auth, csrf_exempt like the
     # other non-browser POST endpoint (chat streaming).
     path('mcp/', csrf_exempt(views.mcp_endpoint), name='mcp'),

@@ -6,7 +6,7 @@ from .models import (
     UserProfile, ChatSession, ChatMessage,
     WorkoutPlan, WorkoutDay, Exercise, WorkoutSession, SetLog,
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
-    Feedback,
+    Feedback, FeedbackMessage,
 )
 
 User = get_user_model()
@@ -301,20 +301,60 @@ class BodyScanResultSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class FeedbackMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeedbackMessage
+        fields = ['id', 'role', 'body', 'seen_at', 'created_at']
+        # `role` is set server-side. If the client could choose it, the
+        # submitter could write the agent's half of a conversation that the
+        # loop then reads back as its own prior reasoning.
+        read_only_fields = ['id', 'role', 'seen_at', 'created_at']
+
+    def validate_body(self, value):
+        text = (value or '').strip()
+        if not text:
+            raise serializers.ValidationError('Message cannot be empty.')
+        if len(text) > 5000:
+            raise serializers.ValidationError('Message is too long (max 5000).')
+        return text
+
+
 class FeedbackSerializer(serializers.ModelSerializer):
     submitted_by = serializers.CharField(source='user.email', read_only=True)
+    messages = FeedbackMessageSerializer(many=True, read_only=True)
+    unread = serializers.SerializerMethodField()
+
+    def get_unread(self, obj):
+        """Unread agent replies in this thread.
+
+        Computed from the already-prefetched messages rather than a per-row
+        COUNT, so listing 30 threads stays one query instead of thirty-one.
+
+        The fallback matters: an item can finish with an empty summary, which
+        writes no message at all. Counting only messages would let that one
+        land silently -- and a failure with nothing to say is exactly the
+        case you most need telling about.
+        """
+        replies = sum(1 for m in obj.messages.all()
+                      if m.role == 'agent' and m.seen_at is None)
+        if replies:
+            return replies
+        if obj.status in Feedback.FINISHED and obj.seen_at is None:
+            return 1
+        return 0
 
     class Meta:
         model = Feedback
         fields = [
             'id', 'body', 'page', 'status', 'result_notes', 'commit_sha',
             'submitted_by', 'created_at', 'updated_at', 'seen_at',
+            'dismissed_at', 'messages', 'unread',
         ]
         # The client may only ever set body/page. status, result_notes and
         # commit_sha are written by the automation, never by the submitter.
         read_only_fields = [
             'id', 'status', 'result_notes', 'commit_sha', 'submitted_by',
-            'seen_at',
+            'seen_at', 'dismissed_at', 'messages', 'unread',
             'created_at', 'updated_at',
         ]
 

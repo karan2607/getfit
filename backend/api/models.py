@@ -1143,8 +1143,49 @@ class Feedback(models.Model):
     #: 'new' or 'in_progress' item is not news; these are.
     FINISHED = ('done', 'failed', 'skipped')
 
+    #: When the submitter cleared this item out of their notification list.
+    #:
+    #: Deliberately NOT a delete. The queue is also the audit trail for an
+    #: automation that writes code, so "get this off my list" must not erase
+    #: the record of what it shipped. Clearing hides; DELETE still deletes.
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return f'[{self.status}] {self.body[:60]}'
+
+
+class FeedbackMessage(models.Model):
+    """
+    One turn in the conversation about a feedback item.
+
+    A feedback item used to be a one-shot: you described a problem, the loop
+    implemented something, and the only way to say "not quite" was to file a
+    second item that knew nothing about the first. The loop re-reads this
+    thread on every pass, so a reply is a continuation rather than a new
+    request -- which is the whole point of talking to it.
+
+    `seen_at` lives here, not on Feedback, because unread is a property of a
+    REPLY: a thread you have read can go unread again when the agent answers.
+    """
+
+    ROLE_CHOICES = [('user', 'User'), ('agent', 'Agent')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    feedback = models.ForeignKey(Feedback, on_delete=models.CASCADE,
+                                 related_name='messages')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    body = models.TextField()
+    #: Null on an agent message means unread -- that is what the bell counts.
+    #: Always set on a user message: you do not need notifying of your own.
+    seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['feedback', 'created_at'])]
+
+    def __str__(self):
+        return f'{self.role}: {self.body[:60]}'

@@ -25,7 +25,7 @@ from .models import (
     MealLog, DietPlan, Meal, FoodScanResult, BodyScanResult,
     ExerciseGuide, MealGuide,
     HealthConnection, HealthDailySummary, HealthWorkout,
-    Feedback, ApiKey,
+    Feedback, FeedbackMessage, ApiKey,
     PlanChange, PlanSnapshot,
 )
 from .serializers import (
@@ -51,6 +51,7 @@ from .serializers import (
     FoodScanResultSerializer,
     BodyScanResultSerializer,
     FeedbackSerializer,
+    FeedbackMessageSerializer,
 )
 from .email import send_password_reset_email
 from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
@@ -5385,53 +5386,70 @@ def feedback(request):
         return Response(FeedbackSerializer(item).data,
                         status=status.HTTP_201_CREATED)
 
-    qs = Feedback.objects.all().select_related('user')
+    # The thread ships with the item: the loop needs the follow-ups to know
+    # it is continuing a conversation rather than reading a fresh request.
+    qs = Feedback.objects.all().select_related('user').prefetch_related('messages')
     status_filter = request.GET.get('status')
     if status_filter:
         qs = qs.filter(status=status_filter)
     return Response(FeedbackSerializer(qs[:200], many=True).data)
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def feedback_notifications(request):
     """
-    Finished feedback the submitter has not been shown yet.
+    The submitter's own feedback threads, newest first.
 
-    GET  -> {'unseen': n, 'items': [...]} , newest first.
-    POST -> marks them seen. Body may carry {'ids': [...]} to acknowledge
-            specific items; with no ids, everything currently unseen is
-            marked, which is what dismissing the panel means.
+    GET    -> {'unseen': n, 'items': [...]}, where `unseen` counts unread
+              AGENT REPLIES across all threads, not threads.
+    POST    -> mark threads read. {'ids': [...]} for specific ones; no ids
+              means everything, which is what "Mark all read" sends.
+    DELETE -> dismiss threads: hide them from this list without deleting the
+              record. {'ids': [...]} for a swipe, no ids to clear the lot.
 
-    Scoped to the CALLER'S OWN submissions. The queue listing is shared
+    Read threads STAY in the list. The bell is a log of what the automation
+    did to the codebase, and the only way to find out was to open the queue
+    admin; clearing on read would hide that again the moment you glanced at
+    it. Dismissing is the explicit way out.
+
+    Scoped to the caller's own submissions. The queue listing is shared
     between superusers deliberately -- it is one work queue -- but a
     notification is about something you asked for, and being told another
     operator's item shipped is not news you can act on.
 
-    Only finished items count. 'new' and 'in_progress' are the normal state
-    of a queue and would leave the bell permanently lit.
+    In-flight items ('new', 'in_progress') are listed too, now that a thread
+    can be reopened by a reply: an item you just answered vanishing until the
+    agent got round to it looked like the reply had been dropped.
     """
     denied = _require_superuser(request)
     if denied is not None:
         return denied
 
-    unseen = Feedback.objects.filter(
-        user=request.user,
-        status__in=Feedback.FINISHED,
-        seen_at__isnull=True,
-    )
+    mine = Feedback.objects.filter(user=request.user)
 
-    if request.method == 'POST':
+    if request.method in ('POST', 'DELETE'):
         ids = request.data.get('ids') if isinstance(request.data, dict) else None
-        if ids:
-            unseen = unseen.filter(id__in=ids)
-        marked = unseen.update(seen_at=timezone.now())
+        targets = mine.filter(id__in=ids) if ids else mine
+        if request.method == 'DELETE':
+            n = targets.update(dismissed_at=timezone.now())
+            return Response({'dismissed': n})
+        now = timezone.now()
+        FeedbackMessage.objects.filter(
+            feedback__in=targets, role='agent', seen_at__isnull=True,
+        ).update(seen_at=now)
+        marked = targets.filter(seen_at__isnull=True).update(seen_at=now)
         return Response({'marked': marked})
 
-    items = list(unseen.select_related('user')[:50])
+    items = list(
+        mine.filter(dismissed_at__isnull=True)
+        .select_related('user')
+        .prefetch_related('messages')[:30]
+    )
+    data = FeedbackSerializer(items, many=True).data
     return Response({
-        'unseen': len(items),
-        'items': FeedbackSerializer(items, many=True).data,
+        'unseen': sum(row['unread'] for row in data),
+        'items': data,
     })
 
 
@@ -5458,6 +5476,7 @@ def feedback_detail(request, feedback_id):
         item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    was_finished = item.status in Feedback.FINISHED
     new_status = request.data.get('status')
     if new_status is not None:
         valid = [choice for choice, _label in Feedback.STATUS_CHOICES]
@@ -5472,7 +5491,76 @@ def feedback_detail(request, feedback_id):
     if 'commit_sha' in request.data:
         item.commit_sha = (request.data['commit_sha'] or '')[:40]
     item.save()
+
+    # Finishing is the agent speaking, so record it as a turn in the thread.
+    #
+    # Done here rather than in the runner so the loop script stays a queue
+    # driver: it already PATCHes its summary in, and every other client that
+    # reports back gets threaded for free. Gated on the TRANSITION, not on
+    # the status, or a second PATCH carrying a commit sha would post the
+    # same reply twice.
+    now_finished = item.status in Feedback.FINISHED
+    if now_finished and not was_finished and item.result_notes.strip():
+        FeedbackMessage.objects.create(
+            feedback=item, role='agent', body=item.result_notes.strip())
+
+    item.refresh_from_db()
     return Response(FeedbackSerializer(item).data)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def feedback_messages(request, feedback_id):
+    """
+    The conversation about one feedback item (superuser only).
+
+    GET  -> every turn, oldest first.
+    POST -> add a reply from the submitter, and REOPEN the item.
+
+    Reopening is the point. Posting a reply sets status back to 'new', which
+    is exactly what the loop polls for, so a follow-up re-enters the same
+    queue carrying the whole thread rather than arriving as an unrelated
+    request that has to rediscover the context. There is no second pipeline
+    to keep in step -- it is the one queue, talked to twice.
+
+    Scoped to the caller's own submissions: the queue is shared between
+    operators, but replying inside someone else's thread would put words in
+    their conversation and re-queue work they own.
+    """
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    item = get_object_or_404(Feedback, pk=feedback_id, user=request.user)
+
+    if request.method == 'GET':
+        # Reading the thread is what marks it read -- unlike the bell, where
+        # glancing at a badge should not clear it.
+        item.messages.filter(role='agent', seen_at__isnull=True).update(
+            seen_at=timezone.now())
+        if item.seen_at is None:
+            item.seen_at = timezone.now()
+            item.save(update_fields=['seen_at'])
+        return Response(FeedbackSerializer(item).data)
+
+    serializer = FeedbackMessageSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    message = serializer.save(feedback=item, role='user',
+                              seen_at=timezone.now())
+
+    item.status = 'new'
+    # The thread is in flight again, so there is nothing finished to report.
+    # Leaving these set would show a stale "shipped" badge on an item the
+    # agent has not looked at yet.
+    item.seen_at = None
+    item.dismissed_at = None
+    item.save(update_fields=['status', 'seen_at', 'dismissed_at'])
+
+    logger.info('feedback %s reopened by %s: %s', item.id, request.user.email,
+                message.body[:120])
+    item.refresh_from_db()
+    return Response(FeedbackSerializer(item).data,
+                    status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------

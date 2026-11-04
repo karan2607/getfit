@@ -20,6 +20,7 @@ import Diet from './pages/Diet'
 import Body from './pages/Body'
 import Profile from './pages/Profile'
 import Health from './pages/Health'
+import FeedbackThread from './pages/FeedbackThread'
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'] as const
@@ -214,6 +215,9 @@ function AppRoutes() {
       <Route path="/body" element={<ProtectedRoute><Body /></ProtectedRoute>} />
       <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute requireProfile={false}><Profile /></ProtectedRoute>} />
+      {/* Superuser-only in practice: the page renders nothing for anyone
+          else and every endpoint behind it returns 403. */}
+      <Route path="/feedback/:id" element={<ProtectedRoute requireProfile={false}><FeedbackThread /></ProtectedRoute>} />
 
       {/* Default redirect */}
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
