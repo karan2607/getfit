@@ -307,27 +307,38 @@ export default function NotificationBell() {
            now last in the header, which is what makes this correct -- see
            PageHeader.
 
-           Fixed height in thread view so the composer has a bottom edge to
-           sit on; height-to-content in list view so a single notification
-           is not a tall empty box. Both stay well above the bottom nav. */
+           Thread view takes the SAME 70vh the list caps at, not a smaller
+           fixed height. At `min(70vh,30rem)` a full list stood at 70vh and
+           then shrank on open, which is the wrong direction -- the pane you
+           just opened is the one that needs the room. A short list still
+           grows into it, and growing to read a conversation is fine. */
         <div
           className={`absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden flex flex-col ${
-            active ? 'h-[min(70vh,30rem)]' : 'max-h-[70vh]'
+            active ? 'h-[70vh]' : 'max-h-[70vh]'
           }`}
         >
-          {/* One track, two panes, each the full width of the panel. The
-              list keeps its scroll position while the thread is open
+          {/* One track, two panes, each exactly the panel's width.
+              Everything here is measured against the TRACK, which is the
+              panel's width -- so `translateX(-100%)` is exactly one pane.
+
+              The track used to be `width: 200%` with `w-1/2` panes and a
+              `-50%` shift. Those three percentages resolve against
+              different boxes: in a 352px panel the track came out 700px and
+              each pane 350px, so the shift overshot and left pane 2 almost
+              entirely outside the panel -- a sliver of the list on the left
+              and blank space for the rest. Reopening the panel re-laid it
+              out and happened to look right, which is why it seemed
+              intermittent.
+
+              The list keeps its scroll position while the thread is open
               because it is never unmounted. */}
           <div
-            className="flex-1 min-h-0 flex transition-transform duration-300 ease-out"
-            style={{
-              width: '200%',
-              transform: active ? 'translateX(-50%)' : 'translateX(0)',
-            }}
+            className="flex-1 min-h-0 w-full flex transition-transform duration-300 ease-out"
+            style={{ transform: active ? 'translateX(-100%)' : 'translateX(0)' }}
           >
             {/* ---- pane 1: the list ---- */}
             <div
-              className="w-1/2 flex flex-col min-h-0"
+              className="w-full flex-none flex flex-col min-h-0"
               aria-hidden={active ? 'true' : undefined}
             >
               <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -368,7 +379,7 @@ export default function NotificationBell() {
 
             {/* ---- pane 2: the conversation ---- */}
             <div
-              className="w-1/2 flex flex-col min-h-0"
+              className="w-full flex-none flex flex-col min-h-0"
               aria-hidden={active ? undefined : 'true'}
             >
               {active && (

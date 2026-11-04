@@ -35,7 +35,16 @@ const THREAD = {
   ],
 }
 
-async function signInAsSuperuser(page: Page, route: string) {
+/** A backlog, for the cases where one row is not enough to fill the panel. */
+function many(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    ...THREAD,
+    id: THREAD.id.slice(0, -1) + i,
+    body: i === 0 ? THREAD.body : `Queued item number ${i + 1}`,
+  }))
+}
+
+async function signInAsSuperuser(page: Page, route: string, count = 1) {
   await page.route('**/api/**', async (r) => {
     const url = r.request().url()
     const json = (body: unknown) =>
@@ -49,7 +58,7 @@ async function signInAsSuperuser(page: Page, route: string) {
     }
     if (url.includes('/api/profile')) return json(PROFILE)
     if (url.includes('/api/feedback/notifications')) {
-      return json({ unseen: 2, items: [THREAD] })
+      return json({ unseen: 2 * count, items: many(count) })
     }
     if (url.includes('/messages/')) return json(THREAD)
     // List endpoints must come back as arrays. A blanket `{}` made Diet,
@@ -141,6 +150,102 @@ test('a row opens the thread in the panel, without leaving the page', async ({ p
   await page.getByLabel('Back to notifications').click()
   await expect(page.getByText('Feedback updates')).toBeVisible()
   await expect(page.getByLabel('Reply to the agent')).toBeHidden()
+})
+
+test('the open thread fills the panel exactly', async ({ page }) => {
+  /*
+   * The slide used to be a `width: 200%` track with `w-1/2` panes shifted
+   * `-50%`. Those three percentages resolve against different boxes: in a
+   * 352px panel the track came out 700px and each pane 350px, so the shift
+   * overshot and left only ~13px of the thread pane inside the panel -- a
+   * sliver of the list on the left and blank space for the rest. Reopening
+   * re-laid it out and happened to look right, so it read as intermittent.
+   *
+   * Measured, because "it looks like it slid" is exactly what it did.
+   */
+  await signInAsSuperuser(page, '/diet')
+  await bell(page).click()
+
+  /*
+   * Both boxes come from one walk up the DOM: from the composer to the pane
+   * (the child of the element carrying the slide transform), then one more
+   * step to the panel. Selecting them by ancestor COUNT is what made the
+   * first version of this test report a 350px offset that was the list pane
+   * rather than the panel -- my own selector, not the layout.
+   */
+  const measure = () =>
+    page.evaluate(() => {
+      const box = (el: Element) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x, width: r.width, height: r.height }
+      }
+      const composer = document.querySelector('[aria-label="Reply to the agent"]')
+      const track = document.querySelector<HTMLElement>('[style*="translateX"]')
+      if (!track) return null
+      if (!composer) return { panel: box(track.parentElement!), pane: null }
+      let node = composer as HTMLElement
+      while (node.parentElement && node.parentElement !== track) {
+        node = node.parentElement
+      }
+      return { panel: box(track.parentElement!), pane: box(node) }
+    })
+
+  const start = (await measure())!
+  const before = start.panel
+
+  await page.getByText(/opens towards the left/).first().click()
+  // Past the 300ms transition, so this is the settled position.
+  await page.waitForTimeout(500)
+
+  const end = (await measure())!
+  const box = end.pane!
+  const after = end.panel
+
+  // Flush with the panel's content box on both edges, within the 1px border.
+  expect(Math.abs(box.x - after.x), 'thread pane is not flush with the panel left edge')
+    .toBeLessThanOrEqual(2)
+  expect(
+    Math.abs((box.x + box.width) - (after.x + after.width)),
+    'thread pane is not flush with the panel right edge',
+  ).toBeLessThanOrEqual(2)
+
+  // And the panel must not SHRINK on open: the pane you just opened is the
+  // one that needs the room. A fixed 30rem thread view meant a full list
+  // stood at 70vh and then got smaller.
+  expect(
+    Math.round(after.height),
+    `panel shrank from ${Math.round(before.height)} to ${Math.round(after.height)}`,
+  ).toBeGreaterThanOrEqual(Math.round(before.height))
+})
+
+test('the panel does not shrink when a thread opens, with a full list', async ({ page }) => {
+  /*
+   * The reported symptom. One row cannot show it: a short list is well
+   * under the cap, so opening a thread grows the panel either way. With a
+   * real backlog the list stands at 70vh and a thread view fixed at 30rem
+   * made it smaller -- shrinking the pane you just opened, which is the one
+   * that needs the room.
+   */
+  await signInAsSuperuser(page, '/diet', 12)
+  await bell(page).click()
+
+  const panelHeight = () =>
+    page.evaluate(() => {
+      const track = document.querySelector<HTMLElement>('[style*="translateX"]')
+      return track ? Math.round(track.parentElement!.getBoundingClientRect().height) : 0
+    })
+
+  const before = await panelHeight()
+  // The list genuinely fills the panel, or this test proves nothing.
+  expect(before, 'the stub list is too short to test shrinking')
+    .toBeGreaterThanOrEqual(Math.round(page.viewportSize()!.height * 0.6))
+
+  await page.getByText(/opens towards the left/).first().click()
+  await page.waitForTimeout(500)
+
+  const after = await panelHeight()
+  expect(after, `panel shrank from ${before} to ${after} on open`)
+    .toBeGreaterThanOrEqual(before)
 })
 
 test('the reply box is not under the bottom nav', async ({ page }) => {
