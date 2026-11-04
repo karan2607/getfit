@@ -27,8 +27,13 @@ const POLL_MS = 60_000
 
 /** Past this much leftward drag, letting go clears the row. */
 const SWIPE_THRESHOLD = 72
-/** Under this much movement it was a tap, not a swipe. */
-const TAP_SLOP = 8
+/**
+ * A gesture steeper than this is a scroll, and the row must not move at all.
+ *
+ * Without it, dragging down the list dragged the rows sideways by whatever
+ * horizontal wobble a thumb has.
+ */
+const SCROLL_SLOP = 10
 
 function when(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
@@ -55,35 +60,52 @@ interface RowProps {
 
 function Row({ item, onOpen, onDismiss }: RowProps) {
   const [dx, setDx] = useState(0)
-  const startX = useRef(0)
+  const start = useRef({ x: 0, y: 0 })
+  /** null until the first move decides: horizontal swipe, or vertical scroll. */
+  const axis = useRef<'x' | 'y' | null>(null)
   const dragging = useRef(false)
   const line = statusLine(item)
   const unread = item.unread > 0
 
   const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX
+    start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    axis.current = null
     dragging.current = true
   }
+
   const onTouchMove = (e: React.TouchEvent) => {
     if (!dragging.current) return
+    const moveX = e.touches[0].clientX - start.current.x
+    const moveY = e.touches[0].clientY - start.current.y
+
+    // Decide once, on the first meaningful movement, and stick to it. A
+    // gesture that starts as a scroll stays a scroll even if the thumb
+    // drifts sideways halfway down the list.
+    if (axis.current === null) {
+      if (Math.abs(moveX) < SCROLL_SLOP && Math.abs(moveY) < SCROLL_SLOP) return
+      axis.current = Math.abs(moveX) > Math.abs(moveY) ? 'x' : 'y'
+    }
+    if (axis.current === 'y') return
+
     // Leftward only. Dragging a row to the right has no meaning here, and
     // allowing it makes the list feel loose.
-    setDx(Math.min(0, e.touches[0].clientX - startX.current))
+    setDx(Math.min(0, moveX))
   }
+
   const onTouchEnd = () => {
     dragging.current = false
-    if (dx <= -SWIPE_THRESHOLD) {
+    if (axis.current === 'x' && dx <= -SWIPE_THRESHOLD) {
       // Slide it the rest of the way out before the row disappears, so the
       // list does not just blink.
       setDx(-400)
       onDismiss(item)
       return
     }
-    // A swipe that did not commit is still a swipe, not a tap -- opening the
-    // thread on an abandoned drag is the thing that makes swipe lists
-    // infuriating.
-    if (Math.abs(dx) <= TAP_SLOP) onOpen(item)
     setDx(0)
+    // Nothing else happens here, and that is the point. This used to treat
+    // "barely moved horizontally" as a tap -- which a vertical scroll is,
+    // so lifting your finger after scrolling the list opened whatever row
+    // it ended under. Opening is the explicit button below, only.
   }
 
   return (
@@ -97,55 +119,59 @@ function Row({ item, onOpen, onDismiss }: RowProps) {
       </div>
 
       <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         style={{
           transform: `translateX(${dx}px)`,
           transition: dragging.current ? 'none' : 'transform 160ms ease-out',
         }}
-        className="relative bg-white"
+        // Unread is tinted, read is plain white. The tint is the only thing
+        // distinguishing them, so the row carries an explicit count chip too.
+        className={`relative px-4 py-3 border-b border-gray-100 last:border-0 ${
+          unread ? 'bg-gray-50' : 'bg-white'
+        }`}
       >
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${line.tone}`}>
+            {line.label}
+          </span>
+          <span className="text-[11px] text-gray-400">{when(item.updated_at)}</span>
+          {unread && (
+            <span
+              className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-accent-500 text-white text-[11px] font-bold flex items-center justify-center"
+              aria-label={`${item.unread} new ${item.unread === 1 ? 'message' : 'messages'}`}
+            >
+              {item.unread}
+            </span>
+          )}
+        </div>
+
+        {/* The issue you raised, first and plainly. The old panel led with
+            the agent's notes, so you had to work out what it was replying
+            to before you could tell whether you cared. */}
+        <p className={`text-sm leading-snug line-clamp-2 ${unread ? 'text-gray-900 font-semibold' : 'text-gray-700 font-medium'}`}>
+          {item.body}
+        </p>
+
+        {latestReply(item) && (
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">
+            {latestReply(item)}
+          </p>
+        )}
+
+        {/* The only way in. The whole row used to be the button, which is
+            what made scrolling the list open things. */}
         <button
           type="button"
           onClick={() => onOpen(item)}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          // Unread is tinted, read is plain white. The tint is the only
-          // thing distinguishing them, so it carries an explicit label too.
-          className={`w-full text-left px-4 py-3 border-b border-gray-100 last:border-0 transition-colors ${
-            unread ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-gray-50'
-          }`}
+          className="mt-1 -ml-1 px-1 min-h-[36px] inline-flex items-center gap-1 text-[12px] font-bold text-accent-600 rounded-lg hover:bg-accent-50 active:bg-accent-100 transition-colors"
         >
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${line.tone}`}>
-              {line.label}
-            </span>
-            <span className="text-[11px] text-gray-400">{when(item.updated_at)}</span>
-            {unread && (
-              <span
-                className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-accent-500 text-white text-[11px] font-bold flex items-center justify-center"
-                aria-label={`${item.unread} new ${item.unread === 1 ? 'message' : 'messages'}`}
-              >
-                {item.unread}
-              </span>
-            )}
-          </div>
-
-          {/* The issue you raised, first and plainly. The old panel led with
-              the agent's notes, so you had to work out what it was replying
-              to before you could tell whether you cared. */}
-          <p className={`text-sm leading-snug line-clamp-2 ${unread ? 'text-gray-900 font-semibold' : 'text-gray-700 font-medium'}`}>
-            {item.body}
-          </p>
-
-          {latestReply(item) && (
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">
-              {latestReply(item)}
-            </p>
-          )}
-
-          <span className="inline-block mt-1.5 text-[11px] font-semibold text-accent-600">
-            Open conversation →
-          </span>
+          Open conversation
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h13M12 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
     </li>

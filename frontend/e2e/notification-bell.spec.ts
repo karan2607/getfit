@@ -80,6 +80,16 @@ async function signInAsSuperuser(page: Page, route: string, count = 1) {
 const bell = (page: Page) => page.getByLabel(/^Notifications/)
 
 /**
+ * Opening is an explicit button, not the row.
+ *
+ * The whole row used to be the button, and touchEnd treated "barely moved
+ * horizontally" as a tap -- which a vertical scroll is, so scrolling the
+ * list and lifting your finger opened whichever row it ended under.
+ */
+const openFirstThread = (page: Page) =>
+  page.getByRole('button', { name: /Open conversation/ }).first().click()
+
+/**
  * Workouts and Chat are the only two pages that pass a header `action`, and
  * so the only two where the misanchored panel actually showed -- reverting
  * the fix fails /workouts and leaves every other route green. They lead the
@@ -139,7 +149,7 @@ test('the bell is the last thing in the header', async ({ page }) => {
 test('a row opens the thread in the panel, without leaving the page', async ({ page }) => {
   await signInAsSuperuser(page, '/diet')
   await bell(page).click()
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
 
   // Same surface: no navigation, so nothing the page had is torn down.
   await expect(page).toHaveURL(/\/diet$/)
@@ -193,7 +203,7 @@ test('the open thread fills the panel exactly', async ({ page }) => {
   const start = (await measure())!
   const before = start.panel
 
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
   // Past the 300ms transition, so this is the settled position.
   await page.waitForTimeout(500)
 
@@ -240,12 +250,53 @@ test('the panel does not shrink when a thread opens, with a full list', async ({
   expect(before, 'the stub list is too short to test shrinking')
     .toBeGreaterThanOrEqual(Math.round(page.viewportSize()!.height * 0.6))
 
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
   await page.waitForTimeout(500)
 
   const after = await panelHeight()
   expect(after, `panel shrank from ${before} to ${after} on open`)
     .toBeGreaterThanOrEqual(before)
+})
+
+test('scrolling the list does not open a thread', async ({ page }) => {
+  /*
+   * The reported bug, as a real touch gesture rather than synthetic events:
+   * press, drag upward through the list, release. Before the fix this
+   * landed in whichever conversation the finger ended over.
+   */
+  await signInAsSuperuser(page, '/diet', 12)
+  await bell(page).click()
+  await expect(page.getByText('Feedback updates')).toBeVisible()
+
+  const list = page.getByText(/Queued item number 3/)
+  const box = (await list.boundingBox())!
+  const x = Math.round(box.x + box.width / 2)
+
+  await page.touchscreen.tap(x, Math.round(box.y))
+  // A deliberately imperfect drag: a thumb never travels straight down.
+  await page.mouse.move(x, Math.round(box.y))
+  await page.mouse.down()
+  await page.mouse.move(x - 6, Math.round(box.y) - 120, { steps: 10 })
+  await page.mouse.up()
+
+  // Still the list. No composer, so nothing was opened.
+  await expect(page.getByText('Feedback updates')).toBeVisible()
+  await expect(page.getByLabel('Reply to the agent')).toBeHidden()
+})
+
+test('Fixed and Couldn\'t fix are visibly different states', async ({ page }) => {
+  await signInAsSuperuser(page, '/diet')
+  await bell(page).click()
+  const pill = page.getByText('Fixed').first()
+  const colours = await pill.evaluate((el) => {
+    const s = getComputedStyle(el)
+    return { bg: s.backgroundColor, fg: s.color }
+  })
+  // A solid pill, not a pale tint: filled-vs-outlined reads before hue does.
+  expect(colours.bg, 'Fixed should be a solid pill').not.toMatch(/rgba?\(0, 0, 0, 0\)/)
+  const [r, g, b] = colours.bg.match(/\d+/g)!.map(Number)
+  // Not a warm tint -- that is what made it read as the red failure state.
+  expect(r, `Fixed pill is reddish: rgb(${r},${g},${b})`).toBeLessThan(120)
 })
 
 test('the reply box is not under the bottom nav', async ({ page }) => {
@@ -254,7 +305,7 @@ test('the reply box is not under the bottom nav', async ({ page }) => {
   // all, which is not something a desktop render or a screenshot shows.
   await signInAsSuperuser(page, '/diet')
   await bell(page).click()
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
 
   const box = (await page.getByLabel('Reply to the agent').boundingBox())!
   const nav = (await page.locator('nav, .fixed.bottom-0').first().boundingBox())!
@@ -271,7 +322,7 @@ test('the reply box is not under the bottom nav', async ({ page }) => {
 test('the panel does not overflow sideways with a thread open', async ({ page }) => {
   await signInAsSuperuser(page, '/diet')
   await bell(page).click()
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
 
   // Two panes on a 200%-wide track, so a mistake here scrolls the whole
   // document sideways rather than clipping quietly.
@@ -294,7 +345,7 @@ test('the reply box does not trigger iOS auto-zoom', async ({ page }) => {
   // what made the chat drawer feel like it "takes up 50% of the screen".
   await signInAsSuperuser(page, '/diet')
   await bell(page).click()
-  await page.getByText(/opens towards the left/).first().click()
+  await openFirstThread(page)
   const size = await page.getByLabel('Reply to the agent').evaluate(
     (el) => parseFloat(getComputedStyle(el).fontSize),
   )

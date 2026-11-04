@@ -22,6 +22,10 @@ const item = (over: Partial<Feedback> = {}): Feedback => ({
 
 const show = () => render(<NotificationBell />)
 
+/** The swipeable row: the element carrying the transform, by its text. */
+const rowOf = (text: string) =>
+  screen.getByText(text).closest('[style*="translateX"]') as HTMLElement
+
 describe('NotificationBell', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -119,7 +123,7 @@ describe('NotificationBell', () => {
     )
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 2 unread'))
-    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
 
     // Same surface: the list is still mounted behind the open thread.
     expect(await screen.findByLabelText('Reply to the agent')).toBeInTheDocument()
@@ -139,7 +143,7 @@ describe('NotificationBell', () => {
     )
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
     // Twice: the list row's summary line, and the bubble in the open pane.
     // Both panes stay mounted, which is what makes the slide a slide.
     expect(screen.getAllByText('Anchored the panel to the header edge.')).toHaveLength(2)
@@ -151,7 +155,7 @@ describe('NotificationBell', () => {
     vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
     await userEvent.click(await screen.findByLabelText('Back to notifications'))
     expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
     expect(screen.getByText('Feedback updates')).toBeInTheDocument()
@@ -169,7 +173,7 @@ describe('NotificationBell', () => {
     )
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
     const box = await screen.findByLabelText('Reply to the agent')
     await userEvent.type(box, 'still off on Diet')
     await userEvent.click(screen.getByLabelText('Send'))
@@ -184,7 +188,7 @@ describe('NotificationBell', () => {
     vi.spyOn(api.feedback, 'thread').mockRejectedValue(new Error('offline'))
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    await userEvent.click(screen.getByText('Add a bell for superusers'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
     expect(await screen.findByText(/Could not load the latest/)).toBeInTheDocument()
     // The list copy is enough to read, so a failed refresh is a note and
     // not a blank pane.
@@ -230,9 +234,9 @@ describe('NotificationBell', () => {
     const dismiss = vi.spyOn(api.feedback, 'dismiss').mockResolvedValue({ dismissed: 1 })
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    const row = screen.getByText('Add a bell for superusers').closest('button')!
-    fireEvent.touchStart(row, { touches: [{ clientX: 200 }] })
-    fireEvent.touchMove(row, { touches: [{ clientX: 100 }] })
+    const row = rowOf('Add a bell for superusers')
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 400 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 100, clientY: 402 }] })
     fireEvent.touchEnd(row)
     await waitFor(() => expect(dismiss).toHaveBeenCalledWith(['f1']))
     expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
@@ -245,24 +249,76 @@ describe('NotificationBell', () => {
     const dismiss = vi.spyOn(api.feedback, 'dismiss').mockResolvedValue({ dismissed: 1 })
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    const row = screen.getByText('Add a bell for superusers').closest('button')!
-    fireEvent.touchStart(row, { touches: [{ clientX: 200 }] })
-    fireEvent.touchMove(row, { touches: [{ clientX: 170 }] })
+    const row = rowOf('Add a bell for superusers')
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 400 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 170, clientY: 402 }] })
     fireEvent.touchEnd(row)
     expect(dismiss).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
   })
 
-  it('opens the thread on a tap that barely moved', async () => {
+  it('does not open anything when you scroll the list', async () => {
+    /*
+     * The reported bug. touchEnd used to treat "barely moved horizontally"
+     * as a tap -- and a vertical scroll is exactly that, so lifting your
+     * finger after scrolling opened whichever row it ended under. Opening
+     * is now the explicit button and nothing else.
+     */
     vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
-    vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
+    const thread = vi.spyOn(api.feedback, 'thread').mockResolvedValue(item())
     show()
     await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
-    const row = screen.getByText('Add a bell for superusers').closest('button')!
-    fireEvent.touchStart(row, { touches: [{ clientX: 200 }] })
-    fireEvent.touchMove(row, { touches: [{ clientX: 197 }] })
+    const row = rowOf('Add a bell for superusers')
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 400 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 203, clientY: 300 }] })
     fireEvent.touchEnd(row)
-    expect(await screen.findByLabelText('Reply to the agent')).toBeInTheDocument()
+    expect(thread).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Reply to the agent')).not.toBeInTheDocument()
+  })
+
+  it('does not drag the row sideways while you scroll', async () => {
+    // A thumb never travels straight down, so a vertical gesture carries
+    // some horizontal wobble. Honouring it slid every row under the finger.
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    const row = rowOf('Add a bell for superusers')
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 400 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 185, clientY: 280 }] })
+    expect(row.style.transform).toBe('translateX(0px)')
+  })
+
+  it('keeps a gesture that began as a scroll a scroll', async () => {
+    // Even a big sideways drift later on: the axis is decided once, on the
+    // first real movement, or a long scroll could dismiss a row by accident.
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
+    const dismiss = vi.spyOn(api.feedback, 'dismiss').mockResolvedValue({ dismissed: 1 })
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    const row = rowOf('Add a bell for superusers')
+    fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 400 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 198, clientY: 300 }] })
+    fireEvent.touchMove(row, { touches: [{ clientX: 60, clientY: 280 }] })
+    fireEvent.touchEnd(row)
+    expect(dismiss).not.toHaveBeenCalled()
+  })
+
+  it('gives Fixed a pill that cannot be mistaken for failure', async () => {
+    // Accent-50 and red-50 are adjacent hues on a 60px pill, so at a glance
+    // "Fixed" and "Couldn't fix" read as the same state -- the one state you
+    // most want to pick out of a list was the hardest to.
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 2,
+      items: [item(), item({ id: 'f2', body: 'other', status: 'failed' })],
+    })
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 2 unread'))
+    const fixed = screen.getByText('Fixed').className
+    const failed = screen.getByText("Couldn't fix").className
+    expect(fixed).not.toEqual(failed)
+    // Filled vs outlined, which holds up before hue does.
+    expect(fixed).toContain('bg-ink-600')
+    expect(failed).toContain('bg-red-50')
   })
 
   it('stays quiet when a poll fails', async () => {

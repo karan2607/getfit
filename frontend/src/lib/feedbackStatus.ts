@@ -12,8 +12,19 @@ import type { Feedback } from './api'
 
 export interface StatusLine {
   label: string
-  /** Tailwind classes for the pill. Accent, never emerald: the rebrand moved
-   *  done-states onto the orange token and the palette guard enforces it. */
+  /**
+   * Tailwind classes for the pill.
+   *
+   * Never emerald -- the palette is navy and orange and the guard enforces
+   * it. But 'Fixed' on accent-50 and "Couldn't fix" on red-50 are adjacent
+   * hues on a 60px pill, and at a glance they read as the same state. The
+   * one state you most want to pick out of a list was the hardest to.
+   *
+   * So Fixed is the only SOLID pill: deep navy against four pale ones. The
+   * distinction is filled-vs-outlined before it is hue at all, which also
+   * survives being looked at in sunlight or by someone red-green colour
+   * blind.
+   */
   tone: string
   /** One line under the issue, when the agent left no summary of its own. */
   fallback: string
@@ -22,7 +33,7 @@ export interface StatusLine {
 const LINES: Record<string, StatusLine> = {
   done: {
     label: 'Fixed',
-    tone: 'text-accent-700 bg-accent-50 border-accent-200',
+    tone: 'text-white bg-ink-600 border-ink-600',
     fallback: 'Fixed and shipped.',
   },
   failed: {
