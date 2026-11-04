@@ -111,6 +111,7 @@ export interface Feedback {
   submitted_by: string
   created_at: string
   updated_at: string
+  seen_at: string | null
 }
 
 export interface AuthResponse {
@@ -635,6 +636,19 @@ export const api = {
 
     remove: (id: string) =>
       request<void>(`/api/feedback/${id}/`, { method: 'DELETE' }),
+
+    /** Finished items the submitter has not been shown yet. */
+    notifications: () =>
+      request<{ unseen: number; items: Feedback[] }>(
+        '/api/feedback/notifications/'
+      ),
+
+    /** Acknowledge them. No ids means "everything currently unseen". */
+    markSeen: (ids?: string[]) =>
+      request<{ marked: number }>('/api/feedback/notifications/', {
+        method: 'POST',
+        body: JSON.stringify(ids ? { ids } : {}),
+      }),
   },
 }
 

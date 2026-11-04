@@ -91,6 +91,9 @@ urlpatterns = [
     path('health/activity-suggestion/', views.health_activity_suggestion, name='health-activity-suggestion'),
     # Feedback (superuser only — enforced in the view)
     path('feedback/', views.feedback, name='feedback'),
+    # Before the <uuid:...> route, or 'notifications' would be matched as an id.
+    path('feedback/notifications/', views.feedback_notifications,
+         name='feedback-notifications'),
     path('feedback/<uuid:feedback_id>/', views.feedback_detail, name='feedback-detail'),
     # MCP — JSON-RPC for external AI agents, Token auth, csrf_exempt like the
     # other non-browser POST endpoint (chat streaming).

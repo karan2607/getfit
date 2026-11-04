@@ -1131,6 +1131,17 @@ class Feedback(models.Model):
     commit_sha = models.CharField(max_length=40, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    #: When the submitter was shown that this item had finished.
+    #:
+    #: Null means finished-but-unseen, which is exactly what the bell counts.
+    #: It is NOT derivable from `status`: an item is 'done' forever, so
+    #: without this the badge would either never clear or clear on a timer
+    #: and lose things you had not read yet.
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    #: Statuses that mean the automation has stopped working on an item. A
+    #: 'new' or 'in_progress' item is not news; these are.
+    FINISHED = ('done', 'failed', 'skipped')
 
     class Meta:
         ordering = ['-created_at']

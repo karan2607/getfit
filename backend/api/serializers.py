@@ -308,12 +308,13 @@ class FeedbackSerializer(serializers.ModelSerializer):
         model = Feedback
         fields = [
             'id', 'body', 'page', 'status', 'result_notes', 'commit_sha',
-            'submitted_by', 'created_at', 'updated_at',
+            'submitted_by', 'created_at', 'updated_at', 'seen_at',
         ]
         # The client may only ever set body/page. status, result_notes and
         # commit_sha are written by the automation, never by the submitter.
         read_only_fields = [
             'id', 'status', 'result_notes', 'commit_sha', 'submitted_by',
+            'seen_at',
             'created_at', 'updated_at',
         ]
 

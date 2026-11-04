@@ -5392,6 +5392,49 @@ def feedback(request):
     return Response(FeedbackSerializer(qs[:200], many=True).data)
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def feedback_notifications(request):
+    """
+    Finished feedback the submitter has not been shown yet.
+
+    GET  -> {'unseen': n, 'items': [...]} , newest first.
+    POST -> marks them seen. Body may carry {'ids': [...]} to acknowledge
+            specific items; with no ids, everything currently unseen is
+            marked, which is what dismissing the panel means.
+
+    Scoped to the CALLER'S OWN submissions. The queue listing is shared
+    between superusers deliberately -- it is one work queue -- but a
+    notification is about something you asked for, and being told another
+    operator's item shipped is not news you can act on.
+
+    Only finished items count. 'new' and 'in_progress' are the normal state
+    of a queue and would leave the bell permanently lit.
+    """
+    denied = _require_superuser(request)
+    if denied is not None:
+        return denied
+
+    unseen = Feedback.objects.filter(
+        user=request.user,
+        status__in=Feedback.FINISHED,
+        seen_at__isnull=True,
+    )
+
+    if request.method == 'POST':
+        ids = request.data.get('ids') if isinstance(request.data, dict) else None
+        if ids:
+            unseen = unseen.filter(id__in=ids)
+        marked = unseen.update(seen_at=timezone.now())
+        return Response({'marked': marked})
+
+    items = list(unseen.select_related('user')[:50])
+    return Response({
+        'unseen': len(items),
+        'items': FeedbackSerializer(items, many=True).data,
+    })
+
+
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def feedback_detail(request, feedback_id):
