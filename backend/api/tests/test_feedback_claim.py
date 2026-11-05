@@ -161,3 +161,46 @@ class IsClaimablePropertyTests(APITestCase):
     def test_capped(self):
         self.assertFalse(
             self.make(status='new', attempts=Feedback.MAX_ATTEMPTS).is_claimable)
+
+
+class UnknownStatusFilterTests(APITestCase):
+    """
+    An unknown filter must fail loudly, not look like an empty queue.
+
+    It used to match nothing and return 200 with []. The runner was changed
+    to ask for 'claimable' before the server knew the word -- the two deploy
+    separately -- and it logged "queue empty" with real work waiting. The
+    loop went blind and said nothing, which is the worst possible shape for
+    this failure: silent, and indistinguishable from success.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email='admin@test.local', password='x')
+        token = Token.objects.get_or_create(user=self.admin)[0]
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        Feedback.objects.create(user=self.admin, body='real work', status='new')
+
+    def test_an_unknown_status_is_rejected(self):
+        r = self.client.get(reverse('feedback') + '?status=claimabel')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('unknown status', r.data['detail'])
+
+    def test_it_does_not_quietly_report_an_empty_queue(self):
+        """The actual harm: work waiting, and the caller told there is none."""
+        r = self.client.get(reverse('feedback') + '?status=nonsense')
+        self.assertNotEqual(r.status_code, 200)
+
+    def test_every_real_status_is_still_accepted(self):
+        for st, _label in Feedback.STATUS_CHOICES:
+            r = self.client.get(reverse('feedback') + f'?status={st}')
+            self.assertEqual(r.status_code, 200, st)
+
+    def test_claimable_is_accepted(self):
+        r = self.client.get(reverse('feedback') + '?status=claimable')
+        self.assertEqual(r.status_code, 200)
+
+    def test_no_filter_still_lists_everything(self):
+        r = self.client.get(reverse('feedback'))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data), 1)

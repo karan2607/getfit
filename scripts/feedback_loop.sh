@@ -334,6 +334,34 @@ run_pass() {
   # notification bell.
   items="$(api GET '/api/feedback/?status=claimable' || true)"
 
+  # Cross-check an empty result against the filter every server understands.
+  #
+  # This file and the backend deploy separately: the script runs from the
+  # local checkout the moment it is saved, while the server is whatever is
+  # live. Asking a server that predates 'claimable' for it returned 200 with
+  # [] -- indistinguishable from an empty queue -- and the loop logged
+  # "queue empty" with real work waiting. It went blind and said nothing.
+  #
+  # Checking 400 is not enough: that is what the UPDATED server answers for
+  # an unknown filter, and the window that matters is the one before it
+  # deploys, where the answer is []. So an empty 'claimable' is treated as
+  # inconclusive and verified against 'new'. One extra request when there is
+  # nothing to do, and it cannot go blind in either direction.
+  if printf '%s' "$items" | jq -e 'type == "array" and length == 0' >/dev/null 2>&1; then
+    local fallback
+    fallback="$(api GET '/api/feedback/?status=new' || true)"
+    if printf '%s' "$fallback" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+      log "'claimable' came back empty but status=new has work:"
+      log "  the backend predates the claimable filter. Using status=new."
+      log "  NOTE: abandoned 'in_progress' items stay stuck until it deploys."
+      items="$fallback"
+    fi
+  elif ! printf '%s' "$items" | jq -e 'type == "array"' >/dev/null 2>&1 \
+       && printf '%s' "$items" | grep -q 'unknown status'; then
+    log "backend rejected 'claimable'; falling back to status=new"
+    items="$(api GET '/api/feedback/?status=new' || true)"
+  fi
+
   if ! printf '%s' "$items" | jq -e 'type == "array"' >/dev/null 2>&1; then
     # Call out an auth failure explicitly.
     #

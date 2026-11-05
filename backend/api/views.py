@@ -5391,6 +5391,20 @@ def feedback(request):
     qs = Feedback.objects.all().select_related('user').prefetch_related('messages')
     status_filter = request.GET.get('status')
 
+    # An unknown filter used to match nothing and return 200 with [], so a
+    # client asking for a status this server does not support could not tell
+    # that apart from an empty queue. That is exactly what happened: the
+    # runner was changed to ask for 'claimable' before the server knew the
+    # word, and it logged "queue empty" with real work waiting. Fail loudly.
+    if status_filter:
+        allowed = {c for c, _ in Feedback.STATUS_CHOICES} | {'claimable'}
+        if status_filter not in allowed:
+            return Response(
+                {'detail': 'unknown status %r; expected one of %s'
+                           % (status_filter, sorted(allowed))},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     if status_filter == 'claimable':
         # What the loop asks for: work it may take now.
         #
