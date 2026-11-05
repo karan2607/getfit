@@ -345,6 +345,13 @@ EOF
   # --permission-prompts none makes the print-mode behaviour explicit rather
   # than incidental: nobody is here to answer, so anything outside the
   # allowlist is denied outright instead of hanging on a prompt.
+  # Log the shape of the call, not its content.
+  #
+  # When this invocation broke, every item failed in 4 seconds with "Input
+  # must be provided ... when using --print" and the log showed only the
+  # error -- so there was no way to tell an empty prompt from a mis-parsed
+  # flag without reconstructing the call by hand. One line prevents that.
+  log "  invoking claude: prompt=${#prompt} chars, ${#CLAUDE_ALLOWED_TOOLS[@]} allowed tool(s)"
   claude_out="$(cd "$REPO" && claude -p "$prompt" \
     --allowedTools "${CLAUDE_ALLOWED_TOOLS[@]}" \
     --permission-prompts none \
