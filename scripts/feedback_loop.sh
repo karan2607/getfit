@@ -47,6 +47,53 @@ BRANCH="${GETFIT_BRANCH:-staging}"
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
 
 # ---------------------------------------------------------------------------
+# One run at a time.
+#
+# launchd fires this every 900s, and a pass that actually produces changes
+# takes longer than that: the agent run, then the build gate, whose backend
+# suite alone is about nine minutes. One item is ~12 minutes and two is ~25,
+# so overlapping runs were arithmetically certain the moment this script
+# could edit files.
+#
+# Two runs in one checkout is not a slow queue, it is a corrupt one. Run B
+# sees run A's half-finished edits, and either refuses -- marking A's item
+# 'skipped' when nothing was wrong with it, which already happened once on
+# Nov 2 -- or passes the gate and commits A's work under B's item.
+#
+# `mkdir` because it is atomic and macOS has no flock(1). The PID inside
+# lets a crashed run's lock be taken over rather than wedging the loop
+# forever, which is the usual way a lockfile turns one outage into a
+# permanent one.
+# ---------------------------------------------------------------------------
+LOCK_DIR="${GETFIT_LOCK_DIR:-${TMPDIR:-/tmp}/getfit-feedback-loop.lock}"
+
+acquire_lock() {
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    printf '%s' "$$" > "$LOCK_DIR/pid"
+    trap 'rm -rf "$LOCK_DIR"' EXIT
+    return 0
+  fi
+
+  local holder
+  holder="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+  if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then
+    log "another pass is still running (pid $holder); skipping this one"
+    log "  nothing is wrong -- a pass that edits code outlives the 15m timer"
+    return 1
+  fi
+
+  log "clearing a stale lock (pid ${holder:-unknown} is gone)"
+  rm -rf "$LOCK_DIR"
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    printf '%s' "$$" > "$LOCK_DIR/pid"
+    trap 'rm -rf "$LOCK_DIR"' EXIT
+    return 0
+  fi
+  log "could not take the lock after clearing it; skipping this pass"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------
 # Public backend URL. Override with GETFIT_API if it ever changes.
@@ -440,9 +487,10 @@ run_pass() {
 if [[ "${1:-}" == "--watch" ]]; then
   log "watching $API every ${POLL_SECONDS}s (ctrl-c to stop)"
   while true; do
-    run_pass
+    acquire_lock && run_pass
     sleep "$POLL_SECONDS"
   done
 else
+  acquire_lock || exit 0
   run_pass
 fi
