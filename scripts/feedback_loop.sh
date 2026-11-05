@@ -139,12 +139,18 @@ api() {
 }
 
 set_status() {
-  # set_status <id> <status> [notes] [sha]
-  local id="$1" st="$2" notes="${3:-}" sha="${4:-}"
+  # set_status <id> <status> [notes] [sha] [attempts]
+  #
+  # `attempts` is only ever passed as 0, by the paths where the fault was
+  # this runner's and not the item's. An attempt is counted when an item is
+  # taken, which is right, but it means a runner bug spends the item's
+  # budget -- three were burned on an empty prompt the runner built itself.
+  local id="$1" st="$2" notes="${3:-}" sha="${4:-}" attempts="${5:-}"
   local body
-  body="$(jq -nc --arg s "$st" --arg n "$notes" --arg c "$sha" \
+  body="$(jq -nc --arg s "$st" --arg n "$notes" --arg c "$sha" --arg a "$attempts" \
     '{status:$s} + (if $n == "" then {} else {result_notes:$n} end)
-               + (if $c == "" then {} else {commit_sha:$c} end)')"
+               + (if $c == "" then {} else {commit_sha:$c} end)
+               + (if $a == "" then {} else {attempts:($a|tonumber)} end)')"
   api PATCH "/api/feedback/$id/" "$body" >/dev/null
 }
 
@@ -260,7 +266,7 @@ process_item() {
     # queue, lit the notification bell, and told you it had been considered
     # and declined. Two real items were lost that way. It stays queued.
     log "  REQUEUE: working tree is dirty — refusing to touch it."
-    set_status "$id" new "The runner's checkout had uncommitted changes, so nothing ran. Not your item's fault; it stays queued."
+    set_status "$id" new "The runner's checkout had uncommitted changes, so nothing ran. Not your item's fault; it stays queued." "" 0
     return
   fi
   # Fail loudly on a missing branch rather than silently working on whatever
@@ -396,7 +402,7 @@ EOF
   # instead of blaming the item.
   if [[ -z "$prompt" ]]; then
     log "  ABORT: built an empty prompt — this is a bug in the runner, not the item"
-    set_status "$id" new "The runner built an empty prompt and did not call the agent. Not your item's fault; it stays queued."
+    set_status "$id" new "The runner built an empty prompt and did not call the agent. Not your item's fault; it stays queued." "" 0
     return
   fi
   claude_out="$(cd "$REPO" && claude -p "$prompt" \

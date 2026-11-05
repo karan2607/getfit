@@ -204,3 +204,66 @@ class UnknownStatusFilterTests(APITestCase):
         r = self.client.get(reverse('feedback'))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.data), 1)
+
+
+class AttemptResetTests(APITestCase):
+    """
+    The runner may give back an attempt it wasted on its own bug.
+
+    Attempts are counted when an item is TAKEN, which is right: a run that
+    dies has still used one. But it means a bug in the runner spends the
+    item's budget. Three items were burned on an empty prompt the runner
+    built itself, and without this nothing could give them back -- a runner
+    bug would permanently retire whatever was in the queue when it shipped.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email='admin@test.local', password='x')
+        token = Token.objects.get_or_create(user=self.admin)[0]
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.item = Feedback.objects.create(
+            user=self.admin, body='x', status='in_progress', attempts=2)
+        self.url = reverse('feedback-detail', args=[self.item.id])
+
+    def test_attempts_can_be_reset(self):
+        self.client.patch(self.url, {'status': 'new', 'attempts': 0},
+                          format='json')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.attempts, 0)
+
+    def test_a_reset_item_is_claimable_again(self):
+        """The point of the reset: it goes back in the queue."""
+        self.item.attempts = Feedback.MAX_ATTEMPTS
+        self.item.save()
+        self.client.patch(self.url, {'status': 'new', 'attempts': 0},
+                          format='json')
+        rows = self.client.get(reverse('feedback') + '?status=claimable').data
+        self.assertIn(str(self.item.id), {r['id'] for r in rows})
+
+    def test_omitting_attempts_leaves_the_count_alone(self):
+        """A normal report-back must not quietly clear the budget."""
+        self.client.patch(self.url, {'status': 'failed',
+                                     'result_notes': 'did not work'},
+                          format='json')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.attempts, 2)
+
+    def test_a_non_integer_is_refused(self):
+        r = self.client.patch(self.url, {'attempts': 'lots'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.attempts, 2)
+
+    def test_a_negative_count_is_clamped(self):
+        self.client.patch(self.url, {'attempts': -5}, format='json')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.attempts, 0)
+
+    def test_a_non_superuser_cannot_reset_attempts(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + Token.objects
+                                .get_or_create(user=User.objects.create_user(
+                                    email='p@test.local', password='x'))[0].key)
+        self.client.patch(self.url, {'attempts': 0}, format='json')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.attempts, 2)

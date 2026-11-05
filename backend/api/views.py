@@ -5524,6 +5524,21 @@ def feedback_detail(request, feedback_id):
     if 'commit_sha' in request.data:
         item.commit_sha = (request.data['commit_sha'] or '')[:40]
 
+    # The runner may reset the attempt count when the fault was its own.
+    #
+    # Attempts are counted when an item is TAKEN, which is right -- a run
+    # that dies has still used one. But it means a bug in the runner spends
+    # the item's budget: three of these were burned on an empty prompt the
+    # runner built itself, and nothing could give them back. Without this,
+    # a runner bug permanently retires whatever was in the queue when it
+    # shipped. Superuser-only, like everything on this endpoint.
+    if 'attempts' in request.data:
+        try:
+            item.attempts = max(0, int(request.data['attempts']))
+        except (TypeError, ValueError):
+            return Response({'detail': 'attempts must be an integer'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
     # Taking an item stamps the claim and counts the attempt. Done here
     # rather than in the runner so a runner that dies mid-item has already
     # recorded that it tried -- which is exactly the case the cap exists for.
