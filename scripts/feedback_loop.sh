@@ -12,14 +12,12 @@
 #     printf '%s' '<43-char integration key>' > ~/.getfit-loop-token
 #   chmod 600 ~/.getfit-loop-token
 #
-#   OPTIONAL but recommended: a second key with scope "readonly", at
-#     ~/.getfit-readonly-token
-#   The agent uses it to VERIFY claims a submission makes about stored data.
-#   Without it, a report like "bench history has 22-rep sets" has to be taken
-#   on trust -- which cost a real item: it was escalated to protect sets the
-#   user had already corrected. The key cannot write anything (safe methods
-#   only, own rows only), which is what makes it safe to leave on disk for an
-#   unattended agent.
+#   The "readonly" key at ~/.getfit-readonly-token is NO LONGER USED by this
+#   script. It was pasted into the agent's prompt so it could check a
+#   submission's claims about stored data; the agent has no network access
+#   now, so it bought nothing. Leave the file; see CLAUDE_ALLOWED_TOOLS below
+#   for what the run may do, and the note there for how the data check comes
+#   back without handing the agent a credential.
 #
 # The token must belong to a SUPERUSER — the queue endpoints return 403
 # otherwise. Override the backend URL with GETFIT_API if it changes.
@@ -67,11 +65,14 @@ fi
 
 # Optional read-only key. Absent is fine and the loop behaves as before, just
 # without the ability to check its assumptions.
-READONLY_TOKEN_FILE="${GETFIT_READONLY_TOKEN_FILE:-$HOME/.getfit-readonly-token}"
-READONLY_TOKEN=""
-if [[ -r "$READONLY_TOKEN_FILE" ]]; then
-  READONLY_TOKEN="$(tr -d '[:space:]' < "$READONLY_TOKEN_FILE")"
-fi
+# The read-only key is NOT read into this process any more.
+#
+# It used to be pasted into the agent's prompt so it could check a
+# submission's claims about stored data. The agent has no network access now
+# (arbitrary curl is not on the allowlist), so the key bought nothing and
+# putting a credential in a prompt for nothing is the wrong default. The file
+# stays where it is; when the data check is rebuilt, this script will make
+# those requests itself and pass the results in.
 
 for bin in curl jq claude git; do
   command -v "$bin" >/dev/null 2>&1 || { log "ERROR: $bin is not installed."; exit 1; }
@@ -131,6 +132,47 @@ $out"; return 1
 }
 
 # ---------------------------------------------------------------------------
+# What an unattended run is allowed to do.
+#
+# WHY THIS EXISTS AT ALL: `claude -p` is a print-mode run with nobody to
+# answer a permission prompt, so anything that would prompt is denied
+# automatically. Nothing shipped between Oct 25 and Nov 4 for that reason --
+# twelve items, four of which said "write permission was denied" in so many
+# words. The agent diagnosed them correctly every time and then could not
+# write the file.
+#
+# WHY AN ALLOWLIST AND NOT --dangerously-skip-permissions: this runner
+# commits and pushes to staging on its own. Skipping all checks would let an
+# item's text talk the agent into running any command on this machine, and
+# the queue is the only thing standing between that and a push. An allowlist
+# means a new capability is a deliberate edit to this line.
+#
+# NOT LISTED, DELIBERATELY:
+#   git      — the runner owns git. The prompt already says not to commit or
+#              push; this makes it so. Verified refused.
+#   curl     — no network. The read-only API check is lost for now, which is
+#              a real cost: a submission's claims about stored data have to
+#              be taken on trust again. Allowing arbitrary curl with a token
+#              on disk is the wrong trade; fetching the data in the runner
+#              and passing it in the prompt is the right fix, later.
+#   rm, mv, and everything else — the build gate catches a broken tree, not
+#              a destroyed one.
+#
+# The test and build commands are listed so the agent can verify its own
+# work. It writes tests either way; without these it never ran them.
+CLAUDE_ALLOWED_TOOLS=(
+  Read Edit Write Glob Grep
+  "Bash(cd backend && venv/bin/python manage.py test:*)"
+  "Bash(venv/bin/python manage.py test:*)"
+  "Bash(venv/bin/python manage.py check:*)"
+  "Bash(venv/bin/python manage.py makemigrations:*)"
+  "Bash(cd frontend && npm run:*)"
+  "Bash(npm run:*)"
+  "Bash(npx tsc:*)"
+  "Bash(npx vitest:*)"
+)
+
+# ---------------------------------------------------------------------------
 # The reply shown to the person who filed the item.
 #
 # `tail -1` used to be enough, when the summary was one line and nothing read
@@ -184,54 +226,38 @@ process_item() {
   local before
   before="$(git -C "$REPO" rev-parse HEAD)"
 
-  local verify_block=""
-  if [[ -n "$READONLY_TOKEN" ]]; then
-    verify_block="$(cat <<EOF
+  # The read-only data check is OFF, and the prompt says so plainly.
+  #
+  # It needs network access, and arbitrary curl is not on the allowlist: a
+  # submission is text that an agent reads, so a run that can fetch any URL
+  # with a token sitting on disk is a worse trade than losing the check.
+  #
+  # Saying nothing would be worse than saying it is gone. The agent used to
+  # be told it could verify claims about stored data, and an instruction to
+  # check something it cannot reach produces a confident guess instead of an
+  # admission. The right fix is for THIS SCRIPT to fetch the data and pass it
+  # in -- it already holds the token and makes no decisions from it -- which
+  # keeps the check without giving the agent the network. Not built yet.
+  local verify_block
+  verify_block="$(cat <<'EOF'
 
-VERIFY BEFORE YOU ACT:
+YOU CANNOT CHECK THE STORED DATA IN THIS RUN:
 A submission describes the problem as the user saw it, possibly days ago, and
-possibly after they already worked around it. Do NOT treat its claims about
-stored data as facts. You have a READ-ONLY API key -- it cannot write anything
--- so check first:
+possibly after they already worked around it. Its claims about what is in the
+database are NOT facts, and this run has no way to look -- there is no network
+access.
 
-  curl -sS -H 'Authorization: Bearer $READONLY_TOKEN' '$API/api/workouts/plans/'
-
-Readable: /api/workouts/, /api/sessions/, /api/health/, /api/diet/,
-/api/profile/. GET only; anything else returns 403 by design.
+So do not write as though you had checked. If the change depends on a claim
+about stored data, say in your summary which claim you had to take on trust.
+If it depends on that claim being true and you cannot proceed safely without
+it, make no change and say exactly:
+ESCALATE: needs a data check I could not perform
 
 This matters. One item was escalated to protect logged sets that the user had
 already fixed before submitting, because the text said they were broken and
-there was no way to look. If a claim does not hold, say so in your summary and
-proceed on what you actually found.
+there was no way to look.
 EOF
 )"
-  fi
-
-  # A reply reopens the item rather than filing a new one, so by the time it
-  # comes back round there may be a conversation attached. Reading only
-  # `body` would re-implement the original request and lose the follow-up --
-  # which is the whole reason the thread exists.
-  local thread_block=""
-  local turns
-  turns="$(printf '%s' "$messages" | jq -r '
-    if type == "array" and length > 0 then
-      .[] | (if .role == "agent" then "YOU" else "USER" end) + ": " + .body
-    else empty end' 2>/dev/null)"
-  if [[ -n "$turns" ]]; then
-    thread_block="$(cat <<EOF
-
-THIS IS A CONTINUING CONVERSATION. The request above is where it started.
-What follows is every turn since, oldest first:
-
-$turns
-
-Address the LAST user message. The earlier turns are context: work you have
-already done is already committed, so do not redo it. If the last message
-says your previous fix did not work, treat your own earlier summary as a
-claim to re-check rather than a fact.
-EOF
-)"
-  fi
 
   local prompt
   prompt="$(cat <<EOF
@@ -269,7 +295,13 @@ EOF
   # listing. Without this, `claude` inherits that stdin and consumes the
   # remaining rows, so a pass that found 3 items processed exactly 1 and
   # logged "pass complete (1 processed)" as though that were all of them.
-  claude_out="$(cd "$REPO" && claude -p "$prompt" 2>&1 < /dev/null)"
+  # --permission-prompts none makes the print-mode behaviour explicit rather
+  # than incidental: nobody is here to answer, so anything outside the
+  # allowlist is denied outright instead of hanging on a prompt.
+  claude_out="$(cd "$REPO" && claude -p "$prompt" \
+    --allowedTools "${CLAUDE_ALLOWED_TOOLS[@]}" \
+    --permission-prompts none \
+    2>&1 < /dev/null)"
   log "  claude: $(printf '%s' "$claude_out" | tail -5)"
 
   if printf '%s' "$claude_out" | grep -q '^ESCALATE:'; then
