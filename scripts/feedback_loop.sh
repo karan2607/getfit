@@ -151,11 +151,14 @@ final_paragraph() {
 # Process one item
 # ---------------------------------------------------------------------------
 process_item() {
-  local id="$1" body="$2" page="$3" messages="${4:-[]}"
+  local id="$1" body="$2" page="$3" messages="${4:-[]}" attempts="${5:-0}"
 
   log "---- item $id ----"
   log "  body: $body"
   log "  page: $page"
+  if (( attempts > 0 )); then
+    log "  retry: attempt $((attempts + 1)) — a previous run claimed this and never reported back"
+  fi
   set_status "$id" in_progress
 
   # Start from a clean, current tree so one item's failure can't contaminate
@@ -260,7 +263,13 @@ EOF
 )"
 
   local claude_out
-  claude_out="$(cd "$REPO" && claude -p "$prompt" 2>&1)"
+  # `< /dev/null` is load-bearing.
+  #
+  # process_item is called from a `while read` loop fed by the queue
+  # listing. Without this, `claude` inherits that stdin and consumes the
+  # remaining rows, so a pass that found 3 items processed exactly 1 and
+  # logged "pass complete (1 processed)" as though that were all of them.
+  claude_out="$(cd "$REPO" && claude -p "$prompt" 2>&1 < /dev/null)"
   log "  claude: $(printf '%s' "$claude_out" | tail -5)"
 
   if printf '%s' "$claude_out" | grep -q '^ESCALATE:'; then
@@ -318,7 +327,12 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" >>"$LOG" 2>&1
 # ---------------------------------------------------------------------------
 run_pass() {
   local items
-  items="$(api GET '/api/feedback/?status=new' || true)"
+  # `claimable`, not `new`: the server decides what may be worked on, which
+  # includes an 'in_progress' item whose claim has gone stale because the run
+  # holding it died. Polling for 'new' alone orphaned those -- one sat
+  # invisible in 'in_progress' for 14 days, past both this loop and the
+  # notification bell.
+  items="$(api GET '/api/feedback/?status=claimable' || true)"
 
   if ! printf '%s' "$items" | jq -e 'type == "array"' >/dev/null 2>&1; then
     # Call out an auth failure explicitly.
@@ -357,7 +371,8 @@ run_pass() {
       "$(printf '%s' "$row" | jq -r '.id')" \
       "$(printf '%s' "$row" | jq -r '.body')" \
       "$(printf '%s' "$row" | jq -r '.page // ""')" \
-      "$(printf '%s' "$row" | jq -c '.messages // []')"
+      "$(printf '%s' "$row" | jq -c '.messages // []')" \
+      "$(printf '%s' "$row" | jq -r '.attempts // 0')"
   done < <(printf '%s' "$items" | jq -c 'reverse | .[]')
   log "pass complete ($n processed)"
 }

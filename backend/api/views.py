@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Case, F, IntegerField, Value, When
+from django.db.models import Case, F, IntegerField, Q, Value, When
 
 logger = logging.getLogger(__name__)
 from django.http import StreamingHttpResponse, Http404
@@ -5390,8 +5390,26 @@ def feedback(request):
     # it is continuing a conversation rather than reading a fresh request.
     qs = Feedback.objects.all().select_related('user').prefetch_related('messages')
     status_filter = request.GET.get('status')
-    if status_filter:
+
+    if status_filter == 'claimable':
+        # What the loop asks for: work it may take now.
+        #
+        # It used to ask for `status=new`, which meant a run that died after
+        # setting 'in_progress' orphaned the item -- nothing polled for that
+        # state and the bell only counts finished items, so one sat invisible
+        # for 14 days. Asking the SERVER what is claimable keeps that rule in
+        # one place instead of encoding "which rows are mine" in the runner.
+        stale_before = timezone.now() - Feedback.STALE_AFTER
+        qs = qs.filter(
+            Q(status='new')
+            | Q(status='in_progress',
+                claimed_at__isnull=True)       # claimed before this existed
+            | Q(status='in_progress', claimed_at__lt=stale_before),
+            attempts__lt=Feedback.MAX_ATTEMPTS,
+        )
+    elif status_filter:
         qs = qs.filter(status=status_filter)
+
     return Response(FeedbackSerializer(qs[:200], many=True).data)
 
 
@@ -5477,6 +5495,7 @@ def feedback_detail(request, feedback_id):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     was_finished = item.status in Feedback.FINISHED
+    was_claimed = item.status == 'in_progress'
     new_status = request.data.get('status')
     if new_status is not None:
         valid = [choice for choice, _label in Feedback.STATUS_CHOICES]
@@ -5490,6 +5509,15 @@ def feedback_detail(request, feedback_id):
         item.result_notes = request.data['result_notes'] or ''
     if 'commit_sha' in request.data:
         item.commit_sha = (request.data['commit_sha'] or '')[:40]
+
+    # Taking an item stamps the claim and counts the attempt. Done here
+    # rather than in the runner so a runner that dies mid-item has already
+    # recorded that it tried -- which is exactly the case the cap exists for.
+    # Gated on the TRANSITION so a second PATCH cannot inflate the count.
+    if item.status == 'in_progress' and not was_claimed:
+        item.claimed_at = timezone.now()
+        item.attempts = (item.attempts or 0) + 1
+
     item.save()
 
     # Finishing is the agent speaking, so record it as a turn in the thread.

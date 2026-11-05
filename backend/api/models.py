@@ -1143,6 +1143,50 @@ class Feedback(models.Model):
     #: 'new' or 'in_progress' item is not news; these are.
     FINISHED = ('done', 'failed', 'skipped')
 
+    #: How long a claim is honoured before the item is considered abandoned.
+    #:
+    #: Generous on purpose: a real run edits code and then runs the backend
+    #: suite, which alone takes about ten minutes. Too short and two runners
+    #: would work the same item at once.
+    STALE_AFTER = timedelta(hours=2)
+
+    #: Attempts before an item stops being requeued and is reported failed.
+    MAX_ATTEMPTS = 3
+
+    @property
+    def is_claimable(self):
+        """Whether the loop may take this item now.
+
+        'new', or an 'in_progress' claim old enough to be abandoned. Finished
+        items are never claimable, which is the point of the state: the loop
+        can ask for work without having to know which rows it already did.
+        """
+        if self.attempts >= self.MAX_ATTEMPTS:
+            return False
+        if self.status == 'new':
+            return True
+        if self.status != 'in_progress':
+            return False
+        return (self.claimed_at is None
+                or timezone.now() - self.claimed_at > self.STALE_AFTER)
+
+    #: When the loop last took this item to work on.
+    #:
+    #: Without it, a run that died after setting 'in_progress' left the item
+    #: there forever: the loop only polled for 'new', so nothing ever picked
+    #: it up again, and the bell only counts finished items, so nothing ever
+    #: showed it either. One item sat invisible in that state for 14 days.
+    #: Null on an 'in_progress' row means a claim from before this existed,
+    #: which is treated as infinitely stale -- that is what rescues it.
+    claimed_at = models.DateTimeField(null=True, blank=True)
+
+    #: How many times the loop has taken this item.
+    #:
+    #: Requeueing a stale claim is only safe with a cap. An item that crashes
+    #: the run every time would otherwise be picked up, abandoned and picked
+    #: up again forever, blocking the queue behind it.
+    attempts = models.PositiveSmallIntegerField(default=0)
+
     #: When the submitter cleared this item out of their notification list.
     #:
     #: Deliberately NOT a delete. The queue is also the audit trail for an
