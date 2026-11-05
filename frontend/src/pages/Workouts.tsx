@@ -19,7 +19,6 @@ import SupersetCard, { type SupersetMember } from '../components/workout/Superse
 import {
   groupIntoUnits, compositeLabel, compositeRounds, compositeRest,
 } from '../lib/composites'
-import SupersetPicker from '../components/workout/SupersetPicker'
 import ConfirmModal from '../components/ConfirmModal'
 import TemplatePicker from '../components/workout/TemplatePicker'
 import { compressImage } from '../lib/imageUtils'
@@ -1248,7 +1247,6 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   const [editChatOpen, setEditChatOpen] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [progressFor, setProgressFor] = useState<string | null>(null)
-  const [supersetPickerOpen, setSupersetPickerOpen] = useState(false)
   const [pendingLogs, setPendingLogs] = useState<Record<string, PendingLog>>({})
   // Exercise cards collapse so a 7-exercise day is scannable. Only cards the
   // user has actually tapped are recorded here; everything else falls back to
@@ -1585,13 +1583,6 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
         <ExerciseDrawer exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
         {progressFor && <ExerciseDetailsModal name={progressFor} onClose={() => setProgressFor(null)} />}
-        {supersetPickerOpen && session.exercise_day && (
-          <SupersetPicker
-            dayId={session.exercise_day.id}
-            onClose={() => setSupersetPickerOpen(false)}
-            onSaved={() => api.workouts.getSession(session.id).then(setSession).catch(() => {})}
-          />
-        )}
         {session.plan_id && session.exercise_day && (
           <WorkoutChatDrawer
             isOpen={editChatOpen}
@@ -1624,16 +1615,8 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
 
         {exerciseEntries.length > 1 && (
           <div className="flex justify-end items-center gap-3 mb-2">
-            {/* Only offered while the session is editable and the day is a
-                real plan day — orphaned logs have no day to group. */}
-            {!isCompleted && session.exercise_day && (
-              <button
-                onClick={() => setSupersetPickerOpen(true)}
-                className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors"
-              >
-                ⟲ Supersets
-              </button>
-            )}
+            {/* No manual superset picker: pairings are chosen by the model
+                when it builds or edits the plan, so they follow its rules. */}
             <button
               onClick={() => setAllCards(openCount <= 1)}
               className="text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
