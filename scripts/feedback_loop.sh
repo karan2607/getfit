@@ -253,8 +253,14 @@ process_item() {
   # Start from a clean, current tree so one item's failure can't contaminate
   # the next, and so we never push a stale merge.
   if ! git -C "$REPO" diff --quiet || ! git -C "$REPO" diff --cached --quiet; then
-    log "  SKIP: working tree is dirty — refusing to touch it."
-    set_status "$id" skipped "Working tree was dirty; loop refused to run."
+    # Back to 'new', not 'skipped'.
+    #
+    # A dirty checkout is this runner's environment, not a judgement about
+    # the item -- and 'skipped' is a FINISHED state, so the item left the
+    # queue, lit the notification bell, and told you it had been considered
+    # and declined. Two real items were lost that way. It stays queued.
+    log "  REQUEUE: working tree is dirty — refusing to touch it."
+    set_status "$id" new "The runner's checkout had uncommitted changes, so nothing ran. Not your item's fault; it stays queued."
     return
   fi
   # Fail loudly on a missing branch rather than silently working on whatever
@@ -272,6 +278,32 @@ process_item() {
 
   local before
   before="$(git -C "$REPO" rev-parse HEAD)"
+
+  # A reply reopens the item rather than filing a new one, so by the time it
+  # comes back round there may be a conversation attached. Reading only
+  # `body` would re-implement the original request and lose the follow-up --
+  # which is the whole reason the thread exists.
+  local thread_block=""
+  local turns
+  turns="$(printf '%s' "$messages" | jq -r '
+    if type == "array" and length > 0 then
+      .[] | (if .role == "agent" then "YOU" else "USER" end) + ": " + .body
+    else empty end' 2>/dev/null)"
+  if [[ -n "$turns" ]]; then
+    thread_block="$(cat <<EOF
+
+THIS IS A CONTINUING CONVERSATION. The request above is where it started.
+What follows is every turn since, oldest first:
+
+$turns
+
+Address the LAST user message. The earlier turns are context: work you have
+already done is already committed, so do not redo it. If the last message
+says your previous fix did not work, treat your own earlier summary as a
+claim to re-check rather than a fact.
+EOF
+)"
+  fi
 
   # The read-only data check is OFF, and the prompt says so plainly.
   #
@@ -352,6 +384,21 @@ EOF
   # error -- so there was no way to tell an empty prompt from a mis-parsed
   # flag without reconstructing the call by hand. One line prevents that.
   log "  invoking claude: prompt=${#prompt} chars, ${#CLAUDE_ALLOWED_TOOLS[@]} allowed tool(s)"
+
+  # Never call claude with an empty prompt.
+  #
+  # `set -u` makes one unset variable inside that heredoc collapse the WHOLE
+  # prompt to nothing -- and that is exactly what happened: an edit deleted
+  # the block that builds $thread_block while leaving the reference to it, so
+  # every item failed with "Input must be provided ... when using --print".
+  # The queue read it as the agent declining to change anything and marked
+  # four items failed. An empty prompt is a bug in this script, so say so
+  # instead of blaming the item.
+  if [[ -z "$prompt" ]]; then
+    log "  ABORT: built an empty prompt — this is a bug in the runner, not the item"
+    set_status "$id" new "The runner built an empty prompt and did not call the agent. Not your item's fault; it stays queued."
+    return
+  fi
   claude_out="$(cd "$REPO" && claude -p "$prompt" \
     --allowedTools "${CLAUDE_ALLOWED_TOOLS[@]}" \
     --permission-prompts none \
