@@ -23,6 +23,7 @@ import SupersetPicker from '../components/workout/SupersetPicker'
 import ConfirmModal from '../components/ConfirmModal'
 import TemplatePicker from '../components/workout/TemplatePicker'
 import { compressImage } from '../lib/imageUtils'
+import { shouldPromptNextWeek } from '../lib/nextWeekPrompt'
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
 
@@ -895,15 +896,15 @@ function PlanDetail({ planId }: { planId: string }) {
   // before its days do.
   const nextWeekReady = (plan.weeks_ready ?? 0) > currentWeek
   const weekToPrepare = (plan.weeks_ready ?? 0) + 1
-  // Prompt once most of the week's training is done. Counting COMPLETED days
-  // rather than using a fixed day number, because a 3-day week and a 6-day
-  // week reach "nearly finished" at different points.
-  const completedThisWeek = currentWeekDays.filter(
-    (d) => !d.is_rest_day && d.last_completed_at,
-  ).length
-  const nearlyDone = trainingDays > 0 && completedThisWeek >= trainingDays - 1
-  const nextWeekPrompt =
-    currentWeek < maxWeek && (nearlyDone || nextWeekReady) && !plan.is_preparing
+  // Prompt only once every training day this week is done, so the week
+  // generated from it includes the last workout.
+  const nextWeekPrompt = shouldPromptNextWeek({
+    days: currentWeekDays,
+    currentWeek,
+    maxWeek,
+    nextWeekReady,
+    isPreparing: !!plan.is_preparing,
+  })
 
   return (
     <>
@@ -954,23 +955,22 @@ function PlanDetail({ planId }: { planId: string }) {
           <p className="text-sm text-gray-500 mb-6">{plan.description}</p>
         )}
 
-        {/* Prepare next week BEFORE the user finishes this one.
-            Generation takes real time, and doing it at Finish meant waiting
-            for it. The machinery already existed -- prepareNextWeek, with a
-            notes field for how the week went -- but nothing surfaced it near
-            the end of a week, so it was only found by scrolling to Upcoming
-            Weeks. Once the week is ready, Finish is just a state change. */}
+        {/* Prepare next week once this week's workouts are all logged, but
+            before the user presses Finish. Generation takes real time, and
+            doing it at Finish meant waiting for it. Waiting for the last
+            workout matters: next week is built from how this one went.
+            Once the week is ready, Finish is just a state change. */}
         {plan.is_active && nextWeekPrompt && (
           <div className="mb-6 rounded-2xl border border-accent-200 bg-accent-50 p-4">
             <p className="text-sm font-medium text-ink-600">
               {nextWeekReady
                 ? `Week ${currentWeek + 1} is ready`
-                : `Nearly done with week ${currentWeek}`}
+                : `Week ${currentWeek} done`}
             </p>
             <p className="text-sm text-ink-500 mt-1">
               {nextWeekReady
                 ? 'Finishing this week will take you straight into it.'
-                : 'Prepare next week now and it will be waiting when you finish. '
+                : 'Prepare next week now and it will be waiting when you press Finish. '
                   + 'Tell the coach how this week went and it will take that into account.'}
             </p>
             {!nextWeekReady && !showPrepare && (
