@@ -157,10 +157,14 @@ set_status() {
 # ---------------------------------------------------------------------------
 # The build gate.
 #
-# There is no staging environment, so this is the only thing between the loop
-# and a broken production deploy. Must pass before anything is pushed.
-# `npm run build` rather than a bare tsc: the project enables noUnusedLocals,
-# so the build catches errors the plain typecheck does not.
+# The last thing between an unattended agent and a push. It now runs what CI
+# runs: Django checks, migration drift, the backend suite, the frontend
+# build, the frontend unit tests, the palette guard and the 390px layout
+# gate. `npm run build` rather than a bare tsc because the project enables
+# noUnusedLocals, so the build catches what a plain typecheck does not.
+#
+# Pushes go to staging, which is promoted to production by hand -- so this
+# gate is not the last line of defence, but it is the only automatic one.
 # ---------------------------------------------------------------------------
 build_gate() {
   local out
@@ -178,6 +182,35 @@ $out"; return 1
   fi
   if ! out="$(cd "$REPO/frontend" && npm run build 2>&1 | tail -30)"; then
     GATE_ERROR="frontend build failed:
+$out"; return 1
+  fi
+  # The frontend gates the build alone does not cover.
+  #
+  # `npm run build` is `tsc -b && vite build`: it type-checks and bundles,
+  # and that is all. It ran clean on three frontend commits in one pass
+  # while the unit tests, the palette guard and the 390px gate never ran at
+  # all -- including on a change to the shared workout page. They passed
+  # when checked afterwards, which was luck, not a gate.
+  #
+  # The palette guard exists because the rebrand's green kept coming back
+  # one harmless-looking diff at a time, and the 390px gate exists because
+  # this app is used on a phone and a desktop render cannot show a nav
+  # covering an input. An unattended agent writing frontend code is exactly
+  # who those were built for.
+  if ! out="$(cd "$REPO/frontend" && npm run test 2>&1 | tail -30)"; then
+    GATE_ERROR="frontend unit tests failed:
+$out"; return 1
+  fi
+  if ! out="$(cd "$REPO/frontend" && npm run check:palette 2>&1 | tail -20)"; then
+    GATE_ERROR="palette guard failed:
+$out"; return 1
+  fi
+  # Playwright drives a real WebKit at 390x844 against a built preview, so
+  # it is the slowest check here by far. It still runs: the alternative is
+  # finding out from a screenshot on your phone, which is how both of
+  # tonight's layout bugs were found.
+  if ! out="$(cd "$REPO/frontend" && npm run test:e2e 2>&1 | tail -30)"; then
+    GATE_ERROR="390px layout gate failed:
 $out"; return 1
   fi
   GATE_ERROR=""
