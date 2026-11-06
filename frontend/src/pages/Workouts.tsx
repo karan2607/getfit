@@ -747,6 +747,9 @@ function PlanDetail({ planId }: { planId: string }) {
   const [showPrepare, setShowPrepare] = useState(false)
   const [prepareNote, setPrepareNote] = useState('')
   const [preparingNext, setPreparingNext] = useState(false)
+  // Mid-activation. Same reason as the plans list: the awaited POST gave no
+  // sign it had started, which read as a dead button.
+  const [activating, setActivating] = useState(false)
   const [preparingGuides, setPreparingGuides] = useState(false)
   const [startingDay, setStartingDay] = useState<string | null>(null)
   const [conflictSession, setConflictSession] = useState<{ id: string; dayName: string; targetDayId: string } | null>(null)
@@ -799,13 +802,18 @@ function PlanDetail({ planId }: { planId: string }) {
   }, {})
 
   async function handleActivate() {
-    if (!plan) return
+    if (!plan || activating) return
+    setActivating(true)
     try {
       const updated = await api.workouts.activatePlan(plan.id)
-      setPlan((p) => p ? { ...p, is_active: updated.is_active } : p)
+      // Merge the whole row, not just `is_active`: the server also sets
+      // `activated_at`, which was being thrown away here.
+      setPlan((p) => p ? { ...p, ...updated } : p)
       showToast('Plan activated')
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
+      setActivating(false)
     }
   }
 
@@ -935,8 +943,12 @@ function PlanDetail({ planId }: { planId: string }) {
               ✏️ Edit with AI
             </button>
             {!plan.is_active ? (
-              <button onClick={handleActivate} className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors">
-                Set active
+              <button
+                onClick={handleActivate}
+                disabled={activating}
+                className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 disabled:opacity-60 transition-colors"
+              >
+                {activating ? 'Activating…' : 'Set active'}
               </button>
             ) : (
               <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">Active</span>
@@ -2263,13 +2275,33 @@ function PlanList({
     }
   }
 
+  /*
+   * Which plan is mid-activation, or null.
+   *
+   * Nothing at all happened between the click and the POST resolving: the
+   * badge flipped and the toast fired only on the response, and the button
+   * stayed enabled meanwhile. Against a backend taking tens of seconds that
+   * is indistinguishable from a dead button -- it was reported as "no
+   * change on the page, then a delayed toast after navigating away". The
+   * state was always being updated; there was just no sign it had started.
+   */
+  const [activating, setActivating] = useState<string | null>(null)
+
   async function handleActivate(id: string) {
+    if (activating) return
+    setActivating(id)
     try {
       const updated = await api.workouts.activatePlan(id)
-      setPlans((prev) => prev.map((p) => ({ ...p, is_active: p.id === updated.id })))
+      // Merge the server's row for the plan that won, so `activated_at` and
+      // anything else it recalculated is not discarded.
+      setPlans((prev) => prev.map((p) => (
+        p.id === updated.id ? { ...p, ...updated } : { ...p, is_active: false }
+      )))
       showToast('Plan activated')
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
+      setActivating(null)
     }
   }
 
@@ -2310,9 +2342,10 @@ function PlanList({
                   {!plan.is_active && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleActivate(plan.id) }}
-                      className="text-xs text-white bg-accent-500 hover:bg-accent-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      disabled={activating !== null}
+                      className="text-xs text-white bg-accent-500 hover:bg-accent-600 disabled:opacity-60 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                     >
-                      Set active
+                      {activating === plan.id ? 'Activating…' : 'Set active'}
                     </button>
                   )}
                   <button

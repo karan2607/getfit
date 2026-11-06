@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { api, type WorkoutPlanDetail, type DietPlanDetail, type BodyScanResult, type WorkoutSessionSummary } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type DietPlanDetail, type BodyScanResult, type WorkoutSessionSummary } from '../lib/api'
 import PageHeader from '../components/PageHeader'
 import { LogoMark } from '../components/NavIcons'
 import { useToast } from '../components/Toast'
@@ -42,6 +42,8 @@ export default function Dashboard() {
   const [activeDiet, setActiveDiet] = useState<DietPlanDetail | null>(null)
   const [recentSessions, setRecentSessions] = useState<WorkoutSessionSummary[]>([])
   const [latestBodyScan, setLatestBodyScan] = useState<BodyScanResult | null>(null)
+  /** Every plan, so "none active" can be told apart from "none at all". */
+  const [savedPlans, setSavedPlans] = useState<WorkoutPlan[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -56,6 +58,11 @@ export default function Dashboard() {
       if (plansRes.status === 'fulfilled') {
         const active = plansRes.value.find((p) => p.is_active)
         if (active) secondary.push(api.workouts.getPlan(active.id).then(setActivePlan).catch(() => {}))
+        // Saved-but-inactive plans were discarded here, so a user with a
+        // plan they had not activated was told they had none at all -- and
+        // the only route out of that state is the Workouts page, which the
+        // "no plan" copy does not mention.
+        setSavedPlans(plansRes.value)
       }
       if (sessionsRes.status === 'fulfilled') {
         setRecentSessions(sessionsRes.value.slice(0, 5))
@@ -201,7 +208,14 @@ export default function Dashboard() {
         <StatCard
           label="Active Plan"
           value={activePlan ? '✓' : '—'}
-          sub={activePlan?.title ?? 'No workout plan'}
+          // Never "No workout plan" while one is saved: that was read as the
+          // plan having been lost, when it only needed activating.
+          sub={
+            activePlan?.title
+            ?? (savedPlans.length
+              ? `${savedPlans.length} saved, none active`
+              : 'No workout plan')
+          }
           color="purple"
         />
       </div>
@@ -266,6 +280,28 @@ export default function Dashboard() {
         ) : activePlan ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 text-sm text-gray-500">
             No session scheduled for today in your active plan.
+          </div>
+        ) : savedPlans.length > 0 ? (
+          /* Saved, but nothing active. Previously identical to having no
+             plan at all, which read as the plan having been lost -- and the
+             copy sent you off to create another one. */
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <h3 className="text-lg font-semibold text-ink-600">
+              {savedPlans.length === 1
+                ? 'Your plan is saved but not active'
+                : `${savedPlans.length} plans saved, none active`}
+            </h3>
+            <p className="text-sm text-gray-500 mt-1 mb-4">
+              {savedPlans.length === 1
+                ? `"${savedPlans[0].title}" is ready. Set it active to see today's workout here.`
+                : 'Set one active to see today’s workout here.'}
+            </p>
+            <Link
+              to="/workouts"
+              className="inline-flex items-center justify-center min-h-[44px] px-6 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
+            >
+              {savedPlans.length === 1 ? 'Set it active' : 'Choose a plan'}
+            </Link>
           </div>
         ) : (
           /* One card, one action. A new user previously met several
@@ -350,8 +386,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Empty state CTA if everything is blank */}
-      {!activePlan && !activeDiet && recentSessions.length === 0 && (
+      {/* Empty state CTA if everything is blank.
+          `savedPlans.length === 0` is part of "blank": a user with a saved
+          plan is not a new user, and this card repeated the same wrong
+          message the Today's Workout card used to -- so the page said "no
+          plan" twice over while one sat in the list. */}
+      {!activePlan && !activeDiet && savedPlans.length === 0
+        && recentSessions.length === 0 && (
         <div className="bg-gradient-to-br from-accent-50 to-accent-100 rounded-2xl p-6 text-center">
           <LogoMark className="mx-auto mb-2 text-accent-500" />
           <p className="font-bold text-gray-900 mb-1">Let's get started</p>
