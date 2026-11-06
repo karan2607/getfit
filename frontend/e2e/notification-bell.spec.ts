@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { signIn } from './signed-in'
 
 /**
  * The bell panel, at the width it opened wrong at.
@@ -14,12 +15,6 @@ import { expect, test, type Page } from '@playwright/test'
  * These assert GEOMETRY. "Looks fine on the page I happened to open" is the
  * exact failure mode being guarded against.
  */
-
-const PROFILE = {
-  id: 'p1', fitness_goal: 'lose_fat', experience_level: 'intermediate',
-  dietary_preference: 'vegetarian', preferred_unit: 'lb',
-  age: 31, gender: 'male', height_cm: 183, weight_kg: 90,
-}
 
 const THREAD = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -44,38 +39,15 @@ function many(n: number) {
   }))
 }
 
-async function signInAsSuperuser(page: Page, route: string, count = 1) {
-  await page.route('**/api/**', async (r) => {
-    const url = r.request().url()
-    const json = (body: unknown) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
-
-    if (url.includes('/api/auth/me/')) {
-      return json({
-        id: 'u1', email: 'admin@test.local', name: 'Admin',
-        is_superuser: true, profile: PROFILE,
-      })
-    }
-    if (url.includes('/api/profile')) return json(PROFILE)
-    if (url.includes('/api/feedback/notifications')) {
-      return json({ unseen: 2 * count, items: many(count) })
-    }
-    if (url.includes('/messages/')) return json(THREAD)
-    // List endpoints must come back as arrays. A blanket `{}` made Diet,
-    // Workouts and Sessions throw on `.map`, which blanked the whole page --
-    // including the header the bell lives in, so the gate was asserting
-    // against nothing at all.
-    if (/\/api\/(workouts\/plans|workouts\/sessions|diet\/plans|chat\/sessions|body\/scan\/history|meals|workouts\/templates)/.test(url)) {
-      return json([])
-    }
-    return json({})
-  })
-  await page.addInitScript(() => {
-    window.localStorage.setItem('token', 'gate-token')
-  })
-  await page.goto(route)
-  await page.waitForLoadState('networkidle')
-}
+/**
+ * The shared stub, as a superuser with a feedback backlog.
+ *
+ * This file used to carry its own copy, and the two drifted: only this one
+ * knew that list endpoints must return `[]`, which is why the other silently
+ * blanked Diet, Workouts and Sessions. One stub now, in signed-in.ts.
+ */
+const signInAsSuperuser = (page: Page, route: string, count = 1) =>
+  signIn(page, route, { superuser: true, feedback: many(count) })
 
 const bell = (page: Page) => page.getByLabel(/^Notifications/)
 
