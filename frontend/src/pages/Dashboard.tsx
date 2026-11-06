@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api, type WorkoutPlanDetail, type DietPlanDetail, type BodyScanResult, type WorkoutSessionSummary } from '../lib/api'
 import PageHeader from '../components/PageHeader'
+import { LogoMark } from '../components/NavIcons'
 import { useToast } from '../components/Toast'
 
 function StatCard({ label, value, sub, color = 'emerald' }: {
@@ -166,7 +167,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title={`Hey, ${firstName} 👋`} subtitle={todayDay} />
+      <PageHeader title={`Hey, ${firstName}`} subtitle={todayDay} />
       <div className="p-4 md:p-6 max-w-2xl">
 
       {/* Quick stats */}
@@ -352,7 +353,7 @@ export default function Dashboard() {
       {/* Empty state CTA if everything is blank */}
       {!activePlan && !activeDiet && recentSessions.length === 0 && (
         <div className="bg-gradient-to-br from-accent-50 to-accent-100 rounded-2xl p-6 text-center">
-          <div className="text-3xl mb-2">🚀</div>
+          <LogoMark className="mx-auto mb-2 text-accent-500" />
           <p className="font-bold text-gray-900 mb-1">Let's get started</p>
           <p className="text-sm text-gray-600 mb-4">Set up your workout plan and diet to see your progress here.</p>
           <div className="flex gap-3 justify-center flex-wrap">

@@ -1,24 +1,37 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ComponentType } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import {
+  HomeIcon, ChatIcon, WorkoutsIcon, SessionsIcon, DietIcon, HealthIcon,
+  ScannerIcon, ProfileIcon, LogoMark,
+} from './NavIcons'
 
 interface NavItem {
   to: string
   label: string
-  icon: string
+  /*
+   * A component, not a string.
+   *
+   * These were emoji rendered as text, which is why the sidebar ignored the
+   * active colour entirely: emoji are font glyphs drawn in the platform's own
+   * multi-colour bitmap, so `currentColor` does not reach them. The bottom
+   * nav was moved to drawn icons and this was left behind, so the two navs
+   * disagreed about what the app looked like.
+   */
+  Icon: ComponentType<{ className?: string }>
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { to: '/chat', label: 'AI Trainer', icon: '💬' },
-  { to: '/workouts', label: 'Workouts', icon: '🏋️' },
+  { to: '/dashboard', label: 'Dashboard', Icon: HomeIcon },
+  { to: '/chat', label: 'AI Trainer', Icon: ChatIcon },
+  { to: '/workouts', label: 'Workouts', Icon: WorkoutsIcon },
   // Existed as a route and was in neither nav: reachable only by
   // guessing the URL.
-  { to: '/sessions', label: 'Session History', icon: '📋' },
-  { to: '/diet', label: 'Diet', icon: '🥗' },
-  { to: '/health', label: 'Health Sync', icon: '❤️' },
-  { to: '/body', label: 'Body Scanner', icon: '📷' },
-  { to: '/profile', label: 'Profile', icon: '👤' },
+  { to: '/sessions', label: 'Session History', Icon: SessionsIcon },
+  { to: '/diet', label: 'Diet', Icon: DietIcon },
+  { to: '/health', label: 'Health Sync', Icon: HealthIcon },
+  { to: '/body', label: 'Body Scanner', Icon: ScannerIcon },
+  { to: '/profile', label: 'Profile', Icon: ProfileIcon },
 ]
 
 export default function Sidebar() {
@@ -56,7 +69,7 @@ export default function Sidebar() {
     <div className="flex flex-col h-full bg-ink-600 text-white border-r border-ink-500">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-6 overflow-hidden">
-        <span className="text-2xl flex-shrink-0">💪</span>
+        <LogoMark className="flex-shrink-0 text-accent-500" />
         {isOpen && (
           <span className="text-lg font-bold tracking-tight whitespace-nowrap text-white">GetFit</span>
         )}
@@ -70,14 +83,21 @@ export default function Sidebar() {
             to={item.to}
             onClick={() => isMobile && setIsOpen(false)}
             className={({ isActive }) =>
+              /*
+               * `text-accent-500` on the whole row, matching BottomNav, so
+               * the icon and the label change together. The old treatment
+               * was a filled `bg-brand-500` pill, which the icon could not
+               * participate in while it was an emoji -- the two navs
+               * signalled "active" in two different ways for that reason.
+               */
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors overflow-hidden
-               ${isActive ? 'bg-brand-500 text-white' : 'text-gray-200 hover:bg-ink-400 hover:text-white'}
+               ${isActive ? 'bg-ink-500 text-accent-500' : 'text-ink-100 hover:bg-ink-400 hover:text-white'}
                ${!isOpen ? 'justify-center px-0' : ''}
               `
             }
             title={!isOpen ? item.label : undefined}
           >
-            <span className="text-lg flex-shrink-0">{item.icon}</span>
+            <item.Icon className="flex-shrink-0" />
             {isOpen && <span className="whitespace-nowrap">{item.label}</span>}
           </NavLink>
         ))}

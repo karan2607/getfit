@@ -24,6 +24,28 @@ const BANNED = [
   },
 ]
 
+/**
+ * Emoji in the chrome, which is a colour problem as much as a brand one.
+ *
+ * Emoji are font glyphs drawn in the platform's own multi-colour bitmap, so
+ * `currentColor` never reaches them: the sidebar's active state could not
+ * tint its own icons while they were emoji, and the two navs ended up
+ * signalling "active" two different ways. They also differ per OS, and the
+ * two that carried a variation selector rendered as a dingbat box on some
+ * Android builds.
+ *
+ * Scoped to the navigation and the shared header rather than all of `src`,
+ * because an emoji in body copy is a writing choice, not a palette break.
+ */
+const CHROME = [
+  'src/components/NavIcons.tsx',
+  'src/components/Sidebar.tsx',
+  'src/components/BottomNav.tsx',
+  'src/components/PageHeader.tsx',
+]
+const EMOJI =
+  /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F000}-\u{1F2FF}]/gu
+
 function walk(dir) {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry)
@@ -39,6 +61,16 @@ for (const file of files) {
     for (const match of text.matchAll(re)) {
       const line = text.slice(0, match.index).split('\n').length
       problems.push(file + ':' + line + '  ' + match[0] + '  — ' + why)
+    }
+  }
+  if (CHROME.includes(file)) {
+    for (const match of text.matchAll(EMOJI)) {
+      const line = text.slice(0, match.index).split('\n').length
+      problems.push(
+        file + ':' + line + '  ' + match[0]
+          + '  — emoji ignore currentColor, so the active state cannot tint'
+          + ' them; draw an icon in NavIcons.tsx instead',
+      )
     }
   }
 }

@@ -1,12 +1,16 @@
 /*
- * Line icons for the bottom nav, replacing emoji.
+ * Line icons for both navs, replacing emoji.
  *
  * Emoji were not just off-brand. They are font glyphs, so they render in the
  * platform's own multi-colour bitmap and ignore `currentColor` entirely --
  * which meant the active tab's orange applied to the label and not to the
  * icon above it, and the bar looked the same whichever tab you were on. They
- * also differ per OS, and ❤️ and 🏋️ carry a variation selector that some
- * Android builds render as a dingbat box.
+ * also differ per OS, and the heart and dumbbell glyphs carried a variation
+ * selector that some Android builds render as a dingbat box.
+ *
+ * (Named rather than shown: check-palette.mjs bans emoji in this file and
+ * both navs outright, and a guard its own subject cannot satisfy is a guard
+ * people switch off.)
  *
  * One 24x24 grid, 1.5 stroke, round caps, no fills: the active state is then
  * a single colour change on both halves of the item.
@@ -75,6 +79,52 @@ export function ProfileIcon(p: IconProps) {
     <svg {...base} {...p} aria-hidden="true">
       <circle cx="12" cy="8.5" r="3.5" />
       <path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" />
+    </svg>
+  )
+}
+
+/*
+ * The sidebar carries two items the bottom nav does not, so these exist for
+ * it alone -- without them those two rows were the only emoji left and the
+ * set looked half-finished.
+ */
+
+/** Session History. A clock reads as "past", where a list would echo Diet. */
+export function SessionsIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p} aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  )
+}
+
+/** Body Scanner. It takes a photo, so a camera rather than scan brackets. */
+export function ScannerIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p} aria-hidden="true">
+      <path d="M3.5 8.5h3l1.5-2h8l1.5 2h3v10h-17Z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </svg>
+  )
+}
+
+/**
+ * The app mark, replacing the flexed-bicep emoji that was the logo.
+ *
+ * Deliberately not a dumbbell: that is WorkoutsIcon, and a logo that
+ * duplicates a nav item reads as a seventh tab. A bolt is distinct from all
+ * eight and is the one glyph here allowed a fill, because it is a brand mark
+ * rather than a control.
+ */
+export function LogoMark({ className }: IconProps) {
+  return (
+    <svg
+      width={26} height={26} viewBox="0 0 24 24"
+      fill="currentColor" stroke="none"
+      className={className} aria-hidden="true"
+    >
+      <path d="M13.2 2.5 5.5 13.4h5l-1.7 8.1 8.7-11.6h-5.2Z" />
     </svg>
   )
 }
