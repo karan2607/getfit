@@ -355,6 +355,32 @@ class MachineShoulderPressTests(SimpleTestCase):
             'smith machine overhead shoulder press')
 
 
+class WeightedDipTests(SimpleTestCase):
+    """
+    "Weighted dips also has wrong photos". 'weighted' + 'dip' scored highest
+    against "weighted bench dip", so a bar dip was shown as a bench dip.
+    """
+
+    KEY = 'dips - chest version'
+
+    def test_bar_dips_resolve_to_a_bar_dip(self):
+        for name in ('Weighted Dips', 'Weighted Dip', 'Dips',
+                     'Weighted Dips (Belt)'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_the_bench_dip_is_rejected(self):
+        self.assertFalse(views._kb_key_is_consistent(
+            'Weighted Dips', 'weighted bench dip'))
+        self.assertEqual(views._get_kb_candidates('Weighted Dips'), [self.KEY])
+
+    def test_bench_dips_still_match_themselves(self):
+        self.assertEqual(views._resolve_kb_key('Weighted Bench Dip')[0],
+                         'weighted bench dip')
+        self.assertEqual(views._resolve_kb_key('Bench Dips')[0], 'bench dips')
+        self.assertEqual(views._resolve_kb_key('Dip Machine')[0], 'dip machine')
+        self.assertEqual(views._resolve_kb_key('Ring Dips')[0], 'ring dips')
+
+
 class CachedGuideImageTests(APITestCase):
     """A guide cached before an alias existed must not keep its wrong photos."""
 

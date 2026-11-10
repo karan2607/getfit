@@ -4207,6 +4207,16 @@ _KB_ALIASES = {
     'seated machine shoulder press': 'machine shoulder (military) press',
     'machine overhead press': 'machine shoulder (military) press',
     'overhead press machine': 'machine shoulder (military) press',
+    # "Weighted Dips" shares 'weighted' and 'dip' with "weighted bench dip",
+    # which outscored every bar-dip key -- so a belt-loaded dip on parallel
+    # bars was illustrated with hands-behind-on-a-bench photos. Plain "Dips"
+    # fell to "bench dips" the same way. Reported: "Weighted dips also has
+    # wrong photos".
+    'weighted dips': 'dips - chest version',
+    'weighted dip': 'dips - chest version',
+    'weighted chest dips': 'dips - chest version',
+    'dips': 'dips - chest version',
+    'dip': 'dips - chest version',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.
