@@ -383,7 +383,15 @@ export default function NotificationBell() {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto">
+              {/* The cap is on the scroller ITSELF, not inherited. It used to
+                  rely on flex-1/min-h-0 passing the panel's max-height down
+                  through the track and the pane -- but a max-height is not a
+                  definite height, and WebKit (every iPhone browser) does not
+                  carry it through a stretched pane. So the list grew to its
+                  full length, the panel's overflow-hidden clipped it, nothing
+                  scrolled, and a drag that went nowhere landed as a press on
+                  the row. 3rem covers the header row above. */}
+              <div className="flex-1 min-h-0 max-h-[calc(70vh-3rem)] overflow-y-auto overscroll-contain">
                 {items.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-gray-400 text-center">
                     Nothing here. You'll see items as the automation picks them up.
