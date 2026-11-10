@@ -4197,6 +4197,16 @@ _KB_ALIASES = {
     'reverse pec deck': 'reverse machine flyes',
     'reverse fly machine': 'reverse machine flyes',
     'machine reverse fly': 'reverse machine flyes',
+    # A selectorised shoulder press shares every token with "smith machine
+    # overhead shoulder press", and the AI was told to prefer the most specific
+    # key containing all the name's words -- so it picked the Smith one and
+    # illustrated a barbell in a rack. Reported: "Machine shoulder press shows
+    # wrong exercise photos".
+    'machine shoulder press': 'machine shoulder (military) press',
+    'shoulder press machine': 'machine shoulder (military) press',
+    'seated machine shoulder press': 'machine shoulder (military) press',
+    'machine overhead press': 'machine shoulder (military) press',
+    'overhead press machine': 'machine shoulder (military) press',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.
@@ -4302,6 +4312,14 @@ def exercise_guide(request):
             logger.info('exercise_guide: DB hit for %r (personalised=%s)',
                         name, cached.user_id is not None)
             payload = dict(cached.data)
+            # The cached images were chosen by whatever rules applied when the
+            # row was written. An alias is authoritative -- regenerating would
+            # produce exactly its images -- so apply it on read rather than
+            # serving a wrong photo until the row happens to be rebuilt.
+            alias = _alias_for(name)
+            kb = _load_exercise_kb()
+            if alias and alias in kb:
+                payload['images'] = kb[alias][:2]
             payload.update(advice)
             payload['measurement_type'] = measurement_type
             payload['unit'] = unit

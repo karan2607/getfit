@@ -22,8 +22,12 @@ Plus: `_kb_stem('press')` returned 'pres', so 'press' never matched
 """
 
 from django.test import SimpleTestCase
+from django.urls import reverse
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from api import views
+from api.models import ExerciseGuide, User
 
 
 class StemmerTests(SimpleTestCase):
@@ -315,3 +319,71 @@ class ReportedImageRegressionTests(SimpleTestCase):
 
     def test_superman_itself_still_matches(self):
         self.assertEqual(views._resolve_kb_key('Superman')[0], 'superman')
+
+
+class MachineShoulderPressTests(SimpleTestCase):
+    """
+    "Machine shoulder press shows wrong exercise photos". `smith machine
+    overhead shoulder press` contains every word of the name, so the AI --
+    told to prefer the most specific such key -- picked a barbell in a Smith
+    rack, and the consistency check (modifiers only) let it through.
+    """
+
+    KEY = 'machine shoulder (military) press'
+
+    def test_resolves_to_the_machine_entry(self):
+        for name in ('Machine Shoulder Press', 'Shoulder Press Machine',
+                     'Seated Machine Shoulder Press', 'Machine Overhead Press'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_the_smith_key_is_rejected(self):
+        self.assertFalse(views._kb_key_is_consistent(
+            'Machine Shoulder Press', 'smith machine overhead shoulder press'))
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise(
+                'Machine Shoulder Press', 'smith machine overhead shoulder press'),
+            kb[self.KEY][:2])
+
+    def test_smith_key_is_not_offered_to_the_ai(self):
+        self.assertEqual(views._get_kb_candidates('Machine Shoulder Press'),
+                         [self.KEY])
+
+    def test_the_smith_exercise_still_matches_itself(self):
+        self.assertEqual(
+            views._resolve_kb_key('Smith Machine Overhead Shoulder Press')[0],
+            'smith machine overhead shoulder press')
+
+
+class CachedGuideImageTests(APITestCase):
+    """A guide cached before an alias existed must not keep its wrong photos."""
+
+    def setUp(self):
+        user = User.objects.create_user(email='img@test.local', password='x')
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.kb = views._load_exercise_kb()
+
+    def test_cached_smith_photos_are_replaced_on_read(self):
+        ExerciseGuide.objects.create(
+            user=None, name='Machine Shoulder Press',
+            data={'steps': ['a'], 'muscles': ['Shoulders'], 'tips': ['t'],
+                  'category': 'press',
+                  'images': self.kb['smith machine overhead shoulder press'][:2],
+                  'advice_version': views.ADVICE_VERSION})
+        res = self.client.get(reverse('exercise-guide'),
+                              {'name': 'Machine Shoulder Press'})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['images'],
+                         self.kb['machine shoulder (military) press'][:2])
+
+    def test_unaliased_cached_images_are_left_alone(self):
+        images = self.kb['barbell bench press - medium grip'][:2]
+        ExerciseGuide.objects.create(
+            user=None, name='Barbell Bench Press',
+            data={'steps': ['a'], 'images': images,
+                  'advice_version': views.ADVICE_VERSION})
+        res = self.client.get(reverse('exercise-guide'),
+                              {'name': 'Barbell Bench Press'})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['images'], images)
