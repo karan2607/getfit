@@ -93,6 +93,11 @@ REPLACES = {
 _FLOAT_SET_FIELDS = frozenset((
     'weight_kg', 'speed_kmh', 'incline_pct', 'distance_m'))
 
+# Fields that may go below zero. Weight does: an assisted dip or pull-up machine
+# takes load OFF, and the user logs that as e.g. -20 kg. Flooring it at zero
+# recorded every assisted set as unassisted bodyweight.
+_SIGNED_SET_FIELDS = frozenset(('weight_kg',))
+
 ALL_SET_FIELDS = (
     'weight_kg', 'reps_completed', 'duration_seconds',
     # Canonical units, converted for display exactly as weight_kg is:
@@ -577,7 +582,9 @@ def coerce_set_fields(measurement_type, values):
             out[field] = None
             continue
         try:
-            if field in _FLOAT_SET_FIELDS:
+            if field in _SIGNED_SET_FIELDS:
+                out[field] = float(raw)
+            elif field in _FLOAT_SET_FIELDS:
                 out[field] = max(0.0, float(raw))
             else:
                 out[field] = max(0, int(round(float(raw))))

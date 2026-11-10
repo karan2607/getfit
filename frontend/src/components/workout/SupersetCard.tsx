@@ -188,7 +188,8 @@ export default function SupersetCard({
                                 </p>
                               ) : (
                                 <input
-                                  type="number" min={0}
+                                  type="number"
+                                  min={field === 'weight_kg' ? undefined : 0}
                                   step={field === 'weight_kg'
                                     || (field === 'duration_seconds' && timeUnit === 'min')
                                     ? 0.5 : 1}

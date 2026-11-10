@@ -1863,7 +1863,9 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                 return (
                                   <input
                                     key={field}
-                                    type="number" min={0}
+                                    // Weight may be negative: an assisted
+                                    // dip/pull-up machine takes load off.
+                                    type="number" min={field === 'weight_kg' ? undefined : 0}
                                     step={field === 'weight_kg' || (field === 'duration_seconds' && timeUnit === 'min') ? 0.5 : 1}
                                     placeholder="0"
                                     value={display ?? ''}

@@ -387,6 +387,13 @@ class FieldContractTests(SimpleTestCase):
         self.assertEqual(out['speed_kmh'], 0.0)
         self.assertEqual(out['incline_pct'], 0.0)
 
+    def test_negative_weight_is_kept_for_assisted_sets(self):
+        """An assisted dip/pull-up machine is logged as negative weight."""
+        out = et.coerce_set_fields(
+            et.WEIGHT_REPS, {'weight_kg': '-20', 'reps_completed': 8})
+        self.assertEqual(out['weight_kg'], -20.0)
+        self.assertEqual(out['reps_completed'], 8)
+
     def test_integers_are_coerced_and_floored_at_zero(self):
         out = et.coerce_set_fields(et.DURATION, {'duration_seconds': '60.7'})
         self.assertEqual(out['duration_seconds'], 61)
