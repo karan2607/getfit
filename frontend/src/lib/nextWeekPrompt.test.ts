@@ -18,8 +18,15 @@ describe('shouldPromptNextWeek', () => {
     expect(shouldPromptNextWeek({ ...base, days: [done, rest, done, rest] })).toBe(true)
   })
 
-  it('still reports a week that is already ready', () => {
-    expect(shouldPromptNextWeek({ ...base, nextWeekReady: true, days: [done, todo] })).toBe(true)
+  it('does not announce a ready next week at the start of a fresh week', () => {
+    // The reported bug: finishing week 5 opened week 6 with "Week 7 is
+    // ready" because week 7 already existed.
+    expect(shouldPromptNextWeek({ ...base, currentWeek: 6, nextWeekReady: true, days: [todo, rest, todo] })).toBe(false)
+    expect(shouldPromptNextWeek({ ...base, nextWeekReady: true, days: [done, todo] })).toBe(false)
+  })
+
+  it('reports a ready next week once this week is done', () => {
+    expect(shouldPromptNextWeek({ ...base, nextWeekReady: true, days: [done, rest, done] })).toBe(true)
   })
 
   it('stays hidden while preparing, in the last week, or with no training days', () => {

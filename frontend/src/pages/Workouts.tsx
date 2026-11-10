@@ -966,71 +966,6 @@ function PlanDetail({ planId }: { planId: string }) {
           <p className="text-sm text-gray-500 mb-6">{plan.description}</p>
         )}
 
-        {/* Prepare next week once this week's workouts are all logged, but
-            before the user presses Finish. Generation takes real time, and
-            doing it at Finish meant waiting for it. Waiting for the last
-            workout matters: next week is built from how this one went.
-            Once the week is ready, Finish is just a state change. */}
-        {plan.is_active && nextWeekPrompt && (
-          <div className="mb-6 rounded-2xl border border-accent-200 bg-accent-50 p-4">
-            <p className="text-sm font-medium text-ink-600">
-              {nextWeekReady
-                ? `Week ${currentWeek + 1} is ready`
-                : `Week ${currentWeek} done`}
-            </p>
-            <p className="text-sm text-ink-500 mt-1">
-              {nextWeekReady
-                ? 'Finishing this week will take you straight into it.'
-                : 'Prepare next week now and it will be waiting when you press Finish. '
-                  + 'Tell the coach how this week went and it will take that into account.'}
-            </p>
-            {!nextWeekReady && !showPrepare && (
-              <button
-                type="button"
-                onClick={() => setShowPrepare(true)}
-                className="mt-3 inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
-              >
-                Prepare week {weekToPrepare}
-              </button>
-            )}
-
-            {!nextWeekReady && showPrepare && (
-              <div className="mt-3">
-                {/* The note is the point. Week N+1 is generated from the plan
-                    so far plus whatever the user says here, so "my shoulder
-                    was sore all week" reaches the model that writes it. */}
-                <label className="block text-xs font-medium text-ink-500 mb-1">
-                  How did this week go? (optional)
-                </label>
-                <textarea
-                  value={prepareNote}
-                  onChange={(e) => setPrepareNote(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. shoulder was sore on pressing days, squats felt easy"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    disabled={preparingNext}
-                    onClick={handlePrepareNextWeek}
-                    className="min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-sm font-medium"
-                  >
-                    {preparingNext ? 'Preparing…' : `Prepare week ${weekToPrepare}`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowPrepare(false)}
-                    className="min-h-[44px] px-4 rounded-full border border-gray-300 text-sm font-medium text-gray-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Current week days */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -1126,6 +1061,71 @@ function PlanDetail({ planId }: { planId: string }) {
             ))}
           </div>
         </div>
+
+        {/* Prepare next week at the end of the week, once its workouts are
+            all logged, but before the user presses Finish. Generation takes
+            real time, and doing it at Finish meant waiting for it. Waiting
+            for the last workout matters: next week is built from how this
+            one went. Once the week is ready, Finish is just a state change. */}
+        {plan.is_active && nextWeekPrompt && (
+          <div className="mb-6 rounded-2xl border border-accent-200 bg-accent-50 p-4">
+            <p className="text-sm font-medium text-ink-600">
+              {nextWeekReady
+                ? `Week ${currentWeek + 1} is ready`
+                : `Week ${currentWeek} done`}
+            </p>
+            <p className="text-sm text-ink-500 mt-1">
+              {nextWeekReady
+                ? 'Finishing this week will take you straight into it.'
+                : 'Prepare next week now and it will be waiting when you press Finish. '
+                  + 'Tell the coach how this week went and it will take that into account.'}
+            </p>
+            {!nextWeekReady && !showPrepare && (
+              <button
+                type="button"
+                onClick={() => setShowPrepare(true)}
+                className="mt-3 inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium"
+              >
+                Prepare week {weekToPrepare}
+              </button>
+            )}
+
+            {!nextWeekReady && showPrepare && (
+              <div className="mt-3">
+                {/* The note is the point. Week N+1 is generated from the plan
+                    so far plus whatever the user says here, so "my shoulder
+                    was sore all week" reaches the model that writes it. */}
+                <label className="block text-xs font-medium text-ink-500 mb-1">
+                  How did this week go? (optional)
+                </label>
+                <textarea
+                  value={prepareNote}
+                  onChange={(e) => setPrepareNote(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. shoulder was sore on pressing days, squats felt easy"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    disabled={preparingNext}
+                    onClick={handlePrepareNextWeek}
+                    className="min-h-[44px] px-5 rounded-full bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white text-sm font-medium"
+                  >
+                    {preparingNext ? 'Preparing…' : `Prepare week ${weekToPrepare}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrepare(false)}
+                    className="min-h-[44px] px-4 rounded-full border border-gray-300 text-sm font-medium text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Other weeks (collapsed) */}
         {hasRepeatWeeks && (

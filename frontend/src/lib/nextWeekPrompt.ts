@@ -8,6 +8,9 @@
  * until every training day is done. Logging that last day normally starts
  * preparation server-side anyway; the banner then reports it as ready, and
  * the manual Prepare button is a fallback for when that did not happen.
+ *
+ * A next week that already exists does not skip that wait: it used to, and
+ * right after finishing week 5 the fresh week 6 opened with "Week 7 is ready".
  */
 export interface PromptDay {
   is_rest_day: boolean
@@ -21,9 +24,8 @@ export function shouldPromptNextWeek(opts: {
   nextWeekReady: boolean
   isPreparing: boolean
 }): boolean {
-  const { days, currentWeek, maxWeek, nextWeekReady, isPreparing } = opts
+  const { days, currentWeek, maxWeek, isPreparing } = opts
   if (currentWeek >= maxWeek || isPreparing) return false
-  if (nextWeekReady) return true
   const training = days.filter((d) => !d.is_rest_day)
   return training.length > 0 && training.every((d) => d.last_completed_at)
 }
