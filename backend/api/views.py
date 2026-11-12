@@ -3941,7 +3941,8 @@ _MOVEMENT_WORDS = {'curl', 'press', 'row', 'pull', 'push', 'squat', 'deadlift', 
 # Modifiers that change WHICH MUSCLE the exercise trains. If one of these appears
 # on only one side of a comparison, the two exercises are different movements no
 # matter how many tokens they share -- a "lateral raise" is not a "lying REAR
-# lateral raise", and a chest-supported row is not a LYING row.
+# lateral raise", and a standing T-bar row is not a LYING T-bar row. (A
+# chest-supported row IS the lying version; _KB_ALIASES maps those names.)
 #
 # Token overlap alone could not catch this: the extra word only cost a little
 # precision, so "dumbbell lying rear lateral raise" still outscored the correct
@@ -4241,6 +4242,36 @@ _KB_ALIASES = {
     'weighted chest dips': 'dips - chest version',
     'dips': 'dips - chest version',
     'dip': 'dips - chest version',
+    # A chest-supported row is done lying face-down on a pad, and nothing in
+    # these names says so to the matcher. "Chest-Supported T-Bar Row" fell to
+    # the standing, bent-over "t-bar row with handle"; plain "Chest Supported
+    # Row" shared only 'row' and fell to "inverted row" (bodyweight, under a
+    # bar). The KB's prone versions carry 'lying'/'incline' in their names, so
+    # the flipping-modifier rule ruled them out. Reported: "Chest supported
+    # rows also has wrong images".
+    'chest supported t-bar row': 'lying t-bar row',
+    'chest supported t-bar rows': 'lying t-bar row',
+    'chest-supported t-bar row': 'lying t-bar row',
+    'chest-supported t-bar rows': 'lying t-bar row',
+    'chest supported t bar row': 'lying t-bar row',
+    'chest-supported t bar row': 'lying t-bar row',
+    't-bar row (chest supported)': 'lying t-bar row',
+    't-bar rows (chest supported)': 'lying t-bar row',
+    't-bar row (chest-supported)': 'lying t-bar row',
+    'chest supported dumbbell row': 'dumbbell incline row',
+    'chest supported dumbbell rows': 'dumbbell incline row',
+    'chest-supported dumbbell row': 'dumbbell incline row',
+    'chest-supported dumbbell rows': 'dumbbell incline row',
+    'dumbbell row (chest supported)': 'dumbbell incline row',
+    'chest supported machine row': 'leverage iso row',
+    'chest-supported machine row': 'leverage iso row',
+    'chest supported row machine': 'leverage iso row',
+    'chest supported row (machine)': 'leverage iso row',
+    'chest-supported row (machine)': 'leverage iso row',
+    'chest supported row': 'dumbbell incline row',
+    'chest supported rows': 'dumbbell incline row',
+    'chest-supported row': 'dumbbell incline row',
+    'chest-supported rows': 'dumbbell incline row',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.

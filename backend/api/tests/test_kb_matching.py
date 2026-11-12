@@ -160,12 +160,10 @@ class ResolutionTests(SimpleTestCase):
              'standing dumbbell triceps extension'),
         ])
 
-    def test_chest_supported_row_is_not_the_lying_version(self):
-        for name in ('Chest Supported T-Bar Row', 'Chest-Supported T-Bar Row',
-                     'T-Bar Row (Chest Supported)'):
-            key, _ = views._resolve_kb_key(name)
-            self.assertIsNotNone(key, msg=name)
-            self.assertNotIn('lying', key, msg=name)
+    def test_plain_t_bar_row_is_not_the_lying_version(self):
+        key, _ = views._resolve_kb_key('T-Bar Row')
+        self.assertIsNotNone(key)
+        self.assertNotIn('lying', key)
 
     def test_dumbbell_row_is_not_the_incline_version(self):
         key, _ = views._resolve_kb_key('Dumbbell Rows')
@@ -407,6 +405,44 @@ class GluteHamRaiseTests(SimpleTestCase):
     def test_a_related_ai_key_is_still_accepted(self):
         self.assertTrue(views._kb_key_is_consistent(
             'Glute-Ham Raise (GHR)', 'natural glute ham raise'))
+
+
+class ChestSupportedRowTests(SimpleTestCase):
+    """
+    "Chest supported rows also has wrong images". Nothing in the names said
+    "face-down on a pad", so they matched standing or hanging rows.
+    """
+
+    def test_each_variant_resolves_to_a_prone_row(self):
+        cases = [
+            ('Chest-Supported T-Bar Row', 'lying t-bar row'),
+            ('Chest Supported T-Bar Row', 'lying t-bar row'),
+            ('T-Bar Row (Chest Supported)', 'lying t-bar row'),
+            ('T-Bar Rows (Chest Supported)', 'lying t-bar row'),
+            ('Chest-Supported Dumbbell Row', 'dumbbell incline row'),
+            ('Chest Supported Row (Dumbbell)', 'dumbbell incline row'),
+            ('Chest Supported Machine Row', 'leverage iso row'),
+            ('Chest Supported Row (Machine)', 'leverage iso row'),
+            ('Chest Supported Rows', 'dumbbell incline row'),
+            ('Chest-Supported Row', 'dumbbell incline row'),
+        ]
+        for name, expected in cases:
+            self.assertEqual(views._resolve_kb_key(name)[0], expected, msg=name)
+
+    def test_ai_picking_a_standing_or_hanging_row_is_rejected(self):
+        for wrong in ('t-bar row with handle', 'inverted row',
+                      'one-arm dumbbell row', 'smith machine bent over row'):
+            self.assertFalse(views._kb_key_is_consistent(
+                'Chest-Supported T-Bar Row', wrong), msg=wrong)
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise('Chest-Supported T-Bar Row',
+                                       't-bar row with handle'),
+            kb['lying t-bar row'][:2])
+
+    def test_unsupported_rows_are_unchanged(self):
+        self.assertEqual(views._resolve_kb_key('Inverted Row')[0], 'inverted row')
+        self.assertIsNone(views._alias_for('Single Arm Dumbbell Row (Supported)'))
 
 
 class CachedGuideImageTests(APITestCase):
