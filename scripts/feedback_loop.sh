@@ -157,62 +157,150 @@ set_status() {
 # ---------------------------------------------------------------------------
 # The build gate.
 #
-# The last thing between an unattended agent and a push. It now runs what CI
+# ---------------------------------------------------------------------------
+# Every stage is timed and every stage has a ceiling.
+#
+# WHY: on Nov 11 one pass held the lock for 22 hours and 45 minutes. The Mac
+# had 16.5GB of its 17.4GB swap in use and a load average of 104, so the
+# frontend unit tests -- 9 seconds on an idle machine -- reported
+# "Duration 3245.38s (transform 9641s, import 12835s, tests 120s)". Only 120s
+# of that was running tests; the rest was page-fault wait. The backend suite
+# was still going after two and a half hours. Five submissions queued up
+# behind it and nothing said why, because a stage that HANGS logged nothing:
+# only a stage that failed did.
+#
+# So a slow machine must fail an item, not silence the queue. Two changes:
+# log the elapsed seconds of every stage whether it passes or not, and kill
+# any stage that exceeds its ceiling. The ceilings are 3-6x the measured
+# healthy cost (below), which is wide enough that a merely busy machine still
+# passes and narrow enough that the worst case is about 70 minutes instead of
+# a day.
+#
+# Measured on an idle machine, 2026-11-09:
+#   django check 5s | makemigrations --check 3s | backend tests 510s
+#   npm run build 11s | vitest 9s | palette 1s | playwright 40s   (~10 min)
+#
+# A timeout is NOT a code failure. GATE_ERROR says so explicitly, because the
+# alternative is what already happened once: a thrashing machine timed out
+# the frontend tests, the gate called it a test failure, and the rollback
+# deleted a migration and two component directories for work that was
+# probably fine.
+# ---------------------------------------------------------------------------
+
+# macOS ships no timeout(1) and the plist's PATH deliberately lists only what
+# the runner needs, so this is bash and pgrep rather than coreutils.
+#
+# Killing the subshell alone is not enough: `npm run test` is npm, which
+# forks node, which forks workers. Kill the subshell and the workers keep the
+# CPU -- which on a loaded machine is how one hung stage becomes two. Walk
+# the tree depth-first so children die before the parent can reap them.
+kill_tree() {
+  local pid="$1" kid
+  for kid in $(pgrep -P "$pid" 2>/dev/null); do
+    kill_tree "$kid"
+  done
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+STAGE_OUT=""
+STAGE_SECS=0
+
+# run_stage <label> <limit_seconds> <dir> <cmd...>
+# Returns the command's status, or 124 if it was killed for running long.
+run_stage() {
+  local label="$1" limit="$2" dir="$3"
+  shift 3
+  local tmp pid rc t0=$SECONDS
+  tmp="$(mktemp "${TMPDIR:-/tmp}/getfit-gate.XXXXXX")"
+
+  ( cd "$dir" && "$@" ) >"$tmp" 2>&1 &
+  pid=$!
+
+  # Elapsed comes from $SECONDS, not from counting polls: a 5s poll made a
+  # 3-second stage report 5s, and the whole point of this logging is to be
+  # able to trust the numbers afterwards.
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( SECONDS - t0 >= limit )); then
+      kill_tree "$pid"
+      wait "$pid" 2>/dev/null || true
+      STAGE_SECS=$(( SECONDS - t0 ))
+      STAGE_OUT="$(tail -30 "$tmp" 2>/dev/null)"
+      rm -f "$tmp"
+      log "  stage $label: KILLED after ${STAGE_SECS}s (ceiling ${limit}s)"
+      return 124
+    fi
+    sleep 2
+  done
+
+  wait "$pid"; rc=$?
+  STAGE_SECS=$(( SECONDS - t0 ))
+  STAGE_OUT="$(tail -30 "$tmp" 2>/dev/null)"
+  rm -f "$tmp"
+  log "  stage $label: ${STAGE_SECS}s rc=$rc"
+  return $rc
+}
+
+# The last thing between an unattended agent and a push. It runs what CI
 # runs: Django checks, migration drift, the backend suite, the frontend
 # build, the frontend unit tests, the palette guard and the 390px layout
 # gate. `npm run build` rather than a bare tsc because the project enables
 # noUnusedLocals, so the build catches what a plain typecheck does not.
 #
+# The frontend gates the build alone does not cover: `npm run build` is
+# `tsc -b && vite build`, which type-checks and bundles and that is all. It
+# ran clean on three frontend commits in one pass while the unit tests, the
+# palette guard and the 390px gate never ran at all -- including on a change
+# to the shared workout page. They passed when checked afterwards, which was
+# luck, not a gate. The palette guard exists because the rebrand's green kept
+# coming back one harmless-looking diff at a time, and the 390px gate exists
+# because this app is used on a phone and a desktop render cannot show a nav
+# covering an input.
+#
 # Pushes go to staging, which is promoted to production by hand -- so this
 # gate is not the last line of defence, but it is the only automatic one.
-# ---------------------------------------------------------------------------
 build_gate() {
-  local out
-  if ! out="$(cd "$REPO/backend" && venv/bin/python manage.py check 2>&1)"; then
-    GATE_ERROR="django check failed:
-$out"; return 1
-  fi
-  if ! out="$(cd "$REPO/backend" && venv/bin/python manage.py makemigrations --check --dry-run 2>&1)"; then
-    GATE_ERROR="models drifted from migrations (makemigrations --check failed):
-$out"; return 1
-  fi
-  if ! out="$(cd "$REPO/backend" && venv/bin/python manage.py test api.tests 2>&1 | tail -30)"; then
-    GATE_ERROR="backend tests failed:
-$out"; return 1
-  fi
-  if ! out="$(cd "$REPO/frontend" && npm run build 2>&1 | tail -30)"; then
-    GATE_ERROR="frontend build failed:
-$out"; return 1
-  fi
-  # The frontend gates the build alone does not cover.
-  #
-  # `npm run build` is `tsc -b && vite build`: it type-checks and bundles,
-  # and that is all. It ran clean on three frontend commits in one pass
-  # while the unit tests, the palette guard and the 390px gate never ran at
-  # all -- including on a change to the shared workout page. They passed
-  # when checked afterwards, which was luck, not a gate.
-  #
-  # The palette guard exists because the rebrand's green kept coming back
-  # one harmless-looking diff at a time, and the 390px gate exists because
-  # this app is used on a phone and a desktop render cannot show a nav
-  # covering an input. An unattended agent writing frontend code is exactly
-  # who those were built for.
-  if ! out="$(cd "$REPO/frontend" && npm run test 2>&1 | tail -30)"; then
-    GATE_ERROR="frontend unit tests failed:
-$out"; return 1
-  fi
-  if ! out="$(cd "$REPO/frontend" && npm run check:palette 2>&1 | tail -20)"; then
-    GATE_ERROR="palette guard failed:
-$out"; return 1
-  fi
-  # Playwright drives a real WebKit at 390x844 against a built preview, so
-  # it is the slowest check here by far. It still runs: the alternative is
-  # finding out from a screenshot on your phone, which is how both of
-  # tonight's layout bugs were found.
-  if ! out="$(cd "$REPO/frontend" && npm run test:e2e 2>&1 | tail -30)"; then
-    GATE_ERROR="390px layout gate failed:
-$out"; return 1
-  fi
+  local rc gate_start=$SECONDS
+
+  # label                limit  dir              command
+  local -a stages=(
+    "django check|120|$REPO/backend|venv/bin/python manage.py check"
+    "makemigrations --check|120|$REPO/backend|venv/bin/python manage.py makemigrations --check --dry-run"
+    "backend tests|1800|$REPO/backend|venv/bin/python manage.py test api.tests"
+    "frontend build|600|$REPO/frontend|npm run build"
+    "frontend unit tests|600|$REPO/frontend|npm run test"
+    "palette guard|120|$REPO/frontend|npm run check:palette"
+    "390px layout gate|900|$REPO/frontend|npm run test:e2e"
+  )
+
+  local spec label limit dir cmd
+  for spec in "${stages[@]}"; do
+    IFS='|' read -r label limit dir cmd <<<"$spec"
+    # Word-split is intended: these are fixed command strings above, not
+    # anything the agent or a submission can reach.
+    # shellcheck disable=SC2086
+    run_stage "$label" "$limit" "$dir" $cmd
+    rc=$?
+    if (( rc == 124 )); then
+      GATE_ERROR="the build gate timed out, so nothing was pushed.
+
+\"$label\" was killed after ${limit}s. This is a TIMEOUT, not a failing
+test -- the change may well be fine. It usually means the machine running
+the loop was overloaded. Worth re-queueing once the machine is idle.
+
+Last output:
+$STAGE_OUT"
+      log "  GATE TIMEOUT after $((SECONDS - gate_start))s total"
+      return 1
+    fi
+    if (( rc != 0 )); then
+      GATE_ERROR="$label failed:
+$STAGE_OUT"
+      log "  GATE FAILED at \"$label\" after $((SECONDS - gate_start))s total"
+      return 1
+    fi
+  done
+
+  log "  gate passed in $((SECONDS - gate_start))s"
   GATE_ERROR=""
   return 0
 }
