@@ -3060,9 +3060,14 @@ def _bg_cache_plan_guides(plan_id):
         kb = _load_exercise_kb()
         prompt_lines = [
             'Return a JSON array. Each element corresponds to one exercise.',
-            'For each exercise return: steps (4-6 strings), muscles (2-4 strings), '
-            'tips (2-3 strings), category (squat/push/pull/hinge/core/cardio/other), '
+            'For each exercise return: exercise (the exercise name, copied '
+            'EXACTLY as written below), steps (4-6 strings), muscles (2-4 '
+            'strings), tips (2-3 strings), category '
+            '(squat/push/pull/hinge/core/cardio/other), '
             'kb_key (best matching image library key or null).',
+            'The "exercise" field is how each answer is matched back to its '
+            'exercise, so copy it verbatim and return one element per '
+            'exercise, in order, omitting none.',
             'Prefer the most specific kb_key that contains all words from the exercise name.',
             '', 'Exercises:',
         ]
@@ -3076,11 +3081,12 @@ def _bg_cache_plan_guides(plan_id):
         )
         if not isinstance(guides_list, list):
             return
-        for name, guide in zip(names, guides_list):
+        for name, guide in _pair_guides_with_names(names, guides_list):
             if not isinstance(guide, dict):
                 continue
             kb_key = guide.pop('kb_key', None)
             guide['images'] = _images_for_exercise(name, kb_key)
+            guide['kb_match_version'] = KB_MATCH_VERSION
             # These rows are GENERIC (user=None) and shared by every user, so they
             # must never carry personalised advice. Per-user weight/coaching
             # recommendations are written only by workout_plan_prepare_week
@@ -3732,11 +3738,17 @@ def workout_plan_prepare_week(request, plan_id):
 
     prompt_lines = ['Return a JSON array. Each element corresponds to one exercise in the list below.']
     prompt_lines.append('For each exercise, return an object with:')
+    prompt_lines.append('  exercise: the exercise name, copied EXACTLY as written below')
     prompt_lines.append('  steps: array of 4-6 clear action strings')
     prompt_lines.append('  muscles: array of 2-4 primary muscle names')
     prompt_lines.append('  tips: array of 2-3 form cues or common mistakes to avoid')
     prompt_lines.append('  category: one of squat/push/press/pull/row/hinge/curl/lunge/core/cardio/other')
     prompt_lines.append('  kb_key: best matching key from the image library, or null')
+    prompt_lines.append('')
+    prompt_lines.append(
+        'The "exercise" field is how each answer is matched back to its '
+        'exercise, so copy it verbatim and return one element per exercise, '
+        'in order, omitting none.')
     prompt_lines.append('')
     prompt_lines.append(
         f'ALL WEIGHTS ARE IN {unit.upper()}. The user thinks in {unit}. Never mention '
@@ -3801,12 +3813,13 @@ def workout_plan_prepare_week(request, plan_id):
         return Response({'detail': 'AI returned unexpected format'}, status=status.HTTP_502_BAD_GATEWAY)
 
     generated = 0
-    for name, guide in zip(exercise_names, guides_list):
+    for name, guide in _pair_guides_with_names(exercise_names, guides_list):
         if not isinstance(guide, dict):
             continue
         mtype = type_by_name.get(name, exercise_types.DEFAULT_TYPE)
         kb_key = guide.pop('kb_key', None)
         guide['images'] = _images_for_exercise(name, kb_key)
+        guide['kb_match_version'] = KB_MATCH_VERSION
         guide['measurement_type'] = mtype
         guide['advice_version'] = ADVICE_VERSION
 
@@ -3953,6 +3966,23 @@ _FLIPPING_MODIFIERS = {
     # walking treadmill has regular treadmill images" -- it was matching
     # `walking, treadmill` at 0.80 and showing someone walking forwards.
     'backward', 'backwards', 'forward', 'forwards',
+    # Apparatus and body position change the exercise as surely as direction
+    # does, and the matcher had no way to say so.
+    #
+    # 'preacher' -- a preacher bench fixes the upper arm, so a preacher hammer
+    # curl is a different movement from a standing hammer curl. Without this,
+    # "Dumbbell Hammer Curl" scored 'preacher hammer dumbbell curl' at 1.06
+    # (recall 1.0 plus the equipment bonus) and beat the correct 'hammer
+    # curls' at 0.95. Reported: "Dumbbell hammer curl also got wrong images".
+    #
+    # 'supported' -- appears in NO KB key, which is the point: a
+    # chest-supported row has no entry, so any name carrying the word should
+    # match nothing rather than scrape over the threshold. "Chest Supported
+    # Row" was resolving to 'inverted row' at 0.55 against a 0.50 threshold.
+    #
+    # 'kneeling' -- kneeling changes which muscles stabilise the lift; it is
+    # the same argument as 'lying', already here.
+    'preacher', 'supported', 'kneeling',
 }
 
 # Implements. A key naming different equipment to the query is a different
@@ -4025,6 +4055,24 @@ _FLIPPER_STEMS = {_kb_stem(w) for w in _FLIPPING_MODIFIERS}
 _EQUIPMENT_STEMS = {_kb_stem(w) for w in _EQUIPMENT_WORDS}
 
 
+_KB_KEY_TOKENS = None
+
+
+def _kb_key_tokens() -> dict:
+    """
+    Stemmed tokens for every library key, computed once.
+
+    `_resolve_kb_key` tokenizes all 873 keys on every call, and since the
+    read path now re-resolves any guide row written under older rules, that
+    runs on cache HITS too, not just misses. The keys never change at
+    runtime, so tokenizing them per request is pure waste.
+    """
+    global _KB_KEY_TOKENS
+    if _KB_KEY_TOKENS is None:
+        _KB_KEY_TOKENS = {k: _kb_tokenize(k) for k in _load_exercise_kb()}
+    return _KB_KEY_TOKENS
+
+
 def _kb_score(query_words: set, key_words: set) -> float:
     """
     F1 over stemmed tokens, with a movement-word bonus.
@@ -4058,6 +4106,39 @@ def _kb_score(query_words: set, key_words: set) -> float:
 
 
 KB_MATCH_THRESHOLD = 0.5
+
+# How far below the matcher's OWN best score an AI-chosen key may fall and
+# still be preferred to it.
+#
+# The guard used to accept any key scoring above zero, which is barely a guard
+# at all: measured across the 873-key library, a median of 43 keys -- and for
+# the worst name 176 -- passed it for a single exercise, while the matcher
+# picks exactly one. So whatever the model chose essentially always won. That
+# is how 'kneeling single-arm high pulley row' (0.75) displaced the correct
+# 'one-arm dumbbell row' (0.95) for a single-arm dumbbell row.
+#
+# A plain "must beat the matcher" rule is wrong in the other direction: the
+# model is sometimes right and the matcher wrong. 'Incline Cable Fly' scores
+# 0.72 for BOTH the correct 'incline cable flye' and the absurd 'cable
+# incline pushdown' (a triceps exercise), so score alone cannot separate
+# them, and a strict rule would have locked in the pushdown. 'Dumbbell Hammer
+# Curl' and 'Bulgarian Split Squat' are the same shape: the model's answer is
+# better and scores 0.11 and 0.13 BELOW the matcher's.
+#
+# 0.15 is chosen from those measurements -- wide enough to let every observed
+# good override through, narrow enough to reject every observed bad one.
+KB_AI_KEY_MARGIN = 0.15
+
+# Bump whenever any matching rule above changes: the thresholds, the modifier
+# sets, the scorer or the alias table.
+#
+# Guides are cached in ExerciseGuide rows, and the stored images were chosen
+# by whatever rules were current when the row was written. Three migrations
+# exist purely to delete rows with bad photos (0029, 0031, 0040) -- that is
+# this problem being swept up by hand, one incident at a time. A version
+# stamped on the row lets the read path notice a stale choice and re-resolve
+# it instead, so a rules fix heals every affected row on next open.
+KB_MATCH_VERSION = 1
 
 
 def _alias_for(name: str):
@@ -4110,8 +4191,8 @@ def _resolve_kb_key(name: str):
         return None, 0.0
 
     best_key, best_score = None, 0.0
-    for key in kb:
-        score = _kb_score(query_words, _kb_tokenize(key))
+    for key, key_words in _kb_key_tokens().items():
+        score = _kb_score(query_words, key_words)
         if score > best_score:
             best_key, best_score = key, score
 
@@ -4142,10 +4223,87 @@ def _kb_key_is_consistent(name: str, key: str) -> bool:
     alias = _alias_for(name)
     if alias:
         return key == alias
-    return _kb_score(_kb_tokenize(name), _kb_tokenize(key)) > 0
+    if key not in _load_exercise_kb():
+        return False
+
+    key_score = _kb_score(_kb_tokenize(name), _kb_tokenize(key))
+    if key_score <= 0:
+        return False
+
+    # Compare against what the matcher would have picked, rather than against
+    # zero. `_resolve_kb_key` reports its best score even when that best was
+    # below the threshold, so a name with no real match in the library (a
+    # backward treadmill walk, say) holds the AI key to the threshold itself
+    # -- which is what rejects 'backward drag' at 0.40.
+    _, best = _resolve_kb_key(name)
+    floor = max(best - KB_AI_KEY_MARGIN, KB_MATCH_THRESHOLD)
+    return key_score >= floor
 
 
 _KB_KEY_BY_IMAGE = None
+
+
+def _norm_exercise_name(text) -> str:
+    """Loose key for matching a model's echoed name back to ours."""
+    if not isinstance(text, str):
+        return ''
+    return ' '.join(re.sub(r'[^\w\s]', ' ', text.lower()).split())
+
+
+def _pair_guides_with_names(names, guides_list):
+    """
+    Pair a batch of model guides with the exercises they describe.
+
+    WHY NOT zip(): zip pairs by POSITION, so one missing element silently
+    shifts every exercise after it onto its neighbour's guide and drops the
+    last one entirely. The images survive that -- the key guard rejects a
+    shifted key and the matcher recovers -- but steps, muscles and tips carry
+    no guard at all, so an exercise would be stored with another exercise's
+    instructions and nothing anywhere would say so.
+
+    So the prompt asks the model to echo each exercise name, and we pair on
+    that. Position is used only as a fallback, and only when the lengths
+    agree, which is the one case where position cannot be silently wrong.
+    Anything that cannot be paired confidently is left out: a missing guide
+    regenerates on demand, a wrong one persists in the cache.
+
+    Returns a list of (name, guide) pairs.
+    """
+    if not isinstance(guides_list, list):
+        return []
+
+    by_name = {}
+    for guide in guides_list:
+        if not isinstance(guide, dict):
+            continue
+        echoed = _norm_exercise_name(guide.get('exercise') or guide.get('name'))
+        if echoed:
+            by_name.setdefault(echoed, guide)
+
+    paired = []
+    for n in names:
+        key = _norm_exercise_name(n)
+        if key in by_name:
+            paired.append((n, by_name[key]))
+
+    if len(paired) == len(names):
+        return paired
+
+    # Position is only trustworthy when the model returned exactly one OBJECT
+    # per exercise. A non-dict in the list means the response is already
+    # malformed, so "the lengths agree" is not the reassurance it looks like.
+    if (len(guides_list) == len(names)
+            and all(isinstance(g, dict) for g in guides_list)):
+        logger.warning(
+            'guide batch: echoed names matched %d/%d, falling back to '
+            'position (one object per exercise)', len(paired), len(names))
+        return list(zip(names, guides_list))
+
+    logger.error(
+        'guide batch: LENGTH MISMATCH (%d guides for %d exercises); only %d '
+        'paired by name, writing those and letting the rest regenerate',
+        len(guides_list), len(names), len(paired))
+    return paired
 
 
 def _kb_key_for_images(images):
@@ -4345,8 +4503,8 @@ def _get_kb_candidates(name: str, top_n: int = 20) -> list:
         return []
 
     scored = []
-    for key in kb:
-        score = _kb_score(query_words, _kb_tokenize(key))
+    for key, key_words in _kb_key_tokens().items():
+        score = _kb_score(query_words, key_words)
         if score > 0:
             scored.append((score, key))
 
@@ -4394,20 +4552,20 @@ def exercise_guide(request):
                         name, cached.user_id is not None)
             payload = dict(cached.data)
             # The cached images were chosen by whatever rules applied when the
-            # row was written. An alias is authoritative -- regenerating would
-            # produce exactly its images -- so apply it on read rather than
-            # serving a wrong photo until the row happens to be rebuilt.
-            alias = _alias_for(name)
-            kb = _load_exercise_kb()
-            if alias and alias in kb:
-                payload['images'] = kb[alias][:2]
-            else:
-                # Same reasoning for a photo the current consistency check
-                # would reject: it was let through by an older, looser rule,
-                # and regenerating would never pick it again.
+            # row was written, so a row older than the current rules gets its
+            # choice re-examined on read.
+            #
+            # This replaces an alias-only repair that could only fix a name
+            # someone had already written an alias for -- which is why fixing
+            # the rules used to need a migration to delete the stale rows.
+            # `_images_for_exercise` keeps the cached key when today's guard
+            # still accepts it, so a good AI pick survives; otherwise it falls
+            # back to the matcher. Re-resolving is a few hundred token-set
+            # comparisons, and nothing is written back: the read path stays
+            # read-only and the row heals for real next time it is rebuilt.
+            if (payload.get('kb_match_version') or 0) < KB_MATCH_VERSION:
                 cached_key = _kb_key_for_images(payload.get('images'))
-                if cached_key and not _kb_key_is_consistent(name, cached_key):
-                    payload['images'] = _lookup_exercise_images(name)
+                payload['images'] = _images_for_exercise(name, cached_key)
             payload.update(advice)
             payload['measurement_type'] = measurement_type
             payload['unit'] = unit
@@ -4438,6 +4596,7 @@ Return only valid JSON, no extra text."""
         )
         kb_key = guide.pop('kb_key', None)
         guide['images'] = _images_for_exercise(name, kb_key)
+        guide['kb_match_version'] = KB_MATCH_VERSION
         guide['advice_version'] = ADVICE_VERSION
         # Generic row: stable content only, shared across users. Advice is never
         # written here -- it is computed per request from the caller's history.

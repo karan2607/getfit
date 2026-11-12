@@ -21,6 +21,8 @@ Plus: `_kb_stem('press')` returned 'pres', so 'press' never matched
 `_MOVEMENT_WORDS` and every press exercise silently lost the specificity bonus.
 """
 
+import inspect
+
 from django.test import SimpleTestCase
 from django.urls import reverse
 from rest_framework.authtoken.models import Token
@@ -536,3 +538,243 @@ class CachedGuideImageTests(APITestCase):
                               {'name': 'Barbell Bench Press'})
         self.assertEqual(res.status_code, 200, res.data)
         self.assertEqual(res.data['images'], images)
+
+
+class ComparativeAiKeyGuardTests(SimpleTestCase):
+    """
+    The AI-chosen key is now judged against the matcher, not against zero.
+
+    The old guard accepted any key sharing one stemmed token with the exercise
+    name. Measured across the 873-key library that let through a median of 43
+    keys per exercise -- and 176 for the worst -- while the matcher picks one.
+    So whatever the model chose essentially always won, and a sloppy pick was
+    then cached indefinitely.
+
+    These names deliberately have NO alias, so they exercise the margin itself
+    rather than the alias shortcut.
+    """
+
+    def setUp(self):
+        self.kb = views._load_exercise_kb()
+        self.assertIsNone(views._alias_for('Seated Cable Row'))
+        self.assertIsNone(views._alias_for('Bulgarian Split Squat'))
+        self.assertIsNone(views._alias_for('Incline Cable Fly'))
+
+    def test_a_key_well_below_the_matchers_best_is_rejected(self):
+        # 'upright cable row' is a SHOULDER exercise and scores 0.87 against
+        # the matcher's own 1.20 -- a 0.33 gap. The old guard took it, because
+        # 0.87 > 0.
+        self.assertFalse(
+            views._kb_key_is_consistent('Seated Cable Row', 'upright cable row'))
+        self.assertEqual(
+            views._images_for_exercise('Seated Cable Row', 'upright cable row'),
+            self.kb['seated cable rows'][:2])
+
+    def test_a_key_within_the_margin_is_still_preferred(self):
+        # The model is sometimes right where the matcher is wrong, so the
+        # margin must not simply hand every decision back to the matcher.
+        # 0.82 against the matcher's 0.95 is a 0.13 gap: inside the margin.
+        self.assertTrue(views._kb_key_is_consistent(
+            'Bulgarian Split Squat', 'split squat with dumbbells'))
+        self.assertEqual(
+            views._images_for_exercise(
+                'Bulgarian Split Squat', 'split squat with dumbbells'),
+            self.kb['split squat with dumbbells'][:2])
+
+    def test_the_model_can_still_overrule_a_wrong_matcher(self):
+        # The case that rules out a strict "must beat the matcher" guard:
+        # 'incline cable flye' (correct) and 'cable incline pushdown' (a
+        # TRICEPS exercise) both score exactly 0.72, so score alone cannot
+        # separate them and a strict rule would lock in the pushdown.
+        self.assertEqual(
+            views._kb_score(views._kb_tokenize('Incline Cable Fly'),
+                            views._kb_tokenize('incline cable flye')),
+            views._kb_score(views._kb_tokenize('Incline Cable Fly'),
+                            views._kb_tokenize('cable incline pushdown')))
+        self.assertEqual(
+            views._images_for_exercise('Incline Cable Fly', 'incline cable flye'),
+            self.kb['incline cable flye'][:2])
+
+    def test_a_key_is_rejected_when_the_library_has_no_real_match(self):
+        # A name with nothing close in the library holds the AI key to the
+        # match threshold itself. All three Haiku runs picked 'backward drag'
+        # -- a SLED exercise -- for a treadmill walk; Gemini returned null.
+        # Showing no photo is better than showing the wrong machine.
+        self.assertFalse(views._kb_key_is_consistent(
+            'Backward Walking Treadmill', 'backward drag'))
+        self.assertEqual(
+            views._images_for_exercise('Backward Walking Treadmill', 'backward drag'),
+            [])
+
+    def test_an_unknown_key_is_rejected_rather_than_crashing(self):
+        self.assertFalse(
+            views._kb_key_is_consistent('Seated Cable Row', 'not a real key'))
+
+
+class ApparatusModifierTests(SimpleTestCase):
+    """
+    Apparatus and body position change the exercise, like direction already did.
+
+    Reported: "Dumbbell hammer curl also got wrong images". A preacher bench
+    fixes the upper arm, so a preacher hammer curl is a different movement --
+    but 'preacher' cost only a little precision, so
+    'preacher hammer dumbbell curl' scored 1.06 and beat the correct
+    'hammer curls' at 0.95.
+    """
+
+    def test_hammer_curl_resolves_to_a_plain_hammer_curl(self):
+        key, _ = views._resolve_kb_key('Dumbbell Hammer Curl')
+        self.assertEqual(key, 'hammer curls')
+
+    def test_a_preacher_curl_still_matches_itself(self):
+        key, _ = views._resolve_kb_key('Preacher Hammer Dumbbell Curl')
+        self.assertEqual(key, 'preacher hammer dumbbell curl')
+
+    def test_a_preacher_key_is_rejected_for_a_plain_curl(self):
+        self.assertFalse(views._kb_key_is_consistent(
+            'Dumbbell Hammer Curl', 'preacher hammer dumbbell curl'))
+
+    def test_kneeling_is_not_matched_by_a_standing_exercise(self):
+        self.assertEqual(
+            views._kb_score(views._kb_tokenize('Single Arm Dumbbell Row'),
+                            views._kb_tokenize('kneeling single-arm high pulley row')),
+            0.0)
+
+    def test_every_library_key_still_resolves_to_itself(self):
+        # The modifier set is global, so widening it can silently re-rank
+        # unrelated exercises. This is the whole-library regression check:
+        # one known-benign miss ('squats - with bands' -> 'squat with bands',
+        # the same exercise under another name) and no others.
+        kb = views._load_exercise_kb()
+        misses = [k for k in kb if views._resolve_kb_key(k)[0] != k]
+        self.assertEqual(misses, ['squats - with bands'])
+
+
+class GuideBatchPairingTests(SimpleTestCase):
+    """
+    Batch guides are paired by echoed name, not by position.
+
+    zip() pairs positionally, so one missing element shifts every later
+    exercise onto its neighbour's guide and drops the last one. Images survive
+    that -- the key guard rejects a shifted key -- but steps, muscles and tips
+    have no guard at all, so an exercise would be stored with another
+    exercise's instructions and nothing would say so.
+    """
+
+    def test_pairs_by_name_when_the_model_echoes_it(self):
+        names = ['Barbell Squat', 'Face Pull']
+        guides = [{'exercise': 'Face Pull', 'muscles': ['Rear delts']},
+                  {'exercise': 'Barbell Squat', 'muscles': ['Quads']}]
+        paired = dict(views._pair_guides_with_names(names, guides))
+        self.assertEqual(paired['Barbell Squat']['muscles'], ['Quads'])
+        self.assertEqual(paired['Face Pull']['muscles'], ['Rear delts'])
+
+    def test_a_dropped_element_does_not_shift_the_others(self):
+        names = ['Barbell Squat', 'Dumbbell Bicep Curl', 'Face Pull']
+        # The model omitted the curl entirely.
+        guides = [{'exercise': 'Barbell Squat', 'muscles': ['Quads']},
+                  {'exercise': 'Face Pull', 'muscles': ['Rear delts']}]
+        paired = dict(views._pair_guides_with_names(names, guides))
+        self.assertEqual(paired['Barbell Squat']['muscles'], ['Quads'])
+        self.assertEqual(paired['Face Pull']['muscles'], ['Rear delts'])
+        # The curl gets NO guide rather than the face pull's. It regenerates
+        # on demand; a wrong one would have persisted in the cache.
+        self.assertNotIn('Dumbbell Bicep Curl', paired)
+
+    def test_name_matching_tolerates_case_and_punctuation(self):
+        names = ['Glute-Ham Raise (GHR)']
+        guides = [{'exercise': 'glute ham raise  ghr', 'muscles': ['Hamstrings']}]
+        paired = dict(views._pair_guides_with_names(names, guides))
+        self.assertIn('Glute-Ham Raise (GHR)', paired)
+
+    def test_falls_back_to_position_when_lengths_agree(self):
+        # No echoed names, but one guide per exercise: position cannot be
+        # silently wrong here, so the old behaviour is kept.
+        names = ['Barbell Squat', 'Face Pull']
+        guides = [{'muscles': ['Quads']}, {'muscles': ['Rear delts']}]
+        paired = views._pair_guides_with_names(names, guides)
+        self.assertEqual(paired[0][0], 'Barbell Squat')
+        self.assertEqual(paired[1][1]['muscles'], ['Rear delts'])
+
+    def test_drops_everything_unpairable_when_lengths_disagree(self):
+        names = ['Barbell Squat', 'Face Pull', 'Leg Press']
+        guides = [{'muscles': ['Quads']}, {'muscles': ['Rear delts']}]
+        self.assertEqual(views._pair_guides_with_names(names, guides), [])
+
+    def test_tolerates_junk(self):
+        self.assertEqual(views._pair_guides_with_names(['X'], None), [])
+        self.assertEqual(views._pair_guides_with_names(['X'], ['not a dict']), [])
+
+
+class SelfHealingGuideCacheTests(APITestCase):
+    """
+    A cached guide written under older matching rules gets re-examined on read.
+
+    The repair this replaces only worked for a name somebody had already
+    written an alias for. Everything else kept its stored photos forever,
+    which is why three migrations exist purely to DELETE rows with bad
+    pictures (0029, 0031, 0040) -- the same incident handled by hand, three
+    times. A version stamped on the row lets a rules fix heal every affected
+    row instead.
+    """
+
+    def setUp(self):
+        user = User.objects.create_user(email='heal@test.local', password='x')
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.kb = views._load_exercise_kb()
+
+    def _cache(self, name, images, **extra):
+        data = {'steps': ['a'], 'muscles': ['m'], 'tips': ['t'],
+                'category': 'other', 'images': images,
+                'advice_version': views.ADVICE_VERSION}
+        data.update(extra)
+        ExerciseGuide.objects.create(user=None, name=name, data=data)
+
+    def _get(self, name):
+        res = self.client.get(reverse('exercise-guide'), {'name': name})
+        self.assertEqual(res.status_code, 200, res.data)
+        return res.data
+
+    def test_a_row_with_no_version_is_re_resolved(self):
+        # No alias for this name, so the OLD repair left it alone: a seated
+        # cable row kept photos of an upright row, a shoulder exercise.
+        self.assertIsNone(views._alias_for('Seated Cable Row'))
+        self._cache('Seated Cable Row', self.kb['upright cable row'][:2])
+        self.assertEqual(self._get('Seated Cable Row')['images'],
+                         self.kb['seated cable rows'][:2])
+
+    def test_a_row_stamped_with_an_older_version_is_re_resolved(self):
+        self._cache('Dumbbell Hammer Curl',
+                    self.kb['preacher hammer dumbbell curl'][:2],
+                    kb_match_version=views.KB_MATCH_VERSION - 1)
+        self.assertEqual(self._get('Dumbbell Hammer Curl')['images'],
+                         self.kb['hammer curls'][:2])
+
+    def test_a_current_row_is_trusted_and_not_recomputed(self):
+        # A good model pick that the matcher would not have made must survive
+        # being read back, or every read would undo it.
+        self._cache('Incline Cable Fly', self.kb['incline cable flye'][:2],
+                    kb_match_version=views.KB_MATCH_VERSION)
+        self.assertEqual(self._get('Incline Cable Fly')['images'],
+                         self.kb['incline cable flye'][:2])
+
+    def test_a_stale_row_keeps_images_the_current_rules_still_accept(self):
+        # Re-resolving must not throw away a good stored choice just because
+        # the row is old: the cached key is offered back to today's guard.
+        self._cache('Incline Cable Fly', self.kb['incline cable flye'][:2])
+        self.assertEqual(self._get('Incline Cable Fly')['images'],
+                         self.kb['incline cable flye'][:2])
+
+    def test_a_row_whose_exercise_has_no_match_loses_its_images(self):
+        self._cache('Backward Walking Treadmill', self.kb['backward drag'][:2])
+        self.assertEqual(self._get('Backward Walking Treadmill')['images'], [])
+
+    def test_newly_written_guides_carry_the_current_version(self):
+        # Without the stamp on write, every row would look stale forever and
+        # be re-resolved on every single read.
+        self.assertEqual(views.KB_MATCH_VERSION, 1)
+        src = inspect.getsource(views)
+        self.assertEqual(
+            src.count("['kb_match_version'] = KB_MATCH_VERSION"), 3,
+            'every path that writes images must stamp the matcher version')
