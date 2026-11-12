@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import NotificationBell from './NotificationBell'
@@ -179,6 +179,34 @@ describe('NotificationBell', () => {
     await userEvent.click(screen.getByLabelText('Send'))
     await waitFor(() => expect(send).toHaveBeenCalledWith('f1', 'still off on Diet'))
     expect(await screen.findByText(/polls every few minutes/)).toBeInTheDocument()
+  })
+
+  it('keeps your reply when the thread fetch lands after it', async () => {
+    // Opening a thread fetches it; replying before that fetch returned let
+    // the older copy overwrite the reply, so the message vanished.
+    vi.spyOn(api.feedback, 'notifications').mockResolvedValue({
+      unseen: 1, items: [item({ messages: [reply()] })],
+    })
+    let land: (f: Feedback) => void = () => {}
+    vi.spyOn(api.feedback, 'thread').mockImplementation(
+      () => new Promise<Feedback>((r) => { land = r }),
+    )
+    vi.spyOn(api.feedback, 'reply').mockResolvedValue(
+      item({
+        status: 'new',
+        messages: [reply(), reply({ id: 'm9', role: 'user', body: 'still off on Diet' })],
+      }),
+    )
+    show()
+    await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+    await userEvent.click(screen.getAllByText('Open conversation')[0])
+    await userEvent.type(await screen.findByLabelText('Reply to the agent'), 'still off on Diet')
+    await userEvent.click(screen.getByLabelText('Send'))
+    expect(await screen.findAllByText('still off on Diet')).not.toHaveLength(0)
+
+    await act(async () => { land(item({ messages: [reply()], unread: 0 })) })
+    expect(screen.getByText(/polls every few minutes/)).toBeInTheDocument()
+    expect(screen.getAllByText('still off on Diet').length).toBeGreaterThan(0)
   })
 
   it('keeps the thread readable when the refresh fails', async () => {

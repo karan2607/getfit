@@ -227,8 +227,15 @@ export default function NotificationBell() {
     }
     try {
       const fresh = await api.feedback.thread(item.id)
-      setActive((cur) => (cur?.id === fresh.id ? fresh : cur))
-      setItems((prev) => prev.map((i) => (i.id === fresh.id ? fresh : i)))
+      // A reply sent while this fetch was in flight has already put a newer
+      // copy in place, and this response predates it. Applying it anyway
+      // wiped the message you had just sent off the screen, which looked
+      // like the reply had gone nowhere. Turns are only ever added, so the
+      // copy with fewer of them is the stale one.
+      const newer = (cur: Feedback) =>
+        cur.id === fresh.id && fresh.messages.length >= cur.messages.length
+      setActive((cur) => (cur && newer(cur) ? fresh : cur))
+      setItems((prev) => prev.map((i) => (newer(i) ? fresh : i)))
     } catch {
       // The pane is already readable from the list copy, so a failed
       // refresh is a note, not a blank screen.
