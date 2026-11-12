@@ -4272,6 +4272,22 @@ _KB_ALIASES = {
     'chest supported rows': 'dumbbell incline row',
     'chest-supported row': 'dumbbell incline row',
     'chest-supported rows': 'dumbbell incline row',
+    # The KB calls this "one-arm dumbbell row", and "single" shares nothing
+    # with "one". Scoring still found it, but the AI-chosen key was only
+    # checked for sharing a word, so "dumbbell one-arm upright row" (a
+    # shoulder exercise) or "kneeling single-arm high pulley row" got through
+    # -- and a cached guide kept those photos. Reported: "Single Arm dumbbell
+    # row also has wrong images".
+    'single arm dumbbell row': 'one-arm dumbbell row',
+    'single arm dumbbell rows': 'one-arm dumbbell row',
+    'single-arm dumbbell row': 'one-arm dumbbell row',
+    'single-arm dumbbell rows': 'one-arm dumbbell row',
+    'one arm dumbbell row': 'one-arm dumbbell row',
+    'one arm dumbbell rows': 'one-arm dumbbell row',
+    'one-arm dumbbell rows': 'one-arm dumbbell row',
+    'dumbbell single arm row': 'one-arm dumbbell row',
+    'dumbbell single-arm row': 'one-arm dumbbell row',
+    'single arm db row': 'one-arm dumbbell row',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.

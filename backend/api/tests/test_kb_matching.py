@@ -442,7 +442,42 @@ class ChestSupportedRowTests(SimpleTestCase):
 
     def test_unsupported_rows_are_unchanged(self):
         self.assertEqual(views._resolve_kb_key('Inverted Row')[0], 'inverted row')
-        self.assertIsNone(views._alias_for('Single Arm Dumbbell Row (Supported)'))
+        self.assertNotEqual(
+            views._alias_for('Single Arm Dumbbell Row (Supported)'),
+            'dumbbell incline row')
+
+
+class SingleArmDumbbellRowTests(SimpleTestCase):
+    """
+    "Single Arm dumbbell row also has wrong images". Any AI key sharing a word
+    passed the check, so an upright row or a cable row could illustrate it.
+    """
+
+    KEY = 'one-arm dumbbell row'
+
+    def test_each_variant_resolves_to_its_own_entry(self):
+        for name in ('Single Arm Dumbbell Row', 'Single-Arm Dumbbell Row',
+                     'Single Arm Dumbbell Row (Supported)',
+                     'Single Arm Dumbbell Rows', 'One Arm Dumbbell Row',
+                     'One-Arm Dumbbell Row'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_a_different_row_is_rejected(self):
+        for wrong in ('dumbbell one-arm upright row',
+                      'kneeling single-arm high pulley row',
+                      'seated one-arm cable pulley rows',
+                      'bent over two-dumbbell row'):
+            self.assertFalse(views._kb_key_is_consistent(
+                'Single Arm Dumbbell Row', wrong), msg=wrong)
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise('Single Arm Dumbbell Row',
+                                       'dumbbell one-arm upright row'),
+            kb[self.KEY][:2])
+
+    def test_cable_row_is_unchanged(self):
+        self.assertEqual(views._resolve_kb_key('Single Arm Cable Row')[0],
+                         'seated one-arm cable pulley rows')
 
 
 class CachedGuideImageTests(APITestCase):
@@ -478,6 +513,18 @@ class CachedGuideImageTests(APITestCase):
                               {'name': 'Glute-Ham Raise (GHR)'})
         self.assertEqual(res.status_code, 200, res.data)
         self.assertEqual(res.data['images'], self.kb['glute ham raise'][:2])
+
+    def test_cached_upright_row_photos_on_a_single_arm_row_are_replaced(self):
+        ExerciseGuide.objects.create(
+            user=None, name='Single Arm Dumbbell Row',
+            data={'steps': ['a'], 'muscles': ['Back'], 'tips': ['t'],
+                  'category': 'pull',
+                  'images': self.kb['dumbbell one-arm upright row'][:2],
+                  'advice_version': views.ADVICE_VERSION})
+        res = self.client.get(reverse('exercise-guide'),
+                              {'name': 'Single Arm Dumbbell Row'})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['images'], self.kb['one-arm dumbbell row'][:2])
 
     def test_unaliased_cached_images_are_left_alone(self):
         images = self.kb['barbell bench press - medium grip'][:2]
