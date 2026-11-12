@@ -4125,14 +4125,38 @@ def _kb_key_is_consistent(name: str, key: str) -> bool:
 
     Even with a correct shortlist the model can pick a key whose
     muscle-flipping modifiers contradict the exercise, so re-apply the same
-    rule _kb_score uses.
+    rules _kb_score uses -- including that the key must share at least one
+    word with the name.
+
+    Checking the modifiers alone let through keys with NOTHING in common with
+    the exercise. "Glute-Ham Raise (GHR)" and "dumbbell bicep curl" carry no
+    flipping modifier on either side, so they compared equal and a hamstring
+    exercise was illustrated with a biceps curl. Reported: "Glute ham raise
+    exercise shows biceps curls photo". The batch paths pair AI answers with
+    names by position, so one dropped element is enough to hand an exercise
+    its neighbour's key.
     """
     if not key:
         return False
     alias = _alias_for(name)
     if alias:
         return key == alias
-    return (_kb_tokenize(name) & _FLIPPER_STEMS) == (_kb_tokenize(key) & _FLIPPER_STEMS)
+    return _kb_score(_kb_tokenize(name), _kb_tokenize(key)) > 0
+
+
+_KB_KEY_BY_IMAGE = None
+
+
+def _kb_key_for_images(images):
+    """The KB key a cached guide's images were taken from, or None."""
+    global _KB_KEY_BY_IMAGE
+    if _KB_KEY_BY_IMAGE is None:
+        _KB_KEY_BY_IMAGE = {
+            url: key for key, urls in _load_exercise_kb().items() for url in urls}
+    for url in images or []:
+        if url in _KB_KEY_BY_IMAGE:
+            return _KB_KEY_BY_IMAGE[url]
+    return None
 
 
 def _lookup_exercise_images(name: str) -> list:
@@ -4330,6 +4354,13 @@ def exercise_guide(request):
             kb = _load_exercise_kb()
             if alias and alias in kb:
                 payload['images'] = kb[alias][:2]
+            else:
+                # Same reasoning for a photo the current consistency check
+                # would reject: it was let through by an older, looser rule,
+                # and regenerating would never pick it again.
+                cached_key = _kb_key_for_images(payload.get('images'))
+                if cached_key and not _kb_key_is_consistent(name, cached_key):
+                    payload['images'] = _lookup_exercise_images(name)
             payload.update(advice)
             payload['measurement_type'] = measurement_type
             payload['unit'] = unit

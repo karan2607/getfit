@@ -381,6 +381,34 @@ class WeightedDipTests(SimpleTestCase):
         self.assertEqual(views._resolve_kb_key('Ring Dips')[0], 'ring dips')
 
 
+class GluteHamRaiseTests(SimpleTestCase):
+    """
+    "Glute ham raise exercise shows biceps curls photo". The AI-key check only
+    compared flipping modifiers, and neither name has one -- so a curl key with
+    no word in common with the exercise was accepted.
+    """
+
+    KEY = 'glute ham raise'
+
+    def test_resolves_to_its_own_entry(self):
+        for name in ('Glute-Ham Raise (GHR)', 'Glute Ham Raise'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_a_biceps_curl_is_rejected(self):
+        for curl in ('dumbbell bicep curl', 'barbell curl', 'lying cable curl'):
+            self.assertFalse(views._kb_key_is_consistent(
+                'Glute-Ham Raise (GHR)', curl), msg=curl)
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise('Glute-Ham Raise (GHR)',
+                                       'dumbbell bicep curl'),
+            kb[self.KEY][:2])
+
+    def test_a_related_ai_key_is_still_accepted(self):
+        self.assertTrue(views._kb_key_is_consistent(
+            'Glute-Ham Raise (GHR)', 'natural glute ham raise'))
+
+
 class CachedGuideImageTests(APITestCase):
     """A guide cached before an alias existed must not keep its wrong photos."""
 
@@ -402,6 +430,18 @@ class CachedGuideImageTests(APITestCase):
         self.assertEqual(res.status_code, 200, res.data)
         self.assertEqual(res.data['images'],
                          self.kb['machine shoulder (military) press'][:2])
+
+    def test_cached_curl_photos_on_a_glute_ham_raise_are_replaced_on_read(self):
+        ExerciseGuide.objects.create(
+            user=None, name='Glute-Ham Raise (GHR)',
+            data={'steps': ['a'], 'muscles': ['Hamstrings'], 'tips': ['t'],
+                  'category': 'hinge',
+                  'images': self.kb['dumbbell bicep curl'][:2],
+                  'advice_version': views.ADVICE_VERSION})
+        res = self.client.get(reverse('exercise-guide'),
+                              {'name': 'Glute-Ham Raise (GHR)'})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['images'], self.kb['glute ham raise'][:2])
 
     def test_unaliased_cached_images_are_left_alone(self):
         images = self.kb['barbell bench press - medium grip'][:2]
