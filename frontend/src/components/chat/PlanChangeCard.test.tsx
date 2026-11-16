@@ -116,6 +116,40 @@ describe('the replace/with shape', () => {
     expect(screen.getByText('Machine Chest Press')).toBeInTheDocument()
   })
 
+  it('reports a reordered week, which touches no exercise at all', () => {
+    // Without this the card would say "Done" and show nothing: a move
+    // changes no exercise, so every other list in the diff is empty.
+    render(
+      <PlanChangeResult
+        diff={diff({
+          day_changes: [{
+            week: 1, from_name: 'Upper Pull', name: 'Upper Pull',
+            from_position: 3, position: 2,
+          }],
+        })}
+      />,
+    )
+    expect(screen.getByText('Upper Pull')).toBeInTheDocument()
+    expect(screen.getByText(/Day 3 → day 2/)).toBeInTheDocument()
+  })
+
+  it('reports a renamed day with both names', () => {
+    render(
+      <PlanChangeResult
+        diff={diff({
+          day_changes: [{
+            week: 1, from_name: 'Cardio, Abs & Accessories',
+            name: 'Pull + Abs', from_position: 4, position: 4,
+          }],
+        })}
+      />,
+    )
+    expect(
+      screen.getByText(/Cardio, Abs & Accessories → Pull \+ Abs/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/^Day 4 · week 1$/)).toBeInTheDocument()
+  })
+
   it('shows the draft as Replace / With before anything is applied', () => {
     render(
       <PlanChangeDraft
@@ -148,6 +182,39 @@ describe('the replace/with shape', () => {
       />,
     )
     expect(screen.getByText(/Protected: Standing Calf Raises/)).toBeInTheDocument()
+  })
+
+  it('shows a day rename as a rename, not as a bare name', () => {
+    render(
+      <PlanChangeDraft
+        change={{
+          change_id: 'c1', needs_confirmation: true, applied: false,
+          draft: [{
+            action: 'rename_day', day: 'Cardio, Abs & Accessories',
+            name: 'Pull + Abs',
+          }],
+        }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/^Rename day$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Cardio, Abs & Accessories → Pull \+ Abs/)).toBeInTheDocument()
+  })
+
+  it('says where a moved day lands', () => {
+    render(
+      <PlanChangeDraft
+        change={{
+          change_id: 'c1', needs_confirmation: true, applied: false,
+          draft: [{ action: 'move_day', day: 'Upper Pull', to_position: 2 }],
+        }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/^Move day$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Upper Pull → position 2/)).toBeInTheDocument()
   })
 
   it('says when a change applies to every week', () => {

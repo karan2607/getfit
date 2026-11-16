@@ -2340,7 +2340,16 @@ def workout_plan_propose_change(request, plan_id):
         return Response({'detail': 'changes must be a non-empty list'},
                         status=status.HTTP_400_BAD_REQUEST)
     for item in draft:
-        if not isinstance(item, dict) or not (item.get('name') or '').strip():
+        if not isinstance(item, dict):
+            return Response({'detail': 'each change needs a name'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        # A day action is addressed by `day`; `name` carries the new day name
+        # for a rename and nothing at all for a move. Demanding an exercise
+        # name from it would reject the one shape that has no exercise in it.
+        named = (item.get('name') or '').strip() or (
+            (item.get('action') or '').lower() in plan_changes.DAY_ACTIONS
+            and (item.get('day') or '').strip())
+        if not named:
             return Response({'detail': 'each change needs a name'},
                             status=status.HTTP_400_BAD_REQUEST)
 
@@ -2418,42 +2427,57 @@ def workout_plan_apply_change(request, plan_id, change_id):
     #
     # A caller MAY still pass an explicit plan (the legacy chat block path),
     # in which case it is validated as before.
-    payload = request.data.get('plan')
-    if payload is None:
-        try:
-            payload, _weeks = plan_changes.build_payload(plan, change.draft)
-        except plan_changes.DraftError as exc:
-            return Response({'detail': str(exc), 'code': 'bad_draft'},
-                            status=status.HTTP_400_BAD_REQUEST)
-    if not isinstance(payload, dict):
-        return Response({'detail': 'plan payload required'},
-                        status=status.HTTP_400_BAD_REQUEST)
+    # Day-level operations -- renaming a day, moving it to another slot in
+    # the week -- are carried out on the WorkoutDay rows FIRST, inside the
+    # same transaction, and the exercise payload is then built from the plan
+    # as they left it. Two reasons that order is not arbitrary:
+    #
+    #   * a draft may rename a day and then change an exercise on it, and the
+    #     exercise half has to be able to find the day; and
+    #   * a move must not travel as payload content. Days are matched on
+    #     (week_number, day_number), so a payload that swapped two days'
+    #     contents would hand one day's exercises to the other day's row and
+    #     orphan every SetLog behind them.
+    #
+    # The whole block is one atomic unit so a draft that fails validation
+    # halfway cannot leave the week reordered and the exercises unchanged.
     try:
-        _validate_plan_json(payload)
+        with transaction.atomic():
+            plan_changes.apply_day_structure(plan, change.draft)
+
+            payload = request.data.get('plan')
+            if payload is None:
+                payload, _weeks = plan_changes.build_payload(plan, change.draft)
+            if not isinstance(payload, dict):
+                raise plan_changes.DraftError('plan payload required')
+            _validate_plan_json(payload)
+
+            # A draft that speaks for one week must not delete the other
+            # seven. The whole point of week-scoped editing is that chat
+            # stops sending and re-emitting all 8 weeks (~32,000 tokens each
+            # way) to change one exercise -- and every re-emitted day is a
+            # chance to drop something.
+            scope_weeks = _payload_weeks(payload)
+            _apply_plan_diff(plan, payload, scope_weeks=scope_weeks)
+            after = plan_changes.snapshot_plan(plan)
+            diff = plan_changes.diff_snapshots(
+                before, after, approved=change.draft,
+                keep_list=change.keep_list)
+
+            PlanSnapshot.objects.create(
+                plan=plan, change_id=change.id, phase=PlanSnapshot.AFTER,
+                data=after)
+            change.status = PlanChange.APPLIED
+            change.applied_at = timezone.now()
+            change.verification_diff = diff
+            change.save(update_fields=['status', 'applied_at',
+                                       'verification_diff'])
+    except plan_changes.DraftError as exc:
+        return Response({'detail': str(exc), 'code': 'bad_draft'},
+                        status=status.HTTP_400_BAD_REQUEST)
     except ValueError as exc:
         return Response({'detail': str(exc)},
                         status=status.HTTP_400_BAD_REQUEST)
-
-    # A draft that speaks for one week must not delete the other seven. The
-    # whole point of week-scoped editing is that chat stops sending and
-    # re-emitting all 8 weeks (~32,000 tokens each way) to change one
-    # exercise -- and every re-emitted day is a chance to drop something.
-    scope_weeks = _payload_weeks(payload)
-    with transaction.atomic():
-        _apply_plan_diff(plan, payload, scope_weeks=scope_weeks)
-        after = plan_changes.snapshot_plan(plan)
-        diff = plan_changes.diff_snapshots(
-            before, after, approved=change.draft,
-            keep_list=change.keep_list)
-
-        PlanSnapshot.objects.create(
-            plan=plan, change_id=change.id, phase=PlanSnapshot.AFTER,
-            data=after)
-        change.status = PlanChange.APPLIED
-        change.applied_at = timezone.now()
-        change.verification_diff = diff
-        change.save(update_fields=['status', 'applied_at',
-                                   'verification_diff'])
 
     return Response({
         'change_id': str(change.id),

@@ -22,9 +22,24 @@ export interface ProposedChange {
     week?: number
     action?: string
     replaces?: string
+    /** For action="move_day": the 1-based slot the day moves to. */
+    to_position?: number
   }>
   keep_list?: string[]
   warnings?: Array<{ type: string; name: string; message: string }>
+}
+
+/**
+ * A day that was renamed or moved. Reported apart from `changed`, which is
+ * about exercises: moving a day touches no exercise at all, and the user is
+ * confirming one fact -- that the day is where they asked for it.
+ */
+export interface DayChange {
+  week: number
+  from_name: string
+  name: string
+  from_position: number
+  position: number
 }
 
 export interface VerificationDiff {
@@ -33,7 +48,26 @@ export interface VerificationDiff {
   changed: Array<{ name: string; day?: string; week?: number }>
   unapproved: Array<{ name: string; day?: string; week?: number }>
   keep_list_violations: Array<{ name: string; day?: string; week?: number }>
+  /** Absent on diffs recorded before day changes could be proposed. */
+  day_changes?: DayChange[]
   clean: boolean
+}
+
+/** What one day change says, in the words the user used to ask for it. */
+function dayChangeLabel(item: {
+  action?: string
+  day?: string
+  name?: string
+  to_position?: number
+}) {
+  if (item.action === 'rename_day') {
+    return { verb: 'Rename day', detail: `${item.day} → ${item.name}` }
+  }
+  const slot = item.to_position
+  return {
+    verb: 'Move day',
+    detail: `${item.day ?? item.name} → position ${slot ?? '?'}`,
+  }
 }
 
 export function PlanChangeDraft({
@@ -71,7 +105,16 @@ export function PlanChangeDraft({
                   {item.day ?? 'Plan'}
                   {item.week ? ` · week ${item.week}` : ' · all weeks'}
                 </p>
-                {item.replaces ? (
+                {item.action === 'rename_day' || item.action === 'move_day' ? (
+                  <div className="mt-1">
+                    <p className="text-xs uppercase tracking-wide text-ink-400">
+                      {dayChangeLabel(item).verb}
+                    </p>
+                    <p className="text-sm font-semibold text-ink-600">
+                      {dayChangeLabel(item).detail}
+                    </p>
+                  </div>
+                ) : item.replaces ? (
                   <div className="mt-1">
                     <p className="text-xs uppercase tracking-wide text-ink-400">Replace</p>
                     <p className="text-sm text-ink-500 line-through">{item.replaces}</p>
@@ -154,6 +197,33 @@ export function PlanChangeResult({
       <p className="text-sm font-semibold text-ink-600">
         {failed ? 'Applied, but not as approved' : 'Done'}
       </p>
+
+      {/* Days that moved or were renamed. First, because a restructure is
+          what the user asked for and the exercise list below it is the
+          detail -- and because a week that was only reordered touches no
+          exercise, so without this the card would say "Done" and show
+          nothing at all. */}
+      {diff.day_changes?.length ? (
+        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+          {diff.day_changes.map((d, i) => (
+            <div key={`d${i}`} className="flex items-start gap-2">
+              <span className="text-accent-500 mt-0.5" aria-hidden>↕</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink-600">
+                  {d.from_name === d.name ? d.name : `${d.from_name} → ${d.name}`}
+                </p>
+                <p className="text-xs text-ink-400">
+                  {d.from_position === d.position
+                    ? `Day ${d.position}`
+                    : `Day ${d.from_position} → day ${d.position}`}
+                  {' · week '}
+                  {d.week}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Removed exercises are struck through and paired with what replaced
           them, rather than listed as two unrelated lines. A swap is ONE

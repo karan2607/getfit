@@ -338,11 +338,23 @@ _PLAN_TOOL_SPECS = {
             'Propose a change to a plan for the user to confirm. This applies '
             'NOTHING: the user confirms the returned change_id, and you cannot '
             'apply it yourself. '
-            'Each change states an action on one exercise. For a swap use '
-            'action="replace" with `replaces` set to the exercise going OUT '
-            'and `name` to the one coming IN. '
+            'Each change states one action. Four act on an exercise: add, '
+            'remove, replace, update. For a swap use action="replace" with '
+            '`replaces` set to the exercise going OUT and `name` to the one '
+            'coming IN. '
+            'Two act on a whole day: action="rename_day" renames it (`day` is '
+            'its current name, `name` the new one), and action="move_day" '
+            'moves it to another slot in the week (`to_position` is the '
+            '1-based position, so 2 means the second day; the other days '
+            'shift around it). Use them -- a day CAN be renamed and a week '
+            'CAN be reordered, and both keep the day\'s logged history. '
+            'Restructuring a week is several changes in one proposal: move '
+            'the days, then rename them, then change their exercises. Name a '
+            'renamed day by the name the user used; the server follows the '
+            'rename. '
             'Omit `week` to change every week -- "take bench press out" means '
-            'out of the whole programme, not out of one week. '
+            'out of the whole programme, not out of one week, and a day moved '
+            'without a `week` moves in every week. '
             'List in keep_list any exercise that must survive the change. '
             'Do NOT describe the change in prose: every part of it goes in a '
             'field, or the server cannot carry it out.'),
@@ -369,13 +381,16 @@ _PLAN_TOOL_SPECS = {
                             # what the server requires.
                             'action': {
                                 'type': 'string',
-                                'enum': ['add', 'remove', 'replace', 'update'],
+                                'enum': ['add', 'remove', 'replace', 'update',
+                                         'rename_day', 'move_day'],
                             },
                             'name': {
                                 'type': 'string',
                                 'description':
                                     'The exercise this change results in: the '
-                                    'one added, removed, updated, or swapped IN.',
+                                    'one added, removed, updated, or swapped IN. '
+                                    'For rename_day, the day\'s new name. For '
+                                    'move_day, the day\'s name.',
                             },
                             'replaces': {
                                 'type': 'string',
@@ -387,6 +402,12 @@ _PLAN_TOOL_SPECS = {
                                 'type': 'integer',
                                 'description':
                                     'Optional. Omit to apply to every week.',
+                            },
+                            'to_position': {
+                                'type': 'integer',
+                                'description':
+                                    'For action="move_day": the 1-based slot '
+                                    'the day moves to within its week.',
                             },
                             'sets': {'type': 'integer'},
                             'reps': {'type': 'string'},
