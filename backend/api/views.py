@@ -5824,9 +5824,9 @@ def feedback_detail(request, feedback_id):
     """
     Read, update or delete one feedback item (superuser only).
 
-    PATCH is how the automation reports back: it sets `status`, `result_notes`
-    and `commit_sha`. Those are read-only on the submit serializer, so they are
-    applied explicitly here rather than through it.
+    PATCH is how the automation reports back: it sets `status`, `result_notes`,
+    `commit_sha` and `branch`. Those are read-only on the submit serializer, so
+    they are applied explicitly here rather than through it.
     """
     denied = _require_superuser(request)
     if denied is not None:
@@ -5856,6 +5856,11 @@ def feedback_detail(request, feedback_id):
         item.result_notes = request.data['result_notes'] or ''
     if 'commit_sha' in request.data:
         item.commit_sha = (request.data['commit_sha'] or '')[:40]
+    # Which branch the fix landed on, so 'done' can say WHERE rather than
+    # just "Fixed". A fix on staging is not in front of the submitter, and
+    # for twelve days eleven of them were reported as though they were.
+    if 'branch' in request.data:
+        item.branch = (request.data['branch'] or '')[:100]
 
     # The runner may reset the attempt count when the fault was its own.
     #

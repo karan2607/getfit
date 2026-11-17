@@ -116,6 +116,8 @@ export interface Feedback {
   status: FeedbackStatus
   result_notes: string
   commit_sha: string
+  /** Branch the fix landed on. Anything but 'main' is not live yet. */
+  branch: string
   submitted_by: string
   created_at: string
   updated_at: string

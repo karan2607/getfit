@@ -35,14 +35,80 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOKEN_FILE="${GETFIT_TOKEN_FILE:-$HOME/.getfit-loop-token}"
 POLL_SECONDS="${GETFIT_POLL_SECONDS:-300}"
 LOG="${GETFIT_LOOP_LOG:-$HOME/getfit-loop.log}"
-# Pushes to STAGING, not main. Staging auto-deploys and is promoted to
-# production by hand, so the loop can no longer put an unreviewed change in
-# front of users on its own -- it can only put one in front of you.
+# Where a verified fix goes.
 #
-# Override with GETFIT_BRANCH=main to restore the old behaviour, but note the
-# build gate is a local test run: it cannot catch a UI regression or a
-# production-only break (the Django 5 outage was green locally on 4.2).
-BRANCH="${GETFIT_BRANCH:-staging}"
+# PRODUCTION by default, staging only for a change big enough to want a human
+# look first. Staging-for-everything was the safer-looking choice and it cost
+# more than it saved: production sat twelve days and sixteen commits behind,
+# eleven of them feedback fixes that had been reported as "Fixed". The same
+# photo bugs were reported three times because the fixes were never promoted.
+# An undeployed fix is indistinguishable from no fix, so defaulting to staging
+# did not reduce risk, it hid work.
+#
+# What still goes to staging (see `release_branch`): anything carrying a
+# migration, and anything large. Those are the changes where a local gate
+# tells you least and a bad one is hardest to undo.
+#
+# GETFIT_BRANCH pins a branch for every item and skips the decision entirely.
+PROD_BRANCH="${GETFIT_PROD_BRANCH:-main}"
+HOLD_BRANCH="${GETFIT_HOLD_BRANCH:-staging}"
+# Work always HAPPENS on the integration branch and is promoted from there by
+# fast-forwarding main onto the same commit. That ordering is what keeps this
+# simple: there is no cherry-pick, no reset, and a held change stays exactly
+# where it is instead of being rewritten under the next one.
+BRANCH="${GETFIT_BRANCH:-$HOLD_BRANCH}"
+
+# A change is "major" past either of these. Deliberately crude: the point is a
+# predictable line, not a clever one.
+BIG_FILES="${GETFIT_BIG_FILES:-12}"
+BIG_LINES="${GETFIT_BIG_LINES:-600}"
+
+#: Why this item is going where it is going, for the log and the report.
+RELEASE_REASON=''
+
+# promote_to_prod — whether the commit just made should also go live.
+#
+# Called AFTER the gate has passed and the commit has landed on the
+# integration branch, so it reads the diff the agent actually produced rather
+# than guessing from the feedback text. Returns 0 to promote.
+promote_to_prod() {
+  if [[ -n "${GETFIT_BRANCH:-}" ]]; then
+    RELEASE_REASON="GETFIT_BRANCH is pinned to $GETFIT_BRANCH"
+    return 1
+  fi
+
+  local migrations files lines behind
+  # Migrations change the shape of real data and a local gate runs against an
+  # empty database, so it proves the migration applies and nothing about what
+  # it does to eight weeks of someone's logged sets.
+  migrations="$(git -C "$REPO" diff --name-only 'HEAD~1' HEAD -- \
+                  'backend/api/migrations/*.py' | wc -l | tr -d ' ')"
+  if (( migrations > 0 )); then
+    RELEASE_REASON="carries $migrations migration(s), so it wants a look first"
+    return 1
+  fi
+
+  files="$(git -C "$REPO" diff --name-only 'HEAD~1' HEAD | wc -l | tr -d ' ')"
+  lines="$(git -C "$REPO" diff --numstat 'HEAD~1' HEAD \
+           | awk '{ a += $1; d += $2 } END { print a + d + 0 }')"
+  if (( files >= BIG_FILES || lines >= BIG_LINES )); then
+    RELEASE_REASON="large change: $files file(s), $lines changed line(s)"
+    return 1
+  fi
+
+  # A small fix cannot be promoted past work someone is still holding: main
+  # only ever fast-forwards, so pushing this commit would carry every commit
+  # under it -- including the migration that was deliberately held back.
+  behind="$(git -C "$REPO" rev-list --count \
+            "origin/$PROD_BRANCH..HEAD~1" 2>/dev/null || echo 0)"
+  if (( behind > 0 )); then
+    RELEASE_REASON="held behind $behind change(s) already awaiting review on $HOLD_BRANCH"
+    return 1
+  fi
+
+  RELEASE_REASON="$files file(s), $lines changed line(s), no migrations"
+  return 0
+}
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
 
@@ -139,18 +205,23 @@ api() {
 }
 
 set_status() {
-  # set_status <id> <status> [notes] [sha] [attempts]
+  # set_status <id> <status> [notes] [sha] [attempts] [branch]
   #
   # `attempts` is only ever passed as 0, by the paths where the fault was
   # this runner's and not the item's. An attempt is counted when an item is
   # taken, which is right, but it means a runner bug spends the item's
   # budget -- three were burned on an empty prompt the runner built itself.
-  local id="$1" st="$2" notes="${3:-}" sha="${4:-}" attempts="${5:-}"
+  local id="$1" st="$2" notes="${3:-}" sha="${4:-}" attempts="${5:-}" branch="${6:-}"
   local body
+  # `branch` is what lets the app say "On staging" rather than "Fixed" on a
+  # fix that is not deployed. Sent only when known, so an item that failed
+  # before any push does not claim to have landed somewhere.
   body="$(jq -nc --arg s "$st" --arg n "$notes" --arg c "$sha" --arg a "$attempts" \
+            --arg b "$branch" \
     '{status:$s} + (if $n == "" then {} else {result_notes:$n} end)
                + (if $c == "" then {} else {commit_sha:$c} end)
-               + (if $a == "" then {} else {attempts:($a|tonumber)} end)')"
+               + (if $a == "" then {} else {attempts:($a|tonumber)} end)
+               + (if $b == "" then {} else {branch:$b} end)')"
   api PATCH "/api/feedback/$id/" "$body" >/dev/null
 }
 
@@ -577,9 +648,34 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" >>"$LOG" 2>&1
     set_status "$id" failed "Committed $sha locally but push failed. Resolve by hand."
     return
   fi
+  log "  pushed $sha to $BRANCH"
 
-  log "  pushed $sha"
-  set_status "$id" done "$(final_paragraph "$claude_out")" "$sha"
+  # Promotion. A verified small fix goes live now; anything held says so, in
+  # the item itself, because "Fixed" on something that is not deployed is the
+  # single most misleading thing this loop can tell you.
+  local landed_on="$BRANCH" notes
+  notes="$(final_paragraph "$claude_out")"
+  if promote_to_prod; then
+    if git -C "$REPO" push origin "HEAD:$PROD_BRANCH" >>"$LOG" 2>&1; then
+      landed_on="$PROD_BRANCH"
+      log "  promoted $sha to $PROD_BRANCH ($RELEASE_REASON)"
+      notes="$notes
+
+Live in production ($sha)."
+    else
+      log "  promotion to $PROD_BRANCH FAILED; the fix is on $BRANCH only"
+      notes="$notes
+
+On $BRANCH ($sha). The push to $PROD_BRANCH failed, so this is not live yet."
+    fi
+  else
+    log "  holding on $BRANCH: $RELEASE_REASON"
+    notes="$notes
+
+On $BRANCH ($sha), NOT live yet: $RELEASE_REASON. It needs promoting to $PROD_BRANCH."
+  fi
+
+  set_status "$id" done "$notes" "$sha" "" "$landed_on"
 }
 
 # ---------------------------------------------------------------------------

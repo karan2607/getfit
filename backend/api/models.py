@@ -1129,6 +1129,15 @@ class Feedback(models.Model):
     # Filled in by the automation: what it did, and the commit it shipped.
     result_notes = models.TextField(blank=True)
     commit_sha = models.CharField(max_length=40, blank=True)
+    #: The branch the fix was pushed to, so 'done' can say WHERE.
+    #:
+    #: 'done' used to render as "Fixed", which the submitter reasonably read
+    #: as live. For twelve days it meant "pushed to staging", and eleven
+    #: fixes reported as fixed were not in front of anyone. The branch is the
+    #: fact that distinguishes the two, so it is recorded rather than
+    #: inferred. Blank on older rows, which predate the automation recording
+    #: it and must not be relabelled retrospectively.
+    branch = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     #: When the submitter was shown that this item had finished.

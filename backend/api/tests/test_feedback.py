@@ -178,6 +178,58 @@ class FeedbackQueueTests(APITestCase):
         item.refresh_from_db()
         self.assertEqual(len(item.commit_sha), 40)
 
+    def test_the_automation_records_which_branch_the_fix_landed_on(self):
+        """
+        'done' used to render as "Fixed", which reads as live. For twelve days
+        it meant "pushed to staging": eleven fixes were reported as fixed
+        while production ran code from Nov 4, and the same photo bugs were
+        reported three times because of it. The branch is the fact that tells
+        the two apart, so it is recorded rather than inferred.
+        """
+        item = Feedback.objects.create(user=self.admin, body='x')
+        res = self.client.patch(reverse('feedback-detail', args=[item.id]), {
+            'status': 'done', 'commit_sha': 'c' * 40, 'branch': 'staging',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['branch'], 'staging')
+        item.refresh_from_db()
+        self.assertEqual(item.branch, 'staging')
+
+    def test_a_fix_that_went_live_records_main(self):
+        item = Feedback.objects.create(user=self.admin, body='x')
+        self.client.patch(reverse('feedback-detail', args=[item.id]),
+                          {'status': 'done', 'branch': 'main'}, format='json')
+        item.refresh_from_db()
+        self.assertEqual(item.branch, 'main')
+
+    def test_branch_is_blank_until_something_lands(self):
+        """Blank must stay blank: it is what the app reads as "unknown"."""
+        item = Feedback.objects.create(user=self.admin, body='x')
+        self.client.patch(reverse('feedback-detail', args=[item.id]),
+                          {'status': 'in_progress'}, format='json')
+        item.refresh_from_db()
+        self.assertEqual(item.branch, '')
+
+    def test_branch_is_truncated_not_rejected(self):
+        item = Feedback.objects.create(user=self.admin, body='x')
+        self.client.patch(reverse('feedback-detail', args=[item.id]),
+                          {'branch': 'b' * 200}, format='json')
+        item.refresh_from_db()
+        self.assertEqual(len(item.branch), 100)
+
+    def test_submitting_cannot_set_the_branch(self):
+        """
+        Only the automation says where a fix landed. Read-only on the submit
+        serializer, so a submission claiming 'main' is ignored rather than
+        rejected -- a submitter should not be able to make an item read as
+        already live.
+        """
+        res = self.client.post(reverse('feedback'),
+                               {'body': 'something is broken',
+                                'branch': 'main'}, format='json')
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(Feedback.objects.get(pk=res.data['id']).branch, '')
+
     def test_delete_removes_the_item(self):
         item = Feedback.objects.create(user=self.admin, body='x')
         res = self.client.delete(reverse('feedback-detail', args=[item.id]))

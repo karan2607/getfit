@@ -16,7 +16,8 @@ const msg = (over: Partial<FeedbackMessage> = {}): FeedbackMessage => ({
 const item = (over: Partial<Feedback> = {}): Feedback => ({
   id: 'f1', body: 'The bell opens the wrong way', page: '/diet',
   status: 'done' as const, result_notes: 'Anchored the panel to the header edge.',
-  commit_sha: 'abcdef1234567890', submitted_by: 'admin@test.local',
+  commit_sha: 'abcdef1234567890',
+  branch: 'main', submitted_by: 'admin@test.local',
   created_at: '2026-11-03T09:00:00Z', updated_at: '2026-11-03T10:00:00Z',
   seen_at: null, dismissed_at: null, messages: [msg()], unread: 1, ...over,
 })

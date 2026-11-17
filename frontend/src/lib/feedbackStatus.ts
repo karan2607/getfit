@@ -36,6 +36,20 @@ const LINES: Record<string, StatusLine> = {
     tone: 'text-white bg-ink-600 border-ink-600',
     fallback: 'Fixed and shipped.',
   },
+  /**
+   * Done, but only on staging -- so NOT in front of you yet.
+   *
+   * 'done' rendered as "Fixed", which anyone would read as live. For twelve
+   * days it meant "pushed to staging", and eleven fixes reported as fixed
+   * were not deployed; the photo bugs were re-reported because of it. The
+   * pill now says where the fix is, and deliberately does NOT get the solid
+   * navy treatment -- that one is reserved for work you can actually use.
+   */
+  done_staging: {
+    label: 'On staging',
+    tone: 'text-ink-600 bg-accent-50 border-accent-200',
+    fallback: 'Fixed and on staging, waiting to go live.',
+  },
   failed: {
     label: "Couldn't fix",
     tone: 'text-red-700 bg-red-50 border-red-200',
@@ -58,6 +72,17 @@ const LINES: Record<string, StatusLine> = {
   },
 }
 
-export function statusLine(item: Pick<Feedback, 'status'>): StatusLine {
+/** The branch a finished fix is live on. Anything else is not in front of you. */
+const LIVE_BRANCH = 'main'
+
+export function statusLine(
+  item: Pick<Feedback, 'status'> & Partial<Pick<Feedback, 'branch'>>,
+): StatusLine {
+  // Blank `branch` means the row predates the automation recording it. Those
+  // stay "Fixed": most of them ARE live by now, and relabelling old history
+  // as pending would be a different kind of lie.
+  if (item.status === 'done' && item.branch && item.branch !== LIVE_BRANCH) {
+    return LINES.done_staging
+  }
   return LINES[item.status] ?? LINES.new
 }

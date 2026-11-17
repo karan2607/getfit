@@ -15,6 +15,7 @@ const reply = (over: Partial<FeedbackMessage> = {}): FeedbackMessage => ({
 const item = (over: Partial<Feedback> = {}): Feedback => ({
   id: 'f1', body: 'Add a bell for superusers', page: '/profile',
   status: 'done' as const, result_notes: 'Shipped the bell.', commit_sha: 'abcdef1234567890',
+  branch: 'main',
   submitted_by: 'admin@test.local', created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(), seen_at: null, dismissed_at: null,
   messages: [], unread: 1, ...over,
