@@ -248,6 +248,36 @@ class DayDiffTests(TestCase):
         self.assertEqual(entry['from_name'], 'Upper Pull')
         self.assertTrue(diff['clean'])
 
+    def test_one_change_is_reported_once_across_every_week(self):
+        """
+        An 8-week plan reported 24 day_changes for a single move -- the same
+        three sentences eight times -- and the confirmation card became
+        unreadable at exactly the size a real programme is. Only visible
+        against a multi-week plan, which the first fixture here was not.
+        """
+        plan = build_plan(self.user, weeks=8)
+        before = snapshot_plan(plan)
+        draft = [{'action': 'move_day', 'day': 'Upper Pull', 'to_position': 2}]
+        apply_day_structure(plan, draft)
+        diff = diff_snapshots(before, snapshot_plan(plan), approved=draft)
+
+        # Two days swap places; that is two entries, not sixteen.
+        self.assertEqual(len(diff['day_changes']), 2)
+        moved = next(d for d in diff['day_changes'] if d['name'] == 'Upper Pull')
+        self.assertEqual(moved['weeks'], list(range(1, 9)))
+        self.assertEqual(moved['week'], 1)
+        self.assertEqual((moved['from_position'], moved['position']), (3, 2))
+
+    def test_a_week_scoped_change_names_only_that_week(self):
+        plan = build_plan(self.user, weeks=8)
+        before = snapshot_plan(plan)
+        draft = [{'action': 'rename_day', 'day': 'Upper Pull',
+                  'name': 'Pull + Abs', 'week': 4}]
+        apply_day_structure(plan, draft)
+        diff = diff_snapshots(before, snapshot_plan(plan), approved=draft)
+        self.assertEqual(len(diff['day_changes']), 1)
+        self.assertEqual(diff['day_changes'][0]['weeks'], [4])
+
     def test_an_untouched_plan_reports_no_day_changes(self):
         snap = snapshot_plan(self.plan)
         self.assertEqual(diff_snapshots(snap, snap)['day_changes'], [])

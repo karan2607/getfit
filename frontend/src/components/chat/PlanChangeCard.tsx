@@ -35,11 +35,30 @@ export interface ProposedChange {
  * confirming one fact -- that the day is where they asked for it.
  */
 export interface DayChange {
+  /** The earliest week the change covers. */
   week: number
+  /**
+   * Every week it covers.
+   *
+   * A day move with no week applies to all of them, so an 8-week plan was
+   * reporting 24 rows for one logical change. Absent on diffs recorded
+   * before the server collapsed them.
+   */
+  weeks?: number[]
   from_name: string
   name: string
   from_position: number
   position: number
+}
+
+/** "week 3", "weeks 1-8", or "weeks 2, 5, 7" when they do not run on. */
+function weekSpan(d: DayChange) {
+  const weeks = d.weeks?.length ? d.weeks : [d.week]
+  if (weeks.length === 1) return `week ${weeks[0]}`
+  const contiguous = weeks.every((w, i) => i === 0 || w === weeks[i - 1] + 1)
+  return contiguous
+    ? `weeks ${weeks[0]}-${weeks[weeks.length - 1]}`
+    : `weeks ${weeks.join(', ')}`
 }
 
 export interface VerificationDiff {
@@ -216,8 +235,8 @@ export function PlanChangeResult({
                   {d.from_position === d.position
                     ? `Day ${d.position}`
                     : `Day ${d.from_position} → day ${d.position}`}
-                  {' · week '}
-                  {d.week}
+                  {' · '}
+                  {weekSpan(d)}
                 </p>
               </div>
             </div>

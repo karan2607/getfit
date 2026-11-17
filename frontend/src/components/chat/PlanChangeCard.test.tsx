@@ -150,6 +150,39 @@ describe('the replace/with shape', () => {
     expect(screen.getByText(/^Day 4 · week 1$/)).toBeInTheDocument()
   })
 
+  it('reports one change once, however many weeks it covers', () => {
+    // An 8-week plan reported 24 rows for a single day move: the same three
+    // sentences, eight times. Only visible against a real programme, which
+    // is why the staging fixture missed it.
+    render(
+      <PlanChangeResult
+        diff={diff({
+          day_changes: [{
+            week: 1, weeks: [1, 2, 3, 4, 5, 6, 7, 8],
+            from_name: 'Legs', name: 'Legs',
+            from_position: 3, position: 2,
+          }],
+        })}
+      />,
+    )
+    expect(screen.getAllByText('Legs')).toHaveLength(1)
+    expect(screen.getByText(/^Day 3 → day 2 · weeks 1-8$/)).toBeInTheDocument()
+  })
+
+  it('lists the weeks when they do not run on', () => {
+    render(
+      <PlanChangeResult
+        diff={diff({
+          day_changes: [{
+            week: 2, weeks: [2, 5, 7], from_name: 'Pull', name: 'Pull',
+            from_position: 2, position: 4,
+          }],
+        })}
+      />,
+    )
+    expect(screen.getByText(/weeks 2, 5, 7$/)).toBeInTheDocument()
+  })
+
   it('shows the draft as Replace / With before anything is applied', () => {
     render(
       <PlanChangeDraft

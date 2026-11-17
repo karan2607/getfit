@@ -131,17 +131,30 @@ def _day_diff(before, after):
     By pk, because that is the whole point of moving a day's `day_number`
     instead of swapping two days' contents: the row survives, so the diff can
     say "this day moved" rather than reporting both days as rewritten.
+
+    COLLAPSED ACROSS WEEKS. A day move with no week applies to every week, so
+    an 8-week plan produced 24 entries for one logical change -- the same
+    three sentences eight times -- and the confirmation card became unreadable
+    at exactly the size a real programme is. The weeks a change covers are
+    carried in `weeks` instead, and `week` stays as the earliest so ordering
+    and older readers are unaffected.
     """
     old, new = _day_index(before), _day_index(after)
-    out = []
+    grouped = {}
     for day_id in old.keys() & new.keys():
         was, now = old[day_id], new[day_id]
         if was['name'] == now['name'] and was['day_number'] == now['day_number']:
             continue
+        key = (was['name'], now['name'], was['day_number'], now['day_number'])
+        grouped.setdefault(key, []).append(now['week'])
+
+    out = []
+    for (from_name, name, from_position, position), weeks in grouped.items():
+        weeks = sorted(set(weeks))
         out.append({
-            'week': now['week'],
-            'from_name': was['name'], 'name': now['name'],
-            'from_position': was['day_number'], 'position': now['day_number'],
+            'week': weeks[0], 'weeks': weeks,
+            'from_name': from_name, 'name': name,
+            'from_position': from_position, 'position': position,
         })
     return sorted(out, key=lambda d: (d['week'], d['position']))
 
