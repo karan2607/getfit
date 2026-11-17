@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type ChatSession, type VerificationDiff } from '../lib/api'
+import { api, type ChatSession } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
 import { InFlight, TurnFailure } from '../components/chat/TurnStatus'
 import { PlanChangeDraft, PlanChangeResult } from '../components/chat/PlanChangeCard'
@@ -80,11 +80,10 @@ function SessionList({
 function ChatPane({ sessionId }: { sessionId: string }) {
   const {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, proposedChange, status,
+    failedTurn, elapsed, proposedChange, status, applying, appliedDiff,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
+    confirmProposal,
   } = useChatSession(sessionId)
-  const [applying, setApplying] = useState(false)
-  const [appliedDiff, setAppliedDiff] = useState<VerificationDiff | null>(null)
   const { showToast } = useToast()
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -102,30 +101,16 @@ function ChatPane({ sessionId }: { sessionId: string }) {
     if (el && pinnedToBottom) el.scrollTop = el.scrollHeight
   }, [session?.messages.length, streamingContent, pinnedToBottom])
 
-  /**
-   * Apply the draft the user just confirmed.
-   *
-   * No plan payload is sent. The server BUILDS it from the recorded draft and
-   * the plan it already has, so the model never re-emits the plan -- which
-   * was the original failure, where one dropped line in a 56-day reply
-   * deleted an exercise and its history.
-   */
+  /** Confirm the draft. The apply itself lives in the hook, shared with the
+   *  workout drawer so one surface cannot quietly lose the feature. */
   async function handleConfirmChange() {
-    if (!proposedChange?.plan_id) return
-    setApplying(true)
     try {
-      const res = await api.workouts.applyPlanChange(
-        proposedChange.plan_id, proposedChange.change_id,
-      )
-      setAppliedDiff(res.verification_diff)
-      if (!res.clean) {
+      const res = await confirmProposal()
+      if (res && !res.clean) {
         showToast('Applied, but not everything matched the draft', 'error')
       }
-      clearProposal()
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
-    } finally {
-      setApplying(false)
     }
   }
 

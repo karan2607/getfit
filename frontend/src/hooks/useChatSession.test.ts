@@ -124,3 +124,103 @@ describe('useChatSession', () => {
     expect(spy.mock.calls[0][4]).toBeInstanceOf(AbortSignal)
   })
 })
+
+/**
+ * The proposal lifecycle.
+ *
+ * Reported as "it is not able to update the plan now and just doesn't give me
+ * the button too". The server was never at fault: the draft it recorded stayed
+ * applicable the whole time. The client threw the button away, because every
+ * `done` frame assigned `proposed_change ?? null` -- so one follow-up question
+ * after a proposal wiped it. Measured on production: draft c77d3a6c was
+ * discarded by the UI and then applied cleanly by hand.
+ */
+describe('useChatSession proposals', () => {
+  const proposal = {
+    change_id: 'c1', plan_id: 'p1', needs_confirmation: true, applied: false,
+    draft: [{ day: 'Push', action: 'remove', name: 'Dumbbell Lateral Raises' }],
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(auth, 'getToken').mockReturnValue('tok')
+    vi.spyOn(api.chat, 'getSession').mockResolvedValue({
+      id: 's1', title: 'T', source: 'main', messages: [],
+    } as never)
+  })
+
+  async function proposeThen(result: { current: ReturnType<typeof useChatSession> }) {
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'here it is' },
+        { done: true, message_id: 'm1', proposed_change: proposal },
+      ]) as never,
+    )
+    await act(async () => { await result.current.sendMessage('remove the raises') })
+    await waitFor(() => expect(result.current.proposedChange).not.toBeNull())
+  }
+
+  it('keeps the draft when the next turn proposes nothing', async () => {
+    const { result } = renderHook(() => useChatSession('s1'))
+    await proposeThen(result)
+
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: '90 seconds.' },
+        { done: true, message_id: 'm2', proposed_change: null },
+      ]) as never,
+    )
+    await act(async () => { await result.current.sendMessage('what is my rest time?') })
+
+    // The draft is still on the server and still applicable, so the button
+    // has to still be there.
+    expect(result.current.proposedChange?.change_id).toBe('c1')
+  })
+
+  it('replaces the draft when a later turn proposes a new one', async () => {
+    const { result } = renderHook(() => useChatSession('s1'))
+    await proposeThen(result)
+
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { done: true, message_id: 'm2',
+          proposed_change: { ...proposal, change_id: 'c2' } },
+      ]) as never,
+    )
+    await act(async () => { await result.current.sendMessage('actually, make it this') })
+    expect(result.current.proposedChange?.change_id).toBe('c2')
+  })
+
+  it('clears the draft once it is confirmed', async () => {
+    const { result } = renderHook(() => useChatSession('s1'))
+    await proposeThen(result)
+    vi.spyOn(api.workouts, 'applyPlanChange').mockResolvedValue({
+      change_id: 'c1', applied: true, clean: true,
+      verification_diff: {
+        added: [], removed: [], changed: [], unapproved: [],
+        keep_list_violations: [], clean: true,
+      },
+    } as never)
+
+    await act(async () => { await result.current.confirmProposal() })
+    expect(result.current.proposedChange).toBeNull()
+    expect(result.current.appliedDiff?.clean).toBe(true)
+  })
+
+  it('keeps the draft when applying it fails, so the button survives', async () => {
+    const { result } = renderHook(() => useChatSession('s1'))
+    await proposeThen(result)
+    vi.spyOn(api.workouts, 'applyPlanChange').mockRejectedValue(new Error('offline'))
+
+    await act(async () => {
+      await result.current.confirmProposal().catch(() => {})
+    })
+    expect(result.current.proposedChange?.change_id).toBe('c1')
+  })
+
+  it('adopts a draft the server was already holding', async () => {
+    const { result } = renderHook(() => useChatSession('s1'))
+    act(() => { result.current.adoptProposal(proposal) })
+    expect(result.current.proposedChange?.change_id).toBe('c1')
+  })
+})

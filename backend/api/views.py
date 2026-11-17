@@ -2300,6 +2300,38 @@ def _owned_plan(request, plan_id):
     return WorkoutPlan.objects.filter(pk=plan_id, user=request.user).first()
 
 
+def _pending_change(plan):
+    """
+    The newest draft on this plan that can still be applied, or None.
+
+    STALE DRAFTS ARE NOT OFFERED. `base_hash` is a digest of the plan as it
+    stood when the draft was made, and apply refuses on a mismatch -- so
+    offering one would put up a Confirm button that can only fail. A draft the
+    plan has moved past is not a pending decision, it is history.
+
+    Shaped exactly like the `proposed_change` payload on the chat `done`
+    frame, so one card renders either, and a draft found on load is
+    indistinguishable from one just proposed.
+    """
+    change = (PlanChange.objects
+              .filter(plan=plan, status=PlanChange.PROPOSED)
+              .order_by('-created_at').first())
+    if change is None:
+        return None
+    digest = plan_changes.plan_digest(plan_changes.snapshot_plan(plan))
+    if digest != change.base_hash:
+        return None
+    return {
+        'change_id': str(change.id),
+        'plan_id': str(plan.id),
+        'needs_confirmation': True,
+        'applied': False,
+        'warnings': change.warnings,
+        'draft': change.draft,
+        'keep_list': change.keep_list,
+    }
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def workout_plan_snapshot(request, plan_id):
@@ -2322,11 +2354,20 @@ def workout_plan_snapshot(request, plan_id):
                      'digest': plan_changes.plan_digest(snapshot)})
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def workout_plan_propose_change(request, plan_id):
     """
-    Record a draft. Applies NOTHING.
+    GET the draft still awaiting confirmation; POST records a new one.
+
+    GET exists because a recorded draft used to be reachable from exactly one
+    place: the React state of the turn that proposed it. Ask the coach one more
+    question and the Confirm button was gone, while the draft sat here
+    perfectly applicable -- and a draft proposed by anything other than the
+    chat page (an agent on the user's own API key, say) could never be
+    confirmed at all. A proposal the server is holding has to be answerable.
+
+    POST records a draft. Applies NOTHING.
 
     The draft is stored verbatim so the verification diff is checked against
     exactly what the user was shown, not against a later re-description of it.
@@ -2334,6 +2375,9 @@ def workout_plan_propose_change(request, plan_id):
     plan = _owned_plan(request, plan_id)
     if plan is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'proposed_change': _pending_change(plan)})
 
     draft = request.data.get('changes')
     if not isinstance(draft, list) or not draft:

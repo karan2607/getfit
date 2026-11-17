@@ -3,7 +3,9 @@ import { api, type ChatMessage, type ChatSessionDetail } from '../lib/api'
 import { streamChatMessage, type StreamEvent } from '../lib/stream'
 import { getToken } from '../lib/auth'
 import { getErrorMessage, toFriendlyError, type FriendlyError } from '../lib/errors'
-import type { ProposedChange } from '../components/chat/PlanChangeCard'
+import type {
+  ProposedChange, VerificationDiff,
+} from '../components/chat/PlanChangeCard'
 import * as pendingTurn from '../lib/pendingTurn'
 
 /**
@@ -48,7 +50,34 @@ export function useChatSession(sessionId: string | undefined) {
    */
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(null)
 
+  /** Applying the confirmed draft, so both surfaces can disable the button. */
+  const [applying, setApplying] = useState(false)
+  /** The verification diff of the change just applied, for the result card. */
+  const [appliedDiff, setAppliedDiff] = useState<VerificationDiff | null>(null)
+
   const abortRef = useRef<AbortController | null>(null)
+
+  /*
+   * A draft belongs to the session it was proposed in. It no longer clears
+   * itself on the next turn (that was the bug), so it has to be dropped
+   * explicitly when the surface moves to another conversation -- otherwise
+   * one session's pending change would offer itself in another.
+   *
+   * Only on a move BETWEEN conversations, though. The workout drawer creates
+   * its session asynchronously, so `sessionId` goes undefined -> 's1' on
+   * open, and treating that as a move cleared the draft the drawer had just
+   * adopted -- the card appeared and then vanished a tick later. Arriving at
+   * a conversation is not leaving one.
+   */
+  const previousSession = useRef(sessionId)
+  useEffect(() => {
+    const moved = previousSession.current !== undefined
+      && previousSession.current !== sessionId
+    previousSession.current = sessionId
+    if (!moved) return
+    setProposedChange(null)
+    setAppliedDiff(null)
+  }, [sessionId])
 
   /*
    * A turn still on record when we mount was interrupted -- the tab was
@@ -132,7 +161,16 @@ export function useChatSession(sessionId: string | undefined) {
       setFailedTurn(null)
       setLastEvent(null)
       setStatus(null)
-      setProposedChange(null)
+      // The pending draft deliberately SURVIVES a new turn. Clearing it here
+      // was the worse half of the bug: the Confirm button disappeared the
+      // instant the user typed anything, including "what does that change?"
+      // -- so asking a question about a proposal destroyed the only way to
+      // accept it. A draft is cancelled by the user or replaced by a newer
+      // one; sending a message is neither.
+      //
+      // The applied RESULT card does go: it describes the previous turn, and
+      // leaving it above a new conversation reads as if it just happened.
+      setAppliedDiff(null)
 
       let accumulated = ''
       pendingTurn.beginTurn(sessionId, content, extra)
@@ -169,9 +207,16 @@ export function useChatSession(sessionId: string | undefined) {
           if (event.done && event.message_id) {
             pendingTurn.endTurn(sessionId)
             setLastEvent(event)
-            setProposedChange(
-              (event.proposed_change as ProposedChange | null) ?? null,
-            )
+            // ONLY when this turn produced one. The old line assigned
+            // `?? null`, so any later message threw a live draft away: ask
+            // "what's my rest time again?" after a proposal and the Confirm
+            // button vanished, while the draft sat on the server perfectly
+            // applicable. Clearing a proposal is something the USER does --
+            // by confirming or cancelling it -- never a side effect of
+            // asking another question.
+            if (event.proposed_change) {
+              setProposedChange(event.proposed_change as ProposedChange)
+            }
             const assistantMsg: ChatMessage = {
               id: event.message_id,
               role: 'assistant',
@@ -218,10 +263,46 @@ export function useChatSession(sessionId: string | undefined) {
   }, [sessionId])
   const clearProposal = useCallback(() => setProposedChange(null), [])
 
+  /**
+   * Apply the draft the user just confirmed, and keep the diff.
+   *
+   * Lives in the hook rather than in the page because there are TWO chat
+   * surfaces -- the Chat page and the workout drawer -- and the drawer shipped
+   * without any confirm control at all. A copy of this in each page is how
+   * that happens: one surface gets the feature and the other is forgotten.
+   *
+   * No plan payload is sent. The server BUILDS it from the recorded draft and
+   * the plan it already has, so the model never re-emits the plan -- which was
+   * the original failure, where one dropped line in a 56-day reply deleted an
+   * exercise and its history.
+   *
+   * Returns the diff, so the caller can warn when it is not clean.
+   */
+  const confirmProposal = useCallback(async () => {
+    if (!proposedChange?.plan_id) return null
+    setApplying(true)
+    try {
+      const res = await api.workouts.applyPlanChange(
+        proposedChange.plan_id, proposedChange.change_id,
+      )
+      setAppliedDiff(res.verification_diff)
+      setProposedChange(null)
+      return res
+    } finally {
+      setApplying(false)
+    }
+  }, [proposedChange])
+
+  /** Offer a draft this surface did not propose, e.g. one found on load. */
+  const adoptProposal = useCallback((change: ProposedChange | null) => {
+    if (change?.change_id) setProposedChange(change)
+  }, [])
+
   return {
     session, isLoading, isSending, streamingContent, error,
     failedTurn, elapsed, lastEvent, proposedChange, status,
+    applying, appliedDiff,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
-    setSession,
+    confirmProposal, adoptProposal, setSession,
   }
 }

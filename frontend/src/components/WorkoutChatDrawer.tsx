@@ -4,6 +4,7 @@ import { useChatSession } from '../hooks/useChatSession'
 import ChatBubble from './chat/ChatBubble'
 import ChatInput from './chat/ChatInput'
 import StreamingIndicator from './chat/StreamingIndicator'
+import { PlanChangeDraft, PlanChangeResult } from './chat/PlanChangeCard'
 
 interface WorkoutChatDrawerProps {
   isOpen: boolean
@@ -39,8 +40,53 @@ export default function WorkoutChatDrawer({
   const queuedRef = useRef<string[]>([])
   const [queuedCount, setQueuedCount] = useState(0)
 
-  const { session, isLoading, isSending, streamingContent, error, loadSession, sendMessage } =
-    useChatSession(sessionId)
+  const {
+    session, isLoading, isSending, streamingContent, error, loadSession,
+    sendMessage, proposedChange, applying, appliedDiff, clearProposal,
+    confirmProposal, adoptProposal,
+  } = useChatSession(sessionId)
+
+  /*
+   * A draft the server is already holding, picked up when the drawer opens.
+   *
+   * Without this a proposal is confirmable only during the turn that made it:
+   * reload, reopen, or ask one more question and the button is gone while the
+   * draft stays applicable. It also picks up a draft proposed from outside
+   * the app entirely -- an agent on the user's own API key -- which otherwise
+   * has no surface at all. The server withholds a draft the plan has moved
+   * past, so anything offered here can actually be applied.
+   */
+  useEffect(() => {
+    if (!isOpen || !planId) return
+    let cancelled = false
+    api.workouts.pendingPlanChange(planId)
+      .then((res) => {
+        if (!cancelled) adoptProposal(res.proposed_change)
+      })
+      .catch(() => {
+        // A plan with no pending draft is the normal case, not an error to
+        // put in front of the user.
+      })
+    return () => { cancelled = true }
+  }, [isOpen, planId, adoptProposal])
+
+  /**
+   * Confirm the draft the coach proposed.
+   *
+   * This drawer shipped WITHOUT any confirm control: the coach would propose
+   * a plan change from here, the server would record it, and no button ever
+   * appeared -- not in that turn, not afterwards. Asking for a plan change
+   * while looking at the plan is the most natural place to ask, so this was
+   * the surface where "it won't update my plan" was most likely to be true.
+   */
+  async function handleConfirmChange() {
+    try {
+      await confirmProposal()
+      onPlanUpdated?.()
+    } catch {
+      // The hook keeps the draft on failure, so the button stays available.
+    }
+  }
 
   const buildExtra = () => {
     const extra: Record<string, unknown> = {}
@@ -253,6 +299,21 @@ export default function WorkoutChatDrawer({
               <div ref={bottomRef} />
             </>
           )}
+
+          {/* OUTSIDE the transcript branch. A draft picked up when the drawer
+              opens can arrive before this session has a single message, and
+              the empty state would otherwise hide the only control that can
+              accept it. */}
+          {proposedChange && (
+            <PlanChangeDraft
+              change={proposedChange}
+              busy={applying}
+              onConfirm={handleConfirmChange}
+              onCancel={clearProposal}
+            />
+          )}
+
+          {appliedDiff && <PlanChangeResult diff={appliedDiff} />}
         </div>
 
         {/* Input — pb accounts for mobile bottom nav bar (~64px) */}

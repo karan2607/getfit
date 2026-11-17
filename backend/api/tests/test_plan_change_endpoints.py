@@ -356,3 +356,105 @@ class DraftBuildsItsOwnPayloadTests(APITestCase):
             'day': 'Upper Push', 'action': 'remove', 'name': 'Not In The Plan',
         }])
         self.assertEqual(self.apply(change_id).status_code, 200)
+
+
+class PendingChangeTests(APITestCase):
+    """
+    A draft the server is holding has to be answerable.
+
+    Reported as "it is not able to update the plan now and just doesn't give
+    me the button too". The draft was never the problem: it stayed applicable
+    on the server the whole time. It was reachable from exactly one place --
+    the React state of the turn that proposed it -- so a reload, a follow-up
+    question, or a proposal made by anything other than the chat page left it
+    permanently unconfirmable.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='pend@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=1)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Push')
+        Exercise.objects.create(
+            day=self.day, name='Dumbbell Lateral Raises', sets=3, reps='8-12',
+            order=0, measurement_type='weight_reps')
+
+        self.url = reverse('workout-plan-propose-change', args=[self.plan.id])
+
+    def propose(self, changes=None):
+        response = self.client.post(self.url, {'changes': changes or [
+            {'day': 'Push', 'action': 'remove',
+             'name': 'Dumbbell Lateral Raises'}]}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data['change_id']
+
+    def test_a_pending_draft_is_offered_back(self):
+        change_id = self.propose()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        pending = response.data['proposed_change']
+        self.assertEqual(pending['change_id'], change_id)
+        self.assertEqual(pending['plan_id'], str(self.plan.id))
+        self.assertTrue(pending['needs_confirmation'])
+        self.assertFalse(pending['applied'])
+
+    def test_it_comes_back_in_the_shape_the_card_already_renders(self):
+        """One card for a draft just proposed and a draft found on load."""
+        self.propose()
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(
+            sorted(pending),
+            ['applied', 'change_id', 'draft', 'keep_list', 'needs_confirmation',
+             'plan_id', 'warnings'])
+
+    def test_the_draft_itself_is_returned_verbatim(self):
+        self.propose()
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(pending['draft'], [
+            {'day': 'Push', 'action': 'remove',
+             'name': 'Dumbbell Lateral Raises'}])
+
+    def test_nothing_is_pending_on_an_untouched_plan(self):
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_an_applied_draft_is_no_longer_pending(self):
+        change_id = self.propose()
+        applied = self.client.post(
+            reverse('workout-plan-apply-change',
+                    args=[self.plan.id, change_id]), {}, format='json')
+        self.assertEqual(applied.status_code, 200, applied.data)
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_a_stale_draft_is_withheld_rather_than_offered(self):
+        """
+        Offering it would put up a Confirm button that can only fail: apply
+        refuses on a base_hash mismatch. A draft the plan has moved past is
+        not a pending decision, it is history.
+        """
+        self.propose()
+        Exercise.objects.create(
+            day=self.day, name='Cable Triceps Pushdown', sets=3, reps='10',
+            order=1, measurement_type='weight_reps')
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_the_newest_draft_wins_when_several_are_pending(self):
+        self.propose()
+        second = self.propose([
+            {'day': 'Push', 'action': 'add', 'name': 'Cable Lateral Raise'}])
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(pending['change_id'], second)
+
+    def test_another_users_plan_is_not_readable(self):
+        intruder = User.objects.create_user(email='nope@test.local', password='x')
+        token, _ = Token.objects.get_or_create(user=intruder)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_it_needs_authentication(self):
+        self.client.credentials()
+        self.assertIn(self.client.get(self.url).status_code, (401, 403))

@@ -180,6 +180,27 @@ export interface PlanTemplate {
   adjusted: boolean
 }
 
+/**
+ * A draft the server is still holding, in the same shape the chat `done`
+ * frame uses, so one card renders either.
+ */
+export interface PendingPlanChange {
+  change_id: string
+  plan_id?: string
+  needs_confirmation: boolean
+  applied: boolean
+  draft: Array<{
+    day?: string
+    name?: string
+    week?: number
+    action?: string
+    replaces?: string
+    to_position?: number
+  }>
+  keep_list?: string[]
+  warnings?: Array<{ type: string; name: string; message: string }>
+}
+
 export interface VerificationDiff {
   added: Array<{ name: string; day?: string; week?: number }>
   removed: Array<{ name: string; day?: string; week?: number }>
@@ -430,6 +451,20 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ template, duration_weeks: durationWeeks }),
       }),
+
+    /**
+     * The draft on this plan still awaiting confirmation, if any.
+     *
+     * A recorded draft used to be reachable only from the React state of the
+     * turn that proposed it, so one more question and the Confirm button was
+     * gone while the draft stayed applicable on the server. The server
+     * withholds a draft the plan has moved past, so anything this returns can
+     * actually be confirmed.
+     */
+    pendingPlanChange: (planId: string) =>
+      request<{ proposed_change: PendingPlanChange | null }>(
+        `/api/workouts/plans/${planId}/changes/`,
+      ),
 
     /**
      * Apply a plan change the user confirmed.
