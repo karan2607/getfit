@@ -4206,7 +4206,12 @@ KB_AI_KEY_MARGIN = 0.15
 # this problem being swept up by hand, one incident at a time. A version
 # stamped on the row lets the read path notice a stale choice and re-resolve
 # it instead, so a rules fix heals every affected row on next open.
-KB_MATCH_VERSION = 1
+#
+# 2: the glute-ham raise family. The KB's own "glute ham raise" entry is
+#    mislabelled (its photos are a GHD back extension), so every cached row
+#    for that movement -- and for "nordic curl", which was resolving to
+#    BARBELL CURL -- holds the wrong images and has to be re-resolved.
+KB_MATCH_VERSION = 2
 
 
 def _alias_for(name: str):
@@ -4412,6 +4417,24 @@ def _images_for_exercise(name: str, kb_key=None) -> list:
     return _lookup_exercise_images(name)
 
 
+#: KB entries whose own photos do not show the exercise their key names.
+#:
+#: An alias is normally forbidden from shadowing an exact KB key -- that bug
+#: has been reported twice, for "dead bug" and "pallof press", where the alias
+#: overrode a perfect match and served a different movement. This is the
+#: narrow exception: when the ENTRY is wrong, the exact match is the thing
+#: serving the wrong picture, and redirecting it is the only fix available.
+#:
+#: Membership requires having LOOKED at the images. Nothing is listed here on
+#: the strength of a score.
+MISLABELLED_KB_KEYS = frozenset({
+    # Both photos are a GHD back extension: hips hinged over the pad, hands
+    # behind the head. A glute-ham raise pivots at the KNEE with the torso and
+    # thighs in one line. "natural glute ham raise" is the entry that shows it.
+    'glute ham raise',
+})
+
+
 _KB_ALIASES = {
     # NOTE: no 'dead bug' alias. The KB contains "dead bug" verbatim, so the
     # alias was overriding a perfect exact match and illustrating a supine
@@ -4550,6 +4573,32 @@ _KB_ALIASES = {
     'elliptical': 'elliptical trainer',
     'stationary bike': 'bicycling, stationary',
     'rowing machine': 'rowing, stationary',
+
+    # The KB's own "glute ham raise" entry is MISLABELLED: both its photos
+    # show a GHD back extension -- hips hinged over the pad, hands behind the
+    # head -- which is a lower-back movement, not a knee-flexion one. So the
+    # exact name match served the wrong exercise, and no amount of better
+    # matching fixes a wrong label. "natural glute ham raise" is the entry
+    # whose photos actually show the movement: knees anchored, torso and
+    # thighs in one line, pivoting at the KNEE down to the hands. Checked by
+    # looking at all four images, not by scoring names.
+    #
+    # Reported twice: "Glute ham raise excercise shows biceps curls photo",
+    # then again after the first fix pointed it at the mislabelled entry.
+    'glute ham raise': 'natural glute ham raise',
+    'glute-ham raise': 'natural glute ham raise',
+    'glute ham raises': 'natural glute ham raise',
+    'glute-ham raises': 'natural glute ham raise',
+    'ghr': 'natural glute ham raise',
+    # Same movement, and both were resolving somewhere worse: "nordic curl"
+    # scored highest against BARBELL CURL -- a biceps exercise on a hamstring
+    # movement, the exact failure reported for Lying Hamstring Curl -- and
+    # "nordic hamstring curl" landed on a seated band curl.
+    'nordic curl': 'natural glute ham raise',
+    'nordic curls': 'natural glute ham raise',
+    'nordic ham curl': 'natural glute ham raise',
+    'nordic hamstring curl': 'natural glute ham raise',
+    'nordic hamstring curls': 'natural glute ham raise',
 }
 
 

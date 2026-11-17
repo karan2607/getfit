@@ -269,11 +269,27 @@ class ReportedImageRegressionTests(SimpleTestCase):
         """
         kb = views._load_exercise_kb()
         for variant, target in views._KB_ALIASES.items():
-            if variant in kb:
-                self.assertEqual(
-                    target, variant,
-                    msg='alias %r shadows the exact KB key of the same name'
-                        % variant)
+            if variant not in kb or variant in views.MISLABELLED_KB_KEYS:
+                continue
+            self.assertEqual(
+                target, variant,
+                msg='alias %r shadows the exact KB key of the same name. If '
+                    'that entry is mislabelled, LOOK at its photos and add it '
+                    'to views.MISLABELLED_KB_KEYS with what they show.'
+                    % variant)
+
+    def test_every_mislabelled_key_is_actually_redirected(self):
+        """
+        The exception list is not a place to park a name. A key recorded as
+        mislabelled must have an alias sending it somewhere else, or it is
+        still serving the wrong photo with a note saying so.
+        """
+        for key in views.MISLABELLED_KB_KEYS:
+            target = views._KB_ALIASES.get(key)
+            self.assertIsNotNone(
+                target, msg='%r is listed as mislabelled but has no alias' % key)
+            self.assertNotEqual(target, key)
+            self.assertIn(target, views._load_exercise_kb())
 
     def test_backward_walking_gets_no_image_rather_than_a_forward_one(self):
         """A wrong illustration is worse than none."""
@@ -514,7 +530,10 @@ class CachedGuideImageTests(APITestCase):
         res = self.client.get(reverse('exercise-guide'),
                               {'name': 'Glute-Ham Raise (GHR)'})
         self.assertEqual(res.status_code, 200, res.data)
-        self.assertEqual(res.data['images'], self.kb['glute ham raise'][:2])
+        # Not 'glute ham raise': that entry's own photos are a GHD back
+        # extension. See views.MISLABELLED_KB_KEYS.
+        self.assertEqual(res.data['images'],
+                         self.kb['natural glute ham raise'][:2])
 
     def test_cached_upright_row_photos_on_a_single_arm_row_are_replaced(self):
         ExerciseGuide.objects.create(
@@ -647,7 +666,11 @@ class ApparatusModifierTests(SimpleTestCase):
         # the same exercise under another name) and no others.
         kb = views._load_exercise_kb()
         misses = [k for k in kb if views._resolve_kb_key(k)[0] != k]
-        self.assertEqual(misses, ['squats - with bands'])
+        # 'squats - with bands' -> 'squat with bands' is the same exercise
+        # under another name. A mislabelled key is SUPPOSED to miss itself:
+        # that is the point of redirecting it.
+        expected = sorted(['squats - with bands'] + list(views.MISLABELLED_KB_KEYS))
+        self.assertEqual(sorted(misses), expected)
 
 
 class GuideBatchPairingTests(SimpleTestCase):
@@ -773,8 +796,63 @@ class SelfHealingGuideCacheTests(APITestCase):
     def test_newly_written_guides_carry_the_current_version(self):
         # Without the stamp on write, every row would look stale forever and
         # be re-resolved on every single read.
-        self.assertEqual(views.KB_MATCH_VERSION, 1)
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 1)
         src = inspect.getsource(views)
         self.assertEqual(
             src.count("['kb_match_version'] = KB_MATCH_VERSION"), 3,
             'every path that writes images must stamp the matcher version')
+
+
+class GluteHamRaiseTests(SimpleTestCase):
+    """
+    The one case where the KB's own label is the problem.
+
+    "glute ham raise" is an exact name match AND the wrong exercise: both its
+    photos show a GHD back extension -- hips hinged over the pad, hands behind
+    the head -- which is a lower-back movement, not a knee-flexion one. No
+    amount of better matching fixes a wrong label, which is why this is an
+    alias and not a threshold tweak.
+
+    Reported twice: once as "Glute ham raise excercise shows biceps curls
+    photo", and again after the first fix pointed it at the mislabelled entry.
+    """
+
+    def test_every_spelling_lands_on_the_entry_that_shows_the_movement(self):
+        for name in ('Glute-Ham Raise (GHR)', 'Glute Ham Raise',
+                     'Glute-Ham Raise', 'Glute Ham Raises', 'GHR'):
+            key, _score = views._resolve_kb_key(name)
+            self.assertEqual(key, 'natural glute ham raise', name)
+
+    def test_it_never_resolves_to_the_mislabelled_entry(self):
+        for name in ('Glute-Ham Raise (GHR)', 'Glute Ham Raise', 'GHR',
+                     'Nordic Curl', 'Nordic Hamstring Curl'):
+            key, _score = views._resolve_kb_key(name)
+            self.assertNotEqual(key, 'glute ham raise', name)
+
+    def test_a_nordic_curl_is_not_a_biceps_exercise(self):
+        """It scored highest against BARBELL CURL -- the Lying Hamstring Curl
+        failure again, on a different name."""
+        for name in ('Nordic Curl', 'Nordic Curls', 'Nordic Ham Curl',
+                     'Nordic Hamstring Curl', 'Nordic Hamstring Curls'):
+            key, _score = views._resolve_kb_key(name)
+            self.assertEqual(key, 'natural glute ham raise', name)
+
+    def test_the_images_served_are_the_natural_ghr_photos(self):
+        images = views._images_for_exercise('Glute-Ham Raise (GHR)')
+        self.assertTrue(images)
+        for url in images:
+            self.assertIn('Natural_Glute_Ham_Raise', url)
+            self.assertNotIn('/Glute_Ham_Raise/', url)
+
+    def test_the_floor_variant_is_left_alone(self):
+        """A floor GHR is its own entry and a different setup."""
+        key, _score = views._resolve_kb_key('Floor Glute-Ham Raise')
+        self.assertEqual(key, 'floor glute-ham raise')
+
+    def test_the_version_was_bumped_so_cached_rows_re_resolve(self):
+        """
+        An alias change that does not bump this heals nothing: every guide
+        already cached keeps the images it was written with. That is what the
+        three delete-the-bad-rows migrations were doing by hand.
+        """
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 2)
