@@ -469,6 +469,19 @@ export const api = {
       ),
 
     /**
+     * The draft awaiting confirmation on ANY of this user's plans.
+     *
+     * The chat page has no plan id to scope by -- a proposal there can name
+     * any plan, including an inactive one -- so without this it could only
+     * ever show a draft it had just watched arrive. One reload and the
+     * Confirm button was gone while the server still held the draft.
+     */
+    pendingChange: () =>
+      request<{ proposed_change: PendingPlanChange | null }>(
+        '/api/workouts/changes/pending/',
+      ),
+
+    /**
      * Apply a plan change the user confirmed.
      *
      * The change_id ties the confirmation to the EXACT draft that was shown.

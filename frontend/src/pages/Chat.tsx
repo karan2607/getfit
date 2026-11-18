@@ -82,7 +82,7 @@ function ChatPane({ sessionId }: { sessionId: string }) {
     session, isLoading, isSending, streamingContent, error,
     failedTurn, elapsed, proposedChange, status, applying, appliedDiff,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
-    confirmProposal,
+    confirmProposal, adoptProposal,
   } = useChatSession(sessionId)
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -92,6 +92,25 @@ function ChatPane({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     loadSession(sessionId)
   }, [sessionId, loadSession])
+
+  /**
+   * Pick up a draft the server is still holding.
+   *
+   * Without this the Confirm button existed only for the render that
+   * proposed the change: reload, switch chats, or reopen the app and the
+   * draft was unreachable from the page that made it -- which is the defect
+   * users reported as "no update plan button", twice. The drawer already
+   * does this; the chat page could not, because it has no plan id, so the
+   * lookup is plan-agnostic. A draft the plan has moved past is withheld
+   * server-side, so anything this adopts can actually be applied.
+   */
+  useEffect(() => {
+    let cancelled = false
+    api.workouts.pendingChange()
+      .then((res) => { if (!cancelled) adoptProposal(res.proposed_change) })
+      .catch(() => { /* a missing draft is the normal case, not an error */ })
+    return () => { cancelled = true }
+  }, [sessionId, adoptProposal])
 
   // Autoscroll ONLY when the user is already at the bottom. The old effect
   // scrolled on every change, so reading back through a reply yanked you to

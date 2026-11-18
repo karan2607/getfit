@@ -42,6 +42,8 @@ urlpatterns = [
          views.workout_plan_prepare_next_week, name='workout-plan-prepare-next-week'),
     path('workouts/plans/<uuid:plan_id>/mark-rest-day/', views.workout_plan_mark_rest_day, name='workout-plan-mark-rest-day'),
     # Draft -> confirm -> apply -> verify. See api/plan_changes.py.
+    # Plan-agnostic: the chat page has no plan id until it reads the draft.
+    path('workouts/changes/pending/', views.workout_pending_change, name='workout-pending-change'),
     path('workouts/plans/<uuid:plan_id>/snapshot/', views.workout_plan_snapshot, name='workout-plan-snapshot'),
     path('workouts/plans/<uuid:plan_id>/changes/', views.workout_plan_propose_change, name='workout-plan-propose-change'),
     path('workouts/plans/<uuid:plan_id>/changes/<uuid:change_id>/apply/', views.workout_plan_apply_change, name='workout-plan-apply-change'),

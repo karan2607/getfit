@@ -2332,6 +2332,45 @@ def _pending_change(plan):
     }
 
 
+# How far back to look for an answerable draft when no plan is named.
+# Deep enough to see past a run of drafts the plan has moved past, shallow
+# enough that the digest work stays bounded.
+_PENDING_SCAN = 20
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def workout_pending_change(request):
+    """
+    The draft this user still has to answer, on whichever plan it belongs to.
+
+    The plan-scoped GET below needs a plan id. The main chat page does not
+    have one: a proposal made there can target any plan -- including one that
+    is not active -- and the page only learns which from the draft itself. So
+    a draft proposed in chat survived exactly one render, and was afterwards
+    reachable only from the workout drawer, which is not where it was made.
+    Reload the page, switch chats, or come back tomorrow, and the Confirm
+    button was gone while the draft sat here perfectly applicable.
+
+    Only ONE draft is offered, the newest answerable one. Two outstanding
+    drafts cannot both be confirmed -- applying either makes the other stale
+    -- so a list would be a list of buttons that mostly fail.
+    """
+    recent = (PlanChange.objects
+              .filter(plan__user=request.user, status=PlanChange.PROPOSED)
+              .select_related('plan')
+              .order_by('-created_at')[:_PENDING_SCAN])
+    checked = set()
+    for change in recent:
+        if change.plan_id in checked:
+            continue
+        checked.add(change.plan_id)
+        pending = _pending_change(change.plan)
+        if pending is not None:
+            return Response({'proposed_change': pending})
+    return Response({'proposed_change': None})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def workout_plan_snapshot(request, plan_id):

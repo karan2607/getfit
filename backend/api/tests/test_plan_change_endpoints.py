@@ -458,3 +458,115 @@ class PendingChangeTests(APITestCase):
     def test_it_needs_authentication(self):
         self.client.credentials()
         self.assertIn(self.client.get(self.url).status_code, (401, 403))
+
+
+class PendingChangeWithoutAPlanIdTests(APITestCase):
+    """
+    The chat page has no plan id, and still has to find the draft.
+
+    Reported twice as "still no update plan button". The plan-scoped lookup
+    fixed the workout drawer, which knows which plan it is showing. The main
+    chat page does not: a proposal made there can name any plan, including an
+    inactive one, and the page only learns which from the draft itself. So
+    the draft stayed reachable for exactly one render there -- verified on
+    production, where reopening the session that proposed it showed the
+    coach's "confirm change <id>" message and no button.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='anyplan@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.url = reverse('workout-pending-change')
+
+    def make_plan(self, title, active):
+        plan = WorkoutPlan.objects.create(
+            user=self.user, title=title, is_active=active, duration_weeks=1)
+        day = WorkoutDay.objects.create(
+            plan=plan, day_number=1, week_number=1, name='Push')
+        Exercise.objects.create(
+            day=day, name='Dumbbell Lateral Raises', sets=3, reps='8-12',
+            order=0, measurement_type='weight_reps')
+        return plan, day
+
+    def propose(self, plan, changes=None):
+        response = self.client.post(
+            reverse('workout-plan-propose-change', args=[plan.id]),
+            {'changes': changes or [{'day': 'Push', 'action': 'remove',
+                                     'name': 'Dumbbell Lateral Raises'}]},
+            format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data['change_id']
+
+    def test_a_draft_is_found_without_being_told_which_plan(self):
+        plan, _ = self.make_plan('P', active=True)
+        change_id = self.propose(plan)
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(pending['change_id'], change_id)
+        self.assertEqual(pending['plan_id'], str(plan.id))
+
+    def test_a_draft_on_an_inactive_plan_is_found_too(self):
+        """Guessing the active plan would have missed this one entirely."""
+        plan, _ = self.make_plan('Old', active=False)
+        change_id = self.propose(plan)
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(pending['change_id'], change_id)
+
+    def test_the_card_shape_is_identical_to_the_plan_scoped_lookup(self):
+        plan, _ = self.make_plan('P', active=True)
+        self.propose(plan)
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(
+            sorted(pending),
+            ['applied', 'change_id', 'draft', 'keep_list', 'needs_confirmation',
+             'plan_id', 'warnings'])
+
+    def test_nothing_pending_reads_as_nothing_pending(self):
+        self.make_plan('P', active=True)
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_a_stale_draft_is_withheld_here_as_well(self):
+        plan, day = self.make_plan('P', active=True)
+        self.propose(plan)
+        Exercise.objects.create(
+            day=day, name='Cable Triceps Pushdown', sets=3, reps='10',
+            order=1, measurement_type='weight_reps')
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_a_live_draft_is_still_found_past_a_stale_one(self):
+        """
+        A plan the user has moved on from must not hide an answerable draft
+        on another plan -- otherwise one abandoned proposal silently disables
+        the button forever.
+        """
+        stale_plan, stale_day = self.make_plan('Stale', active=False)
+        self.propose(stale_plan)
+        Exercise.objects.create(
+            day=stale_day, name='Cable Triceps Pushdown', sets=3, reps='10',
+            order=1, measurement_type='weight_reps')
+        live_plan, _ = self.make_plan('Live', active=True)
+        change_id = self.propose(live_plan)
+        pending = self.client.get(self.url).data['proposed_change']
+        self.assertEqual(pending['change_id'], change_id)
+
+    def test_an_applied_draft_is_not_offered_again(self):
+        plan, _ = self.make_plan('P', active=True)
+        change_id = self.propose(plan)
+        applied = self.client.post(
+            reverse('workout-plan-apply-change', args=[plan.id, change_id]),
+            {}, format='json')
+        self.assertEqual(applied.status_code, 200, applied.data)
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_another_users_draft_is_never_offered(self):
+        plan, _ = self.make_plan('P', active=True)
+        self.propose(plan)
+        intruder = User.objects.create_user(email='nope2@test.local', password='x')
+        token, _ = Token.objects.get_or_create(user=intruder)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.assertIsNone(self.client.get(self.url).data['proposed_change'])
+
+    def test_it_needs_authentication(self):
+        self.client.credentials()
+        self.assertIn(self.client.get(self.url).status_code, (401, 403))
