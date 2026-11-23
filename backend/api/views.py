@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
 from django.core.exceptions import ValidationError
@@ -682,6 +683,23 @@ def chat_session_detail(request, session_id):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _uuid_or_none(value):
+    """
+    A usable UUID, or None for anything else.
+
+    Context ids arrive in the request body and go straight into `filter(pk=)`,
+    where a non-UUID string raises ValidationError rather than matching
+    nothing. Absent and unusable deserve the same treatment here: answer the
+    turn without that context instead of 500ing on it.
+    """
+    if not value:
+        return None
+    try:
+        return str(uuid.UUID(str(value)))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 @permission_classes([IsAuthenticated])
 def chat_message_stream(request, session_id):
     if request.method != 'POST':
@@ -716,11 +734,19 @@ def chat_message_stream(request, session_id):
         from django.http import HttpResponse
         return HttpResponse(status=400)
 
-    plan_id = body.get('plan_id')
+    # Coerce the ids, because a malformed one used to 500 AFTER the user's
+    # message was saved: `agent_week_context` passes plan_id straight into a
+    # `filter(pk=...)` and a non-UUID string raises ValidationError there,
+    # where its siblings in `_build_system_prompt` are wrapped. The response
+    # had not started yet, so the client got an HTML 500 where it expected
+    # text/event-stream, and the session showed a question with no reply.
+    # An unusable id is treated as absent -- the turn still answers, just
+    # without that context.
+    plan_id = _uuid_or_none(body.get('plan_id'))
     plan_context = body.get('plan_context')  # raw plan JSON for unsaved previews
-    day_id = body.get('day_id')
-    diet_plan_id = body.get('diet_plan_id')
-    meal_id = body.get('meal_id')
+    day_id = _uuid_or_none(body.get('day_id'))
+    diet_plan_id = _uuid_or_none(body.get('diet_plan_id'))
+    meal_id = _uuid_or_none(body.get('meal_id'))
 
     try:
         session = ChatSession.objects.get(pk=session_id, user=user)
@@ -782,8 +808,29 @@ def chat_message_stream(request, session_id):
         return stream_gemini_chat(system_prompt=system_prompt, history=history)
 
     def event_stream():
+        """
+        One turn, and ALWAYS exactly one terminal frame.
+
+        Every way out of here used to be able to end in silence. The catch
+        was `(GeminiError, ClaudeError)` only, so any other exception escaped
+        mid-iteration with the headers already sent: the client got a
+        truncated body, no frame at all, and sat there until its own 90s idle
+        timeout. The save lived in `finally`, so a dropped database
+        connection -- entirely ordinary after a 60s model call -- REPLACED
+        whatever frame was about to be sent and lost the reply with it. And
+        the `done` frame was gated on `assistant_msg`, which only exists when
+        the model produced text, so a final round that was all tool calls
+        ended the stream with nothing.
+
+        A draft is the expensive thing to lose: `propose_plan_change` has
+        already committed a PlanChange row by the time any of this runs, so a
+        turn that dies silently leaves the server holding a change the user
+        was never offered. That is the "no update plan button" report, twice.
+        So the draft rides on the terminal frame whichever one it is.
+        """
         full_response = ''
         assistant_msg = None
+        failure = None
         try:
             for chunk in _chunks():
                 # A dict is a progress frame, not an answer. It gets its own
@@ -794,36 +841,63 @@ def chat_message_stream(request, session_id):
                     continue
                 full_response += chunk
                 yield f'data: {_json.dumps({"chunk": chunk})}\n\n'
-        # ClaudeError and GeminiError are both failures the user can be told
-        # about; anything else is a bug and should not be dressed up as one.
+        # ClaudeError and GeminiError are failures the user can be told
+        # about. They were told, but nobody else was: this path did not log,
+        # so Sentry saw nothing and the only record of a model outage was the
+        # user reporting it.
         except (GeminiError, ClaudeError) as e:
-            yield f'data: {_json.dumps({"error": str(e)})}\n\n'
-            return
-        finally:
-            if full_response:
+            logger.error('chat turn failed for session %s: %s', session.id, e)
+            failure = str(e)
+        except Exception:
+            # A bug, not a model failure, so it is not dressed up as one --
+            # but the user still gets a frame instead of a hung screen.
+            logger.exception('chat turn crashed for session %s', session.id)
+            failure = ('Something went wrong on our side partway through '
+                       'this reply.')
+
+        # Saving sits OUTSIDE the try above so that a failure here cannot
+        # swallow a failure there, and outside `finally` so it cannot replace
+        # the frame at all.
+        if full_response:
+            try:
                 assistant_msg = ChatMessage.objects.create(
                     session=session, role='assistant', content=full_response
                 )
                 session.title = _auto_title(session, content)
                 session.save(update_fields=['title', 'updated_at'])
+            except Exception:
+                logger.exception('chat reply could not be saved for session %s',
+                                 session.id)
+                failure = failure or ('The reply arrived but could not be '
+                                      'saved. Copy anything you need from it '
+                                      'before leaving this page.')
+        elif failure is None:
+            # Nothing said and nothing wrong is still not a usable turn.
+            # Silence here used to mean no frame at all.
+            failure = 'The coach finished without writing a reply.'
 
-        if assistant_msg:
-            done = {
-                'done': True,
-                'message_id': str(assistant_msg.id),
-                # Additive only. The frontend reads `done` and `message_id`
-                # and ignores the rest until it is taught otherwise, so this
-                # cannot break the existing client.
-                'tool_calls': run_state.tool_calls,
-                # Lifted out of the tool result so the client renders a
-                # confirm card from the EXACT draft, not from a paraphrase of
-                # it in the reply text.
-                'proposed_change': run_state.proposed_change,
-                'applied_change': None,
-                'verification_diff': None,
-                'needs_confirmation': bool(run_state.proposed_change),
-            }
-            yield f'data: {_json.dumps(done)}\n\n'
+        terminal = {
+            # Additive only. The frontend reads `done`/`error` and
+            # `message_id` and ignores the rest until it is taught otherwise.
+            'tool_calls': run_state.tool_calls,
+            # Lifted out of the tool result so the client renders a confirm
+            # card from the EXACT draft, not from a paraphrase of it in the
+            # reply text.
+            'proposed_change': run_state.proposed_change,
+            'applied_change': None,
+            'verification_diff': None,
+            'needs_confirmation': bool(run_state.proposed_change),
+        }
+        # `error` and `done` stay mutually exclusive: a client that sees both
+        # would have to guess which won, and the pinned contract test says a
+        # done frame never follows an error.
+        if failure is not None:
+            terminal['error'] = failure
+        else:
+            terminal['done'] = True
+        if assistant_msg is not None:
+            terminal['message_id'] = str(assistant_msg.id)
+        yield f'data: {_json.dumps(terminal)}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
     response['X-Accel-Buffering'] = 'no'

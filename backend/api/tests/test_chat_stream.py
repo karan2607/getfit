@@ -170,10 +170,26 @@ class ChatStreamContractTests(TestCase):
         saved = ChatMessage.objects.filter(session=self.session, role='assistant')
         self.assertEqual([m.content for m in saved], ['half a sentence'])
 
-    def test_an_empty_reply_produces_neither_done_nor_a_message(self):
+    def test_an_empty_reply_still_ends_the_turn(self):
+        """
+        This used to assert `frames == []` -- the silence was the contract.
+
+        It is not a defensible one. A final round that produces no text (all
+        tool calls, or an empty text block) sent the client NOTHING: no
+        `done`, no `error`, just a closed socket. The client cannot tell that
+        from a dead connection, so it waited out its full 90s idle timeout
+        and then blamed the network. Worse, a draft proposed during that turn
+        was already committed server-side and never offered.
+
+        So an empty reply is now a failed turn, said plainly and at once.
+        Still no assistant message: there was nothing to save.
+        """
         with self.stream([]):
             frames = _frames(self.post())
-        self.assertEqual(frames, [])
+        self.assertEqual(len(frames), 1)
+        self.assertIn('error', frames[0])
+        self.assertNotIn('done', frames[0])
+        self.assertNotIn('message_id', frames[0])
         self.assertFalse(
             ChatMessage.objects.filter(session=self.session, role='assistant').exists())
 
@@ -244,3 +260,202 @@ class ChatStreamContractTests(TestCase):
         resp = self.client.get(
             self.url, HTTP_AUTHORIZATION='Token ' + self.token.key)
         self.assertEqual(resp.status_code, 405)
+
+
+class TurnAlwaysTerminatesTests(TestCase):
+    """
+    A turn ends with exactly one frame, whatever goes wrong.
+
+    Reported as the chat "not being foolproof", and before this every one of
+    these cases ended in silence on the wire. The client cannot tell silence
+    from a dead socket, so it waited out its 90s idle timeout and then told
+    the user the network had failed -- for a bug, a database blip, or a
+    perfectly ordinary turn that happened to produce no text.
+
+    The expensive thing to lose is a draft. `propose_plan_change` commits its
+    PlanChange row during the turn, so a turn that dies quietly leaves the
+    server holding a change the user is never offered: the "no update plan
+    button" report, twice over.
+    """
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '0'})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.user = User.objects.create_user(email='term@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.token = Token.objects.get_or_create(user=self.user)[0]
+        self.session = ChatSession.objects.create(user=self.user)
+        self.url = reverse('chat-message-stream', args=[self.session.id])
+
+    def post(self, body=None):
+        return self.client.post(
+            self.url,
+            data=json.dumps(body if body is not None else {'content': 'hello'}),
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Token ' + self.token.key)
+
+    def crashing_stream(self, chunks, exc=None):
+        """A failure that is NOT a model error -- a bug, in other words."""
+        def fake(**_kwargs):
+            for chunk in chunks:
+                yield chunk
+            raise exc or RuntimeError('something nobody anticipated')
+        return mock.patch('api.views.stream_gemini_chat', side_effect=fake)
+
+    def test_a_bug_mid_stream_still_ends_the_turn(self):
+        with self.crashing_stream(['half a thought ']):
+            frames = _frames(self.post())
+        self.assertIn('error', frames[-1])
+        self.assertEqual([f for f in frames if 'done' in f], [])
+
+    def test_a_bug_is_not_dressed_up_as_a_model_failure(self):
+        """
+        The user is told something broke on our side, not handed the
+        exception text -- a RuntimeError's message is for the logs.
+        """
+        with self.crashing_stream([], exc=RuntimeError('KeyError: user_id')):
+            frames = _frames(self.post())
+        self.assertNotIn('KeyError', frames[-1]['error'])
+        self.assertIn('our side', frames[-1]['error'])
+
+    def test_a_crash_is_logged_so_sentry_sees_it(self):
+        with self.crashing_stream([]):
+            with self.assertLogs('api.views', level='ERROR'):
+                _frames(self.post())
+
+    def test_a_model_failure_is_logged_too(self):
+        """
+        This path told the user and NOBODY else: no logging at all, so a
+        model outage reached Sentry only as a user complaint.
+        """
+        def fake(**_kwargs):
+            raise GeminiError('AI stream failed (402)')
+            yield  # pragma: no cover - generator marker
+        with mock.patch('api.views.stream_gemini_chat', side_effect=fake):
+            with self.assertLogs('api.views', level='ERROR'):
+                _frames(self.post())
+
+    def test_a_reply_that_cannot_be_saved_still_ends_the_turn(self):
+        """
+        The save used to live in `finally`, so an exception here replaced the
+        frame that was about to go out -- losing the reply AND the draft, and
+        hanging the client. A dropped connection after a 60s model call is
+        ordinary, not exotic.
+        """
+        real_create = ChatMessage.objects.create
+
+        def only_the_reply_fails(**kwargs):
+            # The user's message is saved before the model runs and must
+            # still succeed; it is the assistant row this is about.
+            if kwargs.get('role') == 'assistant':
+                raise RuntimeError('connection already closed')
+            return real_create(**kwargs)
+
+        with mock.patch('api.views.stream_gemini_chat',
+                        return_value=iter(['a complete answer'])), \
+             mock.patch('api.views.ChatMessage.objects.create',
+                        side_effect=only_the_reply_fails):
+            frames = _frames(self.post())
+        self.assertIn('error', frames[-1])
+        self.assertIn('could not be saved', frames[-1]['error'])
+
+    def test_an_empty_turn_ends_with_an_error_not_silence(self):
+        with mock.patch('api.views.stream_gemini_chat', return_value=iter([])):
+            frames = _frames(self.post())
+        self.assertEqual(len(frames), 1)
+        self.assertIn('error', frames[0])
+
+    def on_the_agent_path(self, chunks):
+        """
+        The ids are only looked up on the agent path, so a test that leaves
+        the Gemini engine pinned never reaches the bug -- the first version
+        of these two passed against the unfixed code for exactly that
+        reason.
+        """
+        def fake(**_kwargs):
+            for chunk in chunks:
+                yield chunk
+        return (
+            mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '1'}),
+            mock.patch.object(agent_router, 'classify',
+                              return_value=agent_router.WORKOUT),
+            mock.patch('api.agent_loop.run', side_effect=fake),
+        )
+
+    def test_a_malformed_plan_id_answers_instead_of_500ing(self):
+        """
+        A non-UUID went straight into `filter(pk=...)`, which raises rather
+        than matching nothing -- and it raised BEFORE the response started,
+        so the client got an HTML 500 where it expected text/event-stream,
+        with the user's message already saved and no reply beside it.
+        """
+        env, classify, run = self.on_the_agent_path(['answered anyway'])
+        with env, classify, run:
+            response = self.post({'content': 'hi', 'plan_id': 'not-a-uuid'})
+            frames = _frames(response)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(frames[-1].get('done'))
+
+    def test_every_context_id_tolerates_rubbish(self):
+        env, classify, run = self.on_the_agent_path(['ok'])
+        with env, classify, run:
+            frames = _frames(self.post({
+                'content': 'hi', 'plan_id': '../etc', 'day_id': '7',
+                'diet_plan_id': '{}', 'meal_id': 'null',
+            }))
+        self.assertTrue(frames[-1].get('done'))
+
+
+class TerminalFrameCarriesTheDraftTests(TestCase):
+    """
+    A draft reaches the client on whichever frame ends the turn.
+
+    It used to ride on `done` alone, so every failure path dropped it while
+    the PlanChange row stayed committed on the server -- a change the user
+    was never shown and could not confirm.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='draft@test.local', password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.token = Token.objects.get_or_create(user=self.user)[0]
+        self.session = ChatSession.objects.create(user=self.user)
+        self.url = reverse('chat-message-stream', args=[self.session.id])
+        self.draft = {'change_id': 'c1', 'plan_id': 'p1', 'draft': [],
+                      'needs_confirmation': True, 'applied': False}
+
+    def post(self):
+        return self.client.post(
+            self.url, data=json.dumps({'content': 'move my pull day'}),
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Token ' + self.token.key)
+
+    def run_with(self, chunks, proposal, raise_after=False):
+        """Drive the agent engine, recording a proposal as the loop would."""
+        def fake(*, run_state, **_kwargs):
+            for chunk in chunks:
+                yield chunk
+            run_state.proposed_change = proposal
+            if raise_after:
+                raise RuntimeError('died after proposing')
+        return mock.patch('api.agent_loop.run', side_effect=fake)
+
+    def test_the_done_frame_carries_it(self):
+        with mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '1'}), \
+             mock.patch.object(agent_router, 'classify',
+                               return_value=agent_router.WORKOUT), \
+             self.run_with(['here is the change'], self.draft):
+            frames = _frames(self.post())
+        self.assertEqual(frames[-1]['proposed_change'], self.draft)
+        self.assertTrue(frames[-1]['needs_confirmation'])
+
+    def test_the_error_frame_carries_it_too(self):
+        with mock.patch.dict(os.environ, {'AGENT_CHAT_ENABLED': '1'}), \
+             mock.patch.object(agent_router, 'classify',
+                               return_value=agent_router.WORKOUT), \
+             self.run_with(['drafted it, then '], self.draft, raise_after=True):
+            frames = _frames(self.post())
+        self.assertIn('error', frames[-1])
+        self.assertEqual(frames[-1]['proposed_change'], self.draft)
+        self.assertTrue(frames[-1]['needs_confirmation'])
