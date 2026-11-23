@@ -435,6 +435,49 @@ final_paragraph() {
 }
 
 # ---------------------------------------------------------------------------
+# Escalation
+# ---------------------------------------------------------------------------
+# A blocked runner that only writes to its own log is a silent runner.
+#
+# Refusing a dirty checkout is right -- committing someone's half-finished
+# work would be far worse. Refusing it forever without telling anyone is not:
+# the queue looked alive the whole time, every item kept its "stays queued"
+# note, and nothing ever said the loop had not run a single item since the
+# 11th. Eleven days, twelve items, no signal.
+#
+# So after an hour of consecutive blocked passes, say so where the owner
+# actually is -- their desktop -- and then at most once an hour after that,
+# because an alert that repeats every 15 minutes gets muted and becomes
+# another kind of silence.
+BLOCK_STATE="${GETFIT_BLOCK_STATE:-$HOME/.getfit-loop-blocked}"
+BLOCK_ALERT_AFTER="${GETFIT_BLOCK_ALERT_AFTER:-3600}"
+
+blocked_pass() {
+  local now first last
+  now="$(date +%s)"
+  first="$now"; last=0
+  if [[ -r "$BLOCK_STATE" ]]; then
+    read -r first last < "$BLOCK_STATE" 2>/dev/null || { first="$now"; last=0; }
+    [[ "$first" =~ ^[0-9]+$ ]] || first="$now"
+    [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  fi
+  if (( now - first >= BLOCK_ALERT_AFTER )) \
+     && (( last == 0 || now - last >= BLOCK_ALERT_AFTER )); then
+    local hours=$(( (now - first) / 3600 ))
+    log "  ALERT: blocked for ${hours}h — notifying."
+    osascript -e "display notification \"Uncommitted changes in $REPO have blocked it for ${hours}h. $(git -C "$REPO" status --short | wc -l | tr -d ' ') file(s).\" with title \"getfit feedback loop is stuck\"" >/dev/null 2>&1 || true
+    last="$now"
+  fi
+  printf '%s %s\n' "$first" "$last" > "$BLOCK_STATE"
+}
+
+# A pass that got through clears the record, so the next block is timed from
+# when it actually started rather than from the first one ever seen.
+unblocked_pass() {
+  rm -f "$BLOCK_STATE"
+}
+
+# ---------------------------------------------------------------------------
 # Process one item
 # ---------------------------------------------------------------------------
 process_item() {
@@ -458,9 +501,16 @@ process_item() {
     # queue, lit the notification bell, and told you it had been considered
     # and declined. Two real items were lost that way. It stays queued.
     log "  REQUEUE: working tree is dirty — refusing to touch it."
+    # Name the files. Without this the log said only that something was
+    # dirty, so the one fact needed to clear the block was the one fact it
+    # withheld -- and a stale working tree stopped this runner for ELEVEN
+    # days and 1,928 refusals before anyone looked.
+    git -C "$REPO" status --short | sed 's/^/    /' | tee -a "$LOG" >/dev/null
+    blocked_pass
     set_status "$id" new "The runner's checkout had uncommitted changes, so nothing ran. Not your item's fault; it stays queued." "" 0
     return
   fi
+  unblocked_pass
   # Fail loudly on a missing branch rather than silently working on whatever
   # happens to be checked out. Before this the checkout error went to the log
   # and the loop carried on, so a typo in GETFIT_BRANCH meant committing to
