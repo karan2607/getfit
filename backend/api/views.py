@@ -4253,7 +4253,8 @@ KB_AI_KEY_MARGIN = 0.15
 # 3: machine incline press, which was resolving to the Smith-machine
 #    (barbell) incline bench press.
 # 4: single-arm cable row, whose photos were reported as a glute press.
-KB_MATCH_VERSION = 4
+# 5: plain push-ups, which were resolving to handstand and clock push-ups.
+KB_MATCH_VERSION = 5
 
 
 def _alias_for(name: str):
@@ -4609,6 +4610,21 @@ _KB_ALIASES = {
     'cable single-arm row': 'seated cable rows',
     'seated single arm cable row': 'seated cable rows',
     'single arm seated cable row': 'seated cable rows',
+    # The KB calls the plain push-up "pushups", one word, which shares no token
+    # with "push" + "up(s)". So the hyphenated spellings fell to whichever
+    # three-word variant came first in the file: "Push-Ups" to "handstand
+    # push-ups" and "Push-Up" to "clock push-up". Reported: "Pushups also show
+    # wrong images".
+    'push-ups': 'pushups',
+    'push-up': 'pushups',
+    'push ups': 'pushups',
+    'push up': 'pushups',
+    'pushup': 'pushups',
+    'bodyweight push-ups': 'pushups',
+    'bodyweight push-up': 'pushups',
+    'bodyweight push ups': 'pushups',
+    'standard push-ups': 'pushups',
+    'standard push-up': 'pushups',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.

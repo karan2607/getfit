@@ -560,6 +560,40 @@ class SingleArmCableRowTests(SimpleTestCase):
         self.assertGreaterEqual(views.KB_MATCH_VERSION, 4)
 
 
+class PlainPushUpTests(SimpleTestCase):
+    """
+    "Pushups also show wrong images". The KB's plain entry is "pushups", one
+    word, so "Push-Ups" resolved to 'handstand push-ups' and "Push-Up" to
+    'clock push-up'.
+    """
+
+    KEY = 'pushups'
+
+    def test_each_spelling_resolves_to_the_plain_push_up(self):
+        for name in ('Push-Ups', 'Push-Up', 'Push Ups', 'Push Up', 'Pushups',
+                     'Pushup', 'Push-ups', 'Push-Ups (Bodyweight)',
+                     'Bodyweight Push-Ups', 'Standard Push-Ups',
+                     'Finisher: Push-Ups'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_a_variant_is_rejected(self):
+        kb = views._load_exercise_kb()
+        for wrong in ('handstand push-ups', 'clock push-up'):
+            self.assertFalse(views._kb_key_is_consistent('Push-Ups', wrong),
+                             msg=wrong)
+            self.assertEqual(views._images_for_exercise('Push-Ups', wrong),
+                             kb[self.KEY][:2])
+
+    def test_named_variants_keep_their_own_entry(self):
+        self.assertEqual(views._resolve_kb_key('Handstand Push-Ups')[0],
+                         'handstand push-ups')
+        self.assertEqual(views._resolve_kb_key('Decline Push-Up')[0],
+                         'decline push-up')
+
+    def test_the_version_was_bumped_so_cached_rows_re_resolve(self):
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 5)
+
+
 class CachedGuideImageTests(APITestCase):
     """A guide cached before an alias existed must not keep its wrong photos."""
 
