@@ -4039,6 +4039,10 @@ def workout_exercise_history(request, exercise_name):
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
             'speed_kmh', 'incline_pct', 'distance_m',
+            # The prescription each set was logged against, so the modal can
+            # show "target 6" next to what was done. Null when the plan row
+            # the set pointed at has since been deleted.
+            target_reps=F('exercise__reps'),
         )
     )
     return Response({

@@ -97,6 +97,35 @@ class HistoryEndpointTests(APITestCase):
         weights = [row['weight_kg'] for row in self.get()['logs']]
         self.assertAlmostEqual(max(weights), 200 * 0.453592, places=3)
 
+    # -- requested reps ------------------------------------------------------
+
+    def test_each_set_carries_the_target_it_was_logged_against(self):
+        """
+        "I still don't see the requested reps in my progress modal." The
+        response had only what was done, never what was asked, so a 6-rep
+        week read like a failed 8-12 week. Each set must carry the prescription
+        of the plan row it was logged against, not today's.
+        """
+        old_day = WorkoutDay.objects.create(plan=self.day.plan, day_number=1,
+                                            week_number=0, name='Push')
+        old_ex = Exercise.objects.create(day=old_day, name='Incline Dumbbell Press',
+                                         sets=3, reps='6',
+                                         measurement_type=et.WEIGHT_REPS)
+        session = WorkoutSession.objects.create(
+            user=self.user, exercise_day=old_day, day_name='Push',
+            is_completed=True)
+        SetLog.objects.create(
+            workout_session=session, exercise=old_ex,
+            exercise_name='Incline Dumbbell Press', set_number=1,
+            weight_kg=17, reps_completed=6, is_completed=True)
+        rows = self.get()['logs']
+        self.assertEqual([row['target_reps'] for row in rows], ['6'])
+
+    def test_target_is_null_when_the_plan_row_is_gone(self):
+        self.log('Incline Dumbbell Press', 5, 100, 10)
+        self.assertEqual({row['target_reps'] for row in self.get()['logs']},
+                         {None})
+
     # -- canonical names -----------------------------------------------------
 
     def test_history_spans_name_variants(self):

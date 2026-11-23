@@ -978,6 +978,8 @@ export interface ExerciseHistoryPoint {
   speed_kmh: number | null
   incline_pct: number | null
   distance_m: number | null
+  /** The plan's prescription when the set was logged ("6", "8-12"). */
+  target_reps: string | null
 }
 
 /**

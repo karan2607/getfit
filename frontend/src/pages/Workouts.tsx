@@ -2019,6 +2019,9 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
       .map(([date, rows]) => ({
         date,
         rows: [...rows].sort((x, y) => x.set_number - y.set_number),
+        // What the plan asked for that day, so a session can be read against
+        // its own target rather than whatever the plan says today.
+        target: rows.find((r) => r.target_reps)?.target_reps ?? null,
       }))
   })()
 
@@ -2114,6 +2117,12 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                           })}
                           <span className="font-normal text-gray-400">
                             {' · '}{s.rows.length} set{s.rows.length === 1 ? '' : 's'}
+                            {s.target && (
+                              <>
+                                {' · target '}{s.target}
+                                {/^\d+(\s*-\s*\d+)?$/.test(s.target) ? ' reps' : ''}
+                              </>
+                            )}
                           </span>
                         </td>
                       </tr>
