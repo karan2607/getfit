@@ -58,6 +58,27 @@ class ClassifyNameTests(SimpleTestCase):
             ('Sprints', et.DURATION),
         ])
 
+    def test_backward_walking_carries_no_weight(self):
+        """
+        Reported: "Why does backward walking have weight?" Nothing matched it
+        off a treadmill, so it defaulted to weight_reps and asked for a load.
+        """
+        self.assert_classify([
+            ('Backward Walking', et.DURATION),
+            ('Backwards Walk', et.DURATION),
+            ('Retro Walking', et.DURATION),
+            ('Reverse Walk', et.DURATION),
+            # Neighbours that must not move with it.
+            ('Backward Walking (Treadmill)', et.CARDIO_MACHINE),
+            ('Sled Overhead Backward Walk', et.WEIGHT_DISTANCE),
+            ('Reverse Walking Lunge', et.WEIGHT_REPS),
+            ('Dumbbell Reverse Walking Lunges', et.WEIGHT_REPS),
+        ])
+        # A confident rule overrides the AI, which is the point.
+        self.assertEqual(
+            et.normalize(et.WEIGHT_REPS, 'Backward Walking', reps='20 yards'),
+            et.DURATION)
+
     def test_cardio_machines_are_their_own_type(self):
         """
         Reported: "Treadmill should also track speed" and "should also have a

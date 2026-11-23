@@ -253,6 +253,11 @@ _RULES = [
         # they are loaded, so seconds alone is only half the log. Bear crawl
         # stays: it is genuinely bodyweight.
         r'\bbear crawl\b',
+        # Reported: "Why does backward walking have weight?" Off a treadmill
+        # nothing matched it, so it fell through to weight_reps. The lookahead
+        # keeps "Reverse Walking Lunge" a loaded rep lift; a treadmill backward
+        # walk is already CARDIO_MACHINE and a sled one WEIGHT_DISTANCE.
+        r'\b(backwards?|retro|reverse)\s+walk(s|ing)?\b(?!\s+lunges?)',
         r'\brunning\b',
         r'\bjogging\b',
         r'\bsprints?\b',
