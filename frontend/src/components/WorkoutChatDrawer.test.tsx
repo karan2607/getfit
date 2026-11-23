@@ -35,6 +35,7 @@ describe('WorkoutChatDrawer', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(api.chat, 'listSessions').mockResolvedValue([] as never)
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([] as never)
     vi.spyOn(api.chat, 'createSession').mockResolvedValue({ id: 's1' } as never)
     vi.spyOn(api.chat, 'getSession').mockResolvedValue({
       id: 's1', title: 'T', source: 'workout', messages: [],
@@ -92,6 +93,7 @@ describe('WorkoutChatDrawer failures', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.spyOn(auth, 'getToken').mockReturnValue('tok')
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([] as never)
     vi.spyOn(api.chat, 'createSession').mockResolvedValue({ id: 's1' } as never)
     vi.spyOn(api.chat, 'getSession').mockResolvedValue({
       id: 's1', title: 'T', source: 'embedded', messages: [],
@@ -186,5 +188,112 @@ describe('WorkoutChatDrawer failures', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
     await waitFor(() => expect(showToast).toHaveBeenCalled())
     expect(String(showToast.mock.calls[0][0])).toMatch(/no longer valid/i)
+  })
+})
+
+/**
+ * Conversations that are still there when you come back.
+ *
+ * The drawer minted a brand new session on every open and kept the id in
+ * component state, so closing it — or reloading the page — lost the chat
+ * and the whole message had to be retyped. Reported directly: "if we're
+ * inside a workout page and I start a chat, it should persist even on
+ * reload."
+ */
+describe('WorkoutChatDrawer threads', () => {
+  const thread = (over: Partial<{ id: string; title: string; message_count: number }> = {}) => ({
+    id: 't1', title: 'Shoulder pain on presses', message_count: 4, ...over,
+  })
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(auth, 'getToken').mockReturnValue('tok')
+    vi.spyOn(api.workouts, 'pendingPlanChange').mockResolvedValue(
+      { proposed_change: null } as never,
+    )
+    vi.spyOn(api.chat, 'getSession').mockResolvedValue({
+      id: 't1', title: 'T', source: 'embedded', messages: [],
+    } as never)
+  })
+
+  it('reopens the conversation it had here before', async () => {
+    const list = vi.spyOn(api.chat, 'threadsFor')
+      .mockResolvedValue([thread()] as never)
+    const create = vi.spyOn(api.chat, 'createSession')
+
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" workoutSessionId="w1" />)
+
+    await waitFor(() => expect(list).toHaveBeenCalledWith('workout_session', 'w1'))
+    await waitFor(() => expect(api.chat.getSession).toHaveBeenCalledWith('t1'))
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('keys a live workout apart from the plan day it belongs to', async () => {
+    const list = vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([] as never)
+    vi.spyOn(api.chat, 'createSession').mockResolvedValue(thread() as never)
+
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" dayId="d1" />)
+    await waitFor(() => expect(list).toHaveBeenCalledWith('plan_day', 'd1'))
+  })
+
+  it('starts a thread for this context when there is none yet', async () => {
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([] as never)
+    const create = vi.spyOn(api.chat, 'createSession')
+      .mockResolvedValue(thread() as never)
+
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" />)
+    await waitFor(() => expect(create).toHaveBeenCalledWith({
+      source: 'embedded', context_type: 'plan', context_id: 'p1',
+    }))
+  })
+
+  it('offers a picker only when there is more than one', async () => {
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([thread()] as never)
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" />)
+    await waitFor(() => expect(api.chat.getSession).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /earlier chats/i })).toBeNull()
+  })
+
+  it('switches between the conversations about one thing', async () => {
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([
+      thread(), thread({ id: 't2', title: 'Swapping the squat' }),
+    ] as never)
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" />)
+
+    const picker = await screen.findByRole('button', { name: /earlier chats \(2\)/i })
+    fireEvent.click(picker)
+    fireEvent.click(await screen.findByText('Swapping the squat'))
+
+    await waitFor(() => expect(api.chat.getSession).toHaveBeenCalledWith('t2'))
+  })
+
+  it('starts a new chat only when asked', async () => {
+    vi.spyOn(api.chat, 'threadsFor').mockResolvedValue([thread()] as never)
+    const create = vi.spyOn(api.chat, 'createSession')
+      .mockResolvedValue(thread({ id: 't9', title: 'New Chat' }) as never)
+
+    render(<WorkoutChatDrawer isOpen onClose={vi.fn()} planId="p1" />)
+    await waitFor(() => expect(api.chat.getSession).toHaveBeenCalledWith('t1'))
+    expect(create).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /start a new chat/i }))
+    await waitFor(() => expect(api.chat.getSession).toHaveBeenCalledWith('t9'))
+  })
+
+  it('leaves an unsaved preview throwaway, with nothing to pick', async () => {
+    const list = vi.spyOn(api.chat, 'threadsFor')
+    vi.spyOn(api.chat, 'createSession').mockResolvedValue(thread() as never)
+
+    render(
+      <WorkoutChatDrawer
+        isOpen onClose={vi.fn()}
+        planPreview={{ title: 'Draft', days: [] } as never}
+      />,
+    )
+    await waitFor(() => expect(api.chat.createSession).toHaveBeenCalledWith({
+      source: 'embedded',
+    }))
+    expect(list).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /start a new chat/i })).toBeNull()
   })
 })

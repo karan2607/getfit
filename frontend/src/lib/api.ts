@@ -302,7 +302,25 @@ export const api = {
     listSessions: () =>
       request<ChatSession[]>('/api/chat/sessions/'),
 
-    createSession: (opts?: { source?: string }) =>
+    /**
+     * The conversations belonging to one thing — a workout session, a plan
+     * day, a plan, a meal, a diet plan.
+     *
+     * Newest first. Without this the drawer had no way to find the chat you
+     * had here last time, so it started a new one on every open and the old
+     * one became unreachable.
+     */
+    threadsFor: (contextType: string, contextId: string) =>
+      request<ChatSession[]>(
+        `/api/chat/sessions/?context_type=${encodeURIComponent(contextType)}`
+        + `&context_id=${encodeURIComponent(contextId)}`,
+      ),
+
+    createSession: (opts?: {
+      source?: string
+      context_type?: string
+      context_id?: string
+    }) =>
       request<ChatSession>('/api/chat/sessions/', { method: 'POST', body: JSON.stringify(opts ?? {}) }),
 
     getSession: (id: string) =>
@@ -763,6 +781,11 @@ export interface ChatMessage {
 }
 
 export interface ChatSession {
+  /** What this conversation is about, when it was opened from inside the app. */
+  context_type?: string
+  context_id?: string
+  /** So a thread picker can say which conversation is which. */
+  message_count?: number
   id: string
   title: string
   created_at: string

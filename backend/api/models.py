@@ -236,19 +236,67 @@ class ApiKey(models.Model):
 # ---------------------------------------------------------------------------
 
 class ChatSession(models.Model):
+    """
+    One conversation.
+
+    Context
+    -------
+    A chat opened from inside the app belongs to the thing it was opened
+    from. The drawer used to mint a brand new session on every open and keep
+    the id in React state, so closing it -- or reloading the page -- lost the
+    conversation and the whole message had to be retyped, while the abandoned
+    session sat in this table with nothing able to reach it again.
+
+    `context_type` + `context_id` name that thing. A generic pair rather than
+    five nullable foreign keys: the set of places a chat can be opened from
+    keeps growing, and each new one should not be a schema change. The
+    tradeoff is no referential integrity -- a thread outlives the plan or
+    workout it belonged to -- which costs a few unreachable rows and nothing
+    else, since nothing looks a context up by this.
+
+    Identity is the MOST SPECIFIC thing the caller has: a workout session
+    gets its own thread, and a day inside it gets another, because the
+    conversations are about different things.
+    """
+
     SOURCE_MAIN = 'main'
     SOURCE_EMBEDDED = 'embedded'
     SOURCE_CHOICES = [(SOURCE_MAIN, 'Main'), (SOURCE_EMBEDDED, 'Embedded')]
+
+    #: What a thread can be about. Values are wire strings; the client sends
+    #: them, so they are part of the API.
+    CONTEXT_WORKOUT_SESSION = 'workout_session'
+    CONTEXT_PLAN_DAY = 'plan_day'
+    CONTEXT_PLAN = 'plan'
+    CONTEXT_MEAL = 'meal'
+    CONTEXT_DIET_PLAN = 'diet_plan'
+    CONTEXT_CHOICES = [
+        (CONTEXT_WORKOUT_SESSION, 'Workout session'),
+        (CONTEXT_PLAN_DAY, 'Plan day'),
+        (CONTEXT_PLAN, 'Workout plan'),
+        (CONTEXT_MEAL, 'Meal'),
+        (CONTEXT_DIET_PLAN, 'Diet plan'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_sessions')
     title = models.CharField(max_length=100, default='New Chat')
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MAIN)
+    #: Blank for a main-page chat, and for an unsaved plan preview -- there
+    #: is no id to key a preview on, so those stay throwaway.
+    context_type = models.CharField(max_length=32, choices=CONTEXT_CHOICES,
+                                    blank=True, default='')
+    context_id = models.CharField(max_length=64, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-updated_at']
+        indexes = [
+            # The one lookup the drawer makes on open.
+            models.Index(fields=['user', 'context_type', 'context_id'],
+                         name='chat_ctx_idx'),
+        ]
 
     def __str__(self):
         return f'{self.title} ({self.user.email})'

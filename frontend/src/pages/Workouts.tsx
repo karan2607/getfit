@@ -1608,6 +1608,10 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
             onClose={() => setEditChatOpen(false)}
             planId={session.plan_id}
             dayId={session.exercise_day.id}
+            // The live workout owns this thread, not the plan day: asking
+            // about today's session and editing that day of the plan are
+            // different conversations.
+            workoutSessionId={session.id}
             hasUnsavedSets={Object.keys(pendingLogs).length > 0}
             onBeforePlanUpdate={async () => {
               // Applying a plan edit deletes and recreates this day's set rows,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, type WorkoutPlanPreview } from '../lib/api'
+import { api, type ChatSession, type WorkoutPlanPreview } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
 import ChatBubble from './chat/ChatBubble'
 import ChatInput from './chat/ChatInput'
@@ -13,6 +13,14 @@ interface WorkoutChatDrawerProps {
   onClose: () => void
   planId?: string
   dayId?: string
+  /**
+   * The live workout this chat was opened from.
+   *
+   * Its own context, deliberately: a conversation during a workout ("my
+   * shoulder hurts on these") is not the conversation about editing that
+   * day of the plan, and they should not share a transcript.
+   */
+  workoutSessionId?: string
   filterDayNumber?: number
   dietPlanId?: string
   mealId?: string
@@ -27,11 +35,14 @@ interface WorkoutChatDrawerProps {
 }
 
 export default function WorkoutChatDrawer({
-  isOpen, onClose, planId, dayId, filterDayNumber, dietPlanId, mealId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
+  isOpen, onClose, planId, dayId, workoutSessionId, filterDayNumber, dietPlanId, mealId, onPlanUpdated, onDietPlanUpdated, planPreview, onPreviewUpdate,
   hasUnsavedSets, onBeforePlanUpdate,
 }: WorkoutChatDrawerProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined)
   const [initializing, setInitializing] = useState(false)
+  /** Every thread for this context, newest first. */
+  const [threads, setThreads] = useState<ChatSession[]>([])
+  const [showThreads, setShowThreads] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   // Whether the view is pinned to the bottom. Autoscroll only applies while it
@@ -107,6 +118,25 @@ export default function WorkoutChatDrawer({
     }
   }
 
+  /*
+   * What this conversation is ABOUT.
+   *
+   * The most specific thing the caller has, because a chat during a workout
+   * and a chat about one of its days are different conversations: ordering
+   * runs narrowest first and the first match wins.
+   *
+   * An unsaved plan preview has no id to key on, so it stays throwaway --
+   * the one case that still mints a session per open, and the only one
+   * where there is nothing to come back to.
+   */
+  const context: { type: string; id: string } | null =
+    mealId ? { type: 'meal', id: mealId }
+    : workoutSessionId ? { type: 'workout_session', id: workoutSessionId }
+    : dayId ? { type: 'plan_day', id: dayId }
+    : dietPlanId ? { type: 'diet_plan', id: dietPlanId }
+    : planId ? { type: 'plan', id: planId }
+    : null
+
   const buildExtra = () => {
     const extra: Record<string, unknown> = {}
     if (planId) extra.plan_id = planId
@@ -164,14 +194,59 @@ export default function WorkoutChatDrawer({
     if (!isOpen || sessionId) return
     setInitializing(true)
     setStartFailed(false)
-    api.chat.createSession({ source: 'embedded' })
-      .then((s) => {
-        setSessionId(s.id)
-        loadSession(s.id)
+
+    // No context means nothing to come back to (an unsaved preview), so
+    // there is no point looking.
+    const find = context
+      ? api.chat.threadsFor(context.type, context.id)
+      : Promise.resolve([] as ChatSession[])
+
+    find
+      .then(async (found) => {
+        setThreads(found)
+        if (found.length) {
+          // The conversation you were last having here. This is the whole
+          // point: it used to start a new one every single time.
+          setSessionId(found[0].id)
+          await loadSession(found[0].id)
+          return
+        }
+        const started = await api.chat.createSession({
+          source: 'embedded',
+          ...(context ? { context_type: context.type, context_id: context.id } : {}),
+        })
+        setThreads(context ? [started] : [])
+        setSessionId(started.id)
+        await loadSession(started.id)
       })
       .catch(() => setStartFailed(true))
       .finally(() => setInitializing(false))
   }, [isOpen, startAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Start a second conversation about this same thing, on purpose. */
+  async function startNewThread() {
+    if (!context) return
+    try {
+      const started = await api.chat.createSession({
+        source: 'embedded',
+        context_type: context.type,
+        context_id: context.id,
+      })
+      setThreads((prev) => [started, ...prev])
+      setSessionId(started.id)
+      setShowThreads(false)
+      await loadSession(started.id)
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error')
+    }
+  }
+
+  async function openThread(id: string) {
+    setShowThreads(false)
+    if (id === sessionId) return
+    setSessionId(id)
+    await loadSession(id)
+  }
 
   /**
    * Keep the newest message in view -- but only when the user has not scrolled
@@ -276,10 +351,72 @@ export default function WorkoutChatDrawer({
                     : 'Ask anything about your workout'}
             </p>
           </div>
-          <button onClick={onClose} className="text-white/75 hover:text-white text-xl leading-none transition-colors">
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Only where a thread can actually be returned to. An unsaved
+                preview has no context to key one on. */}
+            {context && (
+              <>
+                {threads.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowThreads((v) => !v)}
+                    aria-expanded={showThreads}
+                    aria-label={`Earlier chats (${threads.length})`}
+                    title="Earlier chats about this"
+                    className="min-h-[44px] min-w-[44px] px-2 text-white/75 hover:text-white text-sm"
+                  >
+                    {threads.length} chats
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={startNewThread}
+                  aria-label="Start a new chat about this"
+                  title="Start a new chat about this"
+                  className="min-h-[44px] min-w-[44px] text-white/75 hover:text-white text-xl leading-none"
+                >
+                  +
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="min-h-[44px] min-w-[44px] text-white/75 hover:text-white text-xl leading-none transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
+
+        {/* The conversations already had about this thing. Closed by
+            default: the newest one is already open, and a list of past
+            chats above the transcript would be noise for the common case
+            of there being exactly one. */}
+        {showThreads && threads.length > 1 && (
+          <ul className="border-b border-gray-100 bg-gray-50 max-h-48 overflow-y-auto">
+            {threads.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => openThread(t.id)}
+                  aria-current={t.id === sessionId}
+                  className={`w-full text-left px-5 min-h-[44px] py-2 text-sm ${
+                    t.id === sessionId
+                      ? 'text-ink-600 font-semibold'
+                      : 'text-ink-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="block truncate">{t.title}</span>
+                  <span className="block text-[11px] text-ink-400">
+                    {t.message_count ?? 0} message
+                    {(t.message_count ?? 0) === 1 ? '' : 's'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/* Messages */}
         <div ref={scrollRef} onScroll={handleScroll}

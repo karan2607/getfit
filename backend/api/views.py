@@ -655,12 +655,53 @@ def _build_system_prompt(user, plan_id=None, plan_context=None, day_id=None, die
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def chat_sessions(request):
+    """
+    List or start conversations.
+
+    GET with no context lists the MAIN-page chats, as it always has.
+    Threads opened from inside the app are deliberately not in that list:
+    one row per day, meal and workout you ever asked about would bury the
+    handful of conversations the AI page is for. They are reached by
+    opening the thing they belong to.
+
+    GET with `context_type` and `context_id` lists that thing's threads,
+    newest first -- which is how the drawer finds the conversation you had
+    here last time instead of starting another one.
+    """
+    context_type = (request.data.get('context_type')
+                    if request.method == 'POST'
+                    else request.GET.get('context_type')) or ''
+    context_id = (request.data.get('context_id')
+                  if request.method == 'POST'
+                  else request.GET.get('context_id')) or ''
+    context_type = str(context_type)[:32]
+    context_id = str(context_id)[:64]
+
+    valid_contexts = {c for c, _label in ChatSession.CONTEXT_CHOICES}
+    if context_type and context_type not in valid_contexts:
+        return Response({'detail': 'unknown context_type'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    # Half a context is not a context. Keying a thread on a type with no id
+    # would collide every plan's thread into one.
+    if bool(context_type) != bool(context_id):
+        return Response(
+            {'detail': 'context_type and context_id go together'},
+            status=status.HTTP_400_BAD_REQUEST)
+
     if request.method == 'GET':
-        sessions = ChatSession.objects.filter(user=request.user, source=ChatSession.SOURCE_MAIN)
+        if context_type:
+            sessions = ChatSession.objects.filter(
+                user=request.user,
+                context_type=context_type, context_id=context_id)
+        else:
+            sessions = ChatSession.objects.filter(
+                user=request.user, source=ChatSession.SOURCE_MAIN)
         return Response(ChatSessionSerializer(sessions, many=True).data)
 
     source = request.data.get('source', ChatSession.SOURCE_MAIN)
-    session = ChatSession.objects.create(user=request.user, source=source)
+    session = ChatSession.objects.create(
+        user=request.user, source=source,
+        context_type=context_type, context_id=context_id)
     return Response(ChatSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 

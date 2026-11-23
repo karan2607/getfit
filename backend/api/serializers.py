@@ -116,8 +116,15 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
-        fields = ['id', 'title', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        # `message_count` so the drawer's thread picker can say which
+        # conversation is which without fetching all of them.
+        fields = ['id', 'title', 'created_at', 'updated_at',
+                  'context_type', 'context_id', 'message_count']
+        read_only_fields = ['id', 'created_at', 'updated_at',
+                            'context_type', 'context_id', 'message_count']
+
+    message_count = serializers.IntegerField(source='messages.count',
+                                             read_only=True)
 
 
 class ChatSessionDetailSerializer(serializers.ModelSerializer):
