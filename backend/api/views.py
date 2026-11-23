@@ -4250,7 +4250,9 @@ KB_AI_KEY_MARGIN = 0.15
 #    mislabelled (its photos are a GHD back extension), so every cached row
 #    for that movement -- and for "nordic curl", which was resolving to
 #    BARBELL CURL -- holds the wrong images and has to be re-resolved.
-KB_MATCH_VERSION = 2
+# 3: machine incline press, which was resolving to the Smith-machine
+#    (barbell) incline bench press.
+KB_MATCH_VERSION = 3
 
 
 def _alias_for(name: str):
@@ -4520,6 +4522,19 @@ _KB_ALIASES = {
     'seated machine shoulder press': 'machine shoulder (military) press',
     'machine overhead press': 'machine shoulder (military) press',
     'overhead press machine': 'machine shoulder (military) press',
+    # Same failure on the incline: "Machine Incline Press" contains every word
+    # of "smith machine incline bench press" and scored 0.95 against it, so a
+    # barbell in a Smith rack beat the plate-loaded machine entry (0.72), which
+    # the KB calls "leverage". Reported: "Machine incline press has barbell
+    # incline press photos".
+    'machine incline press': 'leverage incline chest press',
+    'machine incline chest press': 'leverage incline chest press',
+    'incline machine press': 'leverage incline chest press',
+    'incline chest press machine': 'leverage incline chest press',
+    'incline press machine': 'leverage incline chest press',
+    'incline machine chest press': 'leverage incline chest press',
+    'machine incline bench press': 'leverage incline chest press',
+    'seated machine incline press': 'leverage incline chest press',
     # "Weighted Dips" shares 'weighted' and 'dip' with "weighted bench dip",
     # which outscored every bar-dip key -- so a belt-loaded dip on parallel
     # bars was illustrated with hands-behind-on-a-bench photos. Plain "Dips"

@@ -371,6 +371,39 @@ class MachineShoulderPressTests(SimpleTestCase):
             'smith machine overhead shoulder press')
 
 
+class MachineInclinePressTests(SimpleTestCase):
+    """
+    "Machine incline press has barbell incline press photos". Same shape as
+    the shoulder press: every word of the name is in `smith machine incline
+    bench press`, which outscored the plate-loaded machine entry.
+    """
+
+    KEY = 'leverage incline chest press'
+
+    def test_resolves_to_the_machine_entry(self):
+        for name in ('Machine Incline Press', 'Machine Incline Chest Press',
+                     'Incline Machine Press', 'Incline Chest Press Machine',
+                     'Machine Incline Press (Plate Loaded)'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_the_smith_key_is_rejected(self):
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise(
+                'Machine Incline Press', 'smith machine incline bench press'),
+            kb[self.KEY][:2])
+
+    def test_the_smith_and_barbell_exercises_still_match_themselves(self):
+        self.assertEqual(
+            views._resolve_kb_key('Smith Machine Incline Bench Press')[0],
+            'smith machine incline bench press')
+        self.assertNotEqual(
+            views._resolve_kb_key('Barbell Incline Bench Press')[0], self.KEY)
+
+    def test_the_version_was_bumped_so_cached_rows_re_resolve(self):
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 3)
+
+
 class WeightedDipTests(SimpleTestCase):
     """
     "Weighted dips also has wrong photos". 'weighted' + 'dip' scored highest
