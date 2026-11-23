@@ -3544,10 +3544,16 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
                 f"{target_high}"),
         }
 
-    # Two consecutive mild misses also warrant backing off.
+    # Two consecutive mild misses also warrant backing off -- but only a little.
+    # `mild` stops the advice from sending the user all the way back to
+    # best_at_target: being a rep or two short at 37.5lb was answered with
+    # "drop to about 20lb", because 20lb was the last weight that met TODAY's
+    # target. Logs don't record the target they were done against, so an older,
+    # lower-rep target makes every heavier session look like a failure.
     if not recent['hit_all'] and not prev['hit_all']:
         return {
             'direction': 'decrease',
+            'mild': True,
             'last_value': recent['value'],
             'best_at_target': best_at_target,
             'summary': (
@@ -3697,7 +3703,14 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
                 f'Go up to {round(last + step, 1)}{unit} — you completed every '
                 f'set at the top of the range{top} with {last}{unit}.')
         elif direction == 'decrease':
-            if proven is not None and proven < last:
+            floor = proven if proven is not None and proven < last else 0
+            drop = round(max(last - step, floor), 1)
+            if prog.get('mild') and drop > 0:
+                # A near miss earns one step down, not a return to an old weight.
+                out['recommended_weight'] = (
+                    f'Drop to {drop}{unit} — you were just short of the target '
+                    f'reps at {last}{unit} two sessions running.')
+            elif proven is not None and proven < last:
                 out['recommended_weight'] = (
                     f'Drop to about {proven}{unit} — that is where you last hit '
                     f'the target reps. {last}{unit} was too heavy last session.')

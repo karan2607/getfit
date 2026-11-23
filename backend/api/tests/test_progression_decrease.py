@@ -277,3 +277,40 @@ class LoadedCarryPrescriptionTests(APITestCase):
         self.assertEqual(
             tuple(et.FIELD_CONTRACT[et.WEIGHT_DURATION]),
             ('weight_kg', 'duration_seconds'))
+
+
+class NearMissDecreaseTests(APITestCase):
+    """
+    Reported: "Short of the 8 range at 37.5lb for 2 sessions -> DECREASE WEIGHT.
+    Drop to about 20.0lb -- that is where you last hit the target reps." The
+    user had been a rep or two short; earlier, heavier sessions were likely done
+    against a lower rep target, so 20lb was the only weight that met today's 8.
+    Halving the load for a near miss is wrong -- it should step down once.
+    """
+
+    def advice(self, logs, reps='8'):
+        from unittest import mock
+        with mock.patch.object(views, '_exercise_history',
+                               return_value=(logs, 'weight_kg')):
+            return views._build_exercise_advice(
+                None, 'Single Arm Dumbbell Row', et.WEIGHT_REPS, reps, 'lb')
+
+    def test_near_miss_steps_down_once_not_back_to_old_weight(self):
+        logs = (session(20, 37.5, [7, 6, 6])
+                + session(13, 37.5, [7, 7, 6])
+                + session(6, 30, [6, 6, 6])
+                + session(1, 20, [8, 8, 8]))
+        out = self.advice(logs)
+        self.assertNotIn('20.0lb', out['recommended_weight'])
+        self.assertIn('Drop to 32.5lb', out['recommended_weight'])
+
+    def test_step_down_never_goes_below_the_proven_weight(self):
+        logs = (session(20, 37.5, [7, 6, 6]) + session(13, 37.5, [7, 7, 6])
+                + session(6, 35, [8, 8, 8]))
+        out = self.advice(logs)
+        self.assertIn('Drop to 35.0lb', out['recommended_weight'])
+
+    def test_bad_miss_still_goes_back_to_the_proven_weight(self):
+        logs = session(20, 37.5, [4, 3, 3]) + session(13, 20, [8, 8, 8])
+        out = self.advice(logs)
+        self.assertIn('Drop to about 20.0lb', out['recommended_weight'])
