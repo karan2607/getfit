@@ -82,7 +82,7 @@ The table below is for orientation.
 | `log_set` | **`session_id`**, **`exercise_id`**, **`set_number`**, `weight`, `reps_completed`, `duration_seconds`, `is_completed` | Record a set result |
 | `log_health_day` | `date`, `steps`, `active_calories`, `resting_calories`, `resting_heart_rate`, `sleep_hours` | Upsert one day of health metrics |
 | `log_health_workout` | **`start_time`**, `external_id`, `activity_type`, `duration_seconds`, `calories`, `avg_heart_rate`, `distance_meters` | Upsert a workout from an external source |
-| `log_meal` | **`meal_type`**, **`food_name`**, `date`, `calories`, `protein_g`, `carbs_g`, `fat_g`, `notes` | Record something eaten |
+| `log_meal` | **`meal_type`**, **`food_name`**, `date`, `calories`, `protein_g`, `carbs_g`, `fat_g`, `fiber_g`, `notes` | Record something eaten |
 | `set_body_weight` | **`weight`**, `unit` | Record body weight |
 | `update_exercise_notes` | **`exercise_id`**, **`notes`** | Replace one exercise's coaching notes |
 | `update_personal_notes` | **`notes`** | Replace the user's remembered context |

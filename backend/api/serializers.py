@@ -249,7 +249,7 @@ class WorkoutSessionListSerializer(serializers.ModelSerializer):
 class MealLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MealLog
-        fields = ['id', 'date', 'meal_type', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'notes', 'created_at']
+        fields = ['id', 'date', 'meal_type', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 

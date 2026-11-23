@@ -524,13 +524,15 @@ def _tool_log_meal(user, args):
         protein_g=num('protein_g'),
         carbs_g=num('carbs_g'),
         fat_g=num('fat_g'),
+        # Unknown stays unknown: no fiber given is not "0g of fiber".
+        fiber_g=None if args.get('fiber_g') in (None, '') else num('fiber_g'),
         notes=str(args.get('notes') or '')[:2000],
     )
     return {
         'id': str(log.id), 'date': log.date.isoformat(),
         'meal_type': log.meal_type, 'food_name': log.food_name,
         'calories': log.calories, 'protein_g': log.protein_g,
-        'carbs_g': log.carbs_g, 'fat_g': log.fat_g,
+        'carbs_g': log.carbs_g, 'fat_g': log.fat_g, 'fiber_g': log.fiber_g,
     }
 
 
@@ -541,19 +543,23 @@ def _tool_get_meal_logs(user, args):
     start = end - timedelta(days=days - 1)
 
     rows = MealLog.objects.filter(user=user, date__gte=start, date__lte=end)
-    totals = {'calories': 0, 'protein_g': 0.0, 'carbs_g': 0.0, 'fat_g': 0.0}
+    totals = {'calories': 0, 'protein_g': 0.0, 'carbs_g': 0.0, 'fat_g': 0.0,
+              'fiber_g': None}
     meals = []
     for m in rows:
         meals.append({
             'id': str(m.id), 'date': m.date.isoformat(),
             'meal_type': m.meal_type, 'food_name': m.food_name,
             'calories': m.calories, 'protein_g': m.protein_g,
-            'carbs_g': m.carbs_g, 'fat_g': m.fat_g, 'notes': m.notes,
+            'carbs_g': m.carbs_g, 'fat_g': m.fat_g, 'fiber_g': m.fiber_g,
+            'notes': m.notes,
         })
         totals['calories'] += m.calories or 0
         totals['protein_g'] += m.protein_g or 0
         totals['carbs_g'] += m.carbs_g or 0
         totals['fat_g'] += m.fat_g or 0
+        if m.fiber_g is not None:
+            totals['fiber_g'] = (totals['fiber_g'] or 0) + m.fiber_g
     return {'from': start.isoformat(), 'to': end.isoformat(),
             'meals': meals, 'totals': totals}
 
@@ -902,7 +908,7 @@ TOOLS = {
     },
     'log_meal': {
         'description': 'Record something the user ate. Macros default to 0 if '
-                       'not supplied.',
+                       'not supplied; fiber_g is left unrecorded instead.',
         'schema': _obj({
             'date': _STR,
             'meal_type': {'type': 'string',
@@ -912,6 +918,7 @@ TOOLS = {
             'protein_g': _NUM,
             'carbs_g': _NUM,
             'fat_g': _NUM,
+            'fiber_g': _NUM,
             'notes': _STR,
         }, ['meal_type', 'food_name']),
         'handler': _tool_log_meal,

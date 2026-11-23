@@ -73,6 +73,7 @@ urlpatterns = [
     path('body/scan/history/', views.body_scan_history, name='body-scan-history'),
     # Meal Log
     path('diet/meal-logs/', views.meal_logs, name='meal-logs'),
+    path('diet/meal-logs/daily/', views.meal_log_daily, name='meal-log-daily'),
     path('diet/meal-logs/<uuid:log_id>/', views.meal_log_detail, name='meal-log-detail'),
     # Health Sync (Apple Shortcuts)
     path('health/connect/', views.health_connect, name='health-connect'),

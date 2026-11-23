@@ -5236,6 +5236,41 @@ def meal_logs(request):
     return Response(ser.data, status=status.HTTP_201_CREATED)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def meal_log_daily(request):
+    """
+    Per-day macro totals for the trailing `days` (default 14) ending on the
+    user's today, one row per day including empty ones so a chart shows gaps
+    as gaps. fiber_g is null for a day where no meal recorded fiber.
+    """
+    try:
+        days = max(1, min(int(request.query_params.get('days') or 14), 90))
+    except ValueError:
+        return Response({'detail': 'days must be an integer'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    end = user_today(request.user)
+    start = end - timedelta(days=days - 1)
+
+    rows = {}
+    for i in range(days):
+        d = start + timedelta(days=i)
+        rows[d] = {'date': d.isoformat(), 'meals': 0, 'calories': 0,
+                   'protein_g': 0.0, 'carbs_g': 0.0, 'fat_g': 0.0,
+                   'fiber_g': None}
+    logs = MealLog.objects.filter(user=request.user, date__gte=start, date__lte=end)
+    for m in logs:
+        row = rows[m.date]
+        row['meals'] += 1
+        row['calories'] += m.calories or 0
+        row['protein_g'] += m.protein_g or 0
+        row['carbs_g'] += m.carbs_g or 0
+        row['fat_g'] += m.fat_g or 0
+        if m.fiber_g is not None:
+            row['fiber_g'] = (row['fiber_g'] or 0) + m.fiber_g
+    return Response(list(rows.values()))
+
+
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def meal_log_detail(request, log_id):

@@ -550,6 +550,9 @@ class MealLog(models.Model):
     protein_g = models.FloatField(default=0)
     carbs_g = models.FloatField(default=0)
     fat_g = models.FloatField(default=0)
+    # Nullable, unlike the other macros: meals logged before this field
+    # existed never recorded fiber, and 0 would claim they had none.
+    fiber_g = models.FloatField(null=True, blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

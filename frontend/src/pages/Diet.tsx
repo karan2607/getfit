@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
+import MacroTrends from '../components/diet/MacroTrends'
 import { compressImage } from '../lib/imageUtils'
 
 // ── Macro Donut ─────────────────────────────────────────────────────────────
@@ -860,7 +861,7 @@ function MealLogger() {
   // the evening it files a meal under a day the user has not reached.
   const [date, setDate] = useState(() => localToday())
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ food_name: '', meal_type: 'breakfast' as MealLog['meal_type'], calories: '', protein_g: '', carbs_g: '', fat_g: '', notes: '' })
+  const [form, setForm] = useState({ food_name: '', meal_type: 'breakfast' as MealLog['meal_type'], calories: '', protein_g: '', carbs_g: '', fat_g: '', fiber_g: '', notes: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -889,10 +890,12 @@ function MealLogger() {
         protein_g: Number(form.protein_g) || 0,
         carbs_g: Number(form.carbs_g) || 0,
         fat_g: Number(form.fat_g) || 0,
+        // Blank means not recorded, not 0g.
+        fiber_g: form.fiber_g === '' ? null : Number(form.fiber_g) || 0,
         notes: form.notes,
       })
       setLogs((l) => [...l, entry])
-      setForm({ food_name: '', meal_type: 'breakfast', calories: '', protein_g: '', carbs_g: '', fat_g: '', notes: '' })
+      setForm({ food_name: '', meal_type: 'breakfast', calories: '', protein_g: '', carbs_g: '', fat_g: '', fiber_g: '', notes: '' })
       setShowForm(false)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
@@ -960,6 +963,8 @@ function MealLogger() {
         </div>
       )}
 
+      <MacroTrends refreshKey={logs} targets={activePlan ?? undefined} />
+
       {/* Log entries */}
       {loading ? (
         <div className="text-sm text-gray-400">Loading...</div>
@@ -980,6 +985,7 @@ function MealLogger() {
                       <p className="text-sm font-medium text-gray-800 truncate">{m.food_name}</p>
                       <p className="text-xs text-gray-400">
                         {m.calories} kcal · {m.protein_g}g P · {m.carbs_g}g C · {m.fat_g}g F
+                        {m.fiber_g != null && ` · ${m.fiber_g}g fiber`}
                       </p>
                     </div>
                     <button onClick={() => handleDelete(m.id)} className="text-gray-300 hover:text-red-400 text-sm transition-colors flex-shrink-0">✕</button>
@@ -1009,8 +1015,8 @@ function MealLogger() {
               {MEAL_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {(['calories', 'protein_g', 'carbs_g', 'fat_g'] as const).map((field) => (
+          <div className="grid grid-cols-5 gap-2">
+            {(['calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'] as const).map((field) => (
               <div key={field}>
                 <label className="text-xs text-gray-400 mb-1 block">
                   {field === 'calories' ? 'kcal' : field.replace('_g', '')}

@@ -145,6 +145,14 @@ class LogMealTests(McpBase):
         self.assertEqual(log.calories, 0)
         self.assertEqual(log.protein_g, 0)
 
+    def test_fiber_is_stored_when_given_and_null_when_not(self):
+        self.ok('log_meal', {'meal_type': 'lunch', 'food_name': 'Beans',
+                             'fiber_g': 12})
+        self.ok('log_meal', {'meal_type': 'snack', 'food_name': 'Apple'})
+        self.assertEqual(MealLog.objects.get(food_name='Beans').fiber_g, 12)
+        self.assertIsNone(MealLog.objects.get(food_name='Apple').fiber_g)
+        self.assertEqual(self.ok('get_meal_logs')['totals']['fiber_g'], 12)
+
     def test_invalid_meal_type_is_rejected(self):
         msg = self.err('log_meal',
                        {'meal_type': 'brunch', 'food_name': 'Eggs'})

@@ -28,8 +28,22 @@ export interface MealLog {
   protein_g: number
   carbs_g: number
   fat_g: number
+  /** null when the meal was logged without fiber, which is not 0g. */
+  fiber_g?: number | null
   notes: string
   created_at: string
+}
+
+/** One day of summed macros from /api/diet/meal-logs/daily/. */
+export interface MealLogDay {
+  date: string
+  meals: number
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  /** null when no meal that day recorded fiber. */
+  fiber_g: number | null
 }
 
 export interface User {
@@ -599,6 +613,9 @@ export const api = {
 
     getMealLogs: (date?: string) =>
       request<MealLog[]>(`/api/diet/meal-logs/${date ? `?date=${date}` : ''}`),
+
+    getMealLogDaily: (days = 14) =>
+      request<MealLogDay[]>(`/api/diet/meal-logs/daily/?days=${days}`),
 
     addMealLog: (data: Omit<MealLog, 'id' | 'created_at'>) =>
       request<MealLog>('/api/diet/meal-logs/', { method: 'POST', body: JSON.stringify(data) }),
