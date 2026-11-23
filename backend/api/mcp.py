@@ -657,6 +657,20 @@ _INT = {'type': 'integer'}
 _NUM = {'type': 'number'}
 _BOOL = {'type': 'boolean'}
 
+# Nullable variants, for a field where null MEANS something.
+#
+# `update_health_day` documents that passing null CLEARS a field, and its
+# handler implements exactly that (`allow_clear=True`). But it advertised the
+# plain _INT/_NUM schemas, so the published contract said those fields had to
+# be numbers. An agent that validates its arguments against the schema -- the
+# well-behaved kind -- therefore refused to send null, and clearing a bad
+# value was impossible for it. Reported as the update tool not working.
+#
+# The list form is used rather than JSON Schema's `nullable`, which is an
+# OpenAPI extension and not part of JSON Schema itself.
+_INT_OR_NULL = {'type': ['integer', 'null']}
+_NUM_OR_NULL = {'type': ['number', 'null']}
+
 
 def _tool_update_health_day(user, args):
     """
@@ -845,11 +859,12 @@ TOOLS = {
                        'has no data yet -- use log_health_day for that.',
         'schema': _obj({
             'date': _STR,
-            'steps': _INT,
-            'active_calories': _NUM,
-            'resting_calories': _NUM,
-            'resting_heart_rate': _NUM,
-            'sleep_hours': _NUM,
+            # Nullable: null clears the field. See _INT_OR_NULL.
+            'steps': _INT_OR_NULL,
+            'active_calories': _NUM_OR_NULL,
+            'resting_calories': _NUM_OR_NULL,
+            'resting_heart_rate': _NUM_OR_NULL,
+            'sleep_hours': _NUM_OR_NULL,
         }),
         'handler': _tool_update_health_day,
         'writes': True,

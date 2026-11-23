@@ -329,3 +329,46 @@ class McpCorrectionToolTests(APITestCase):
         for name in ('update_health_day', 'delete_health_day',
                      'delete_health_workout'):
             self.assertTrue(mcp.TOOLS[name]['writes'], msg=name)
+
+    def test_the_published_schema_admits_the_null_it_documents(self):
+        """
+        The advertised contract must permit what the handler supports.
+
+        The handler took null from the start, and its description told agents
+        to pass null to clear a field -- but the published schema said
+        'integer'/'number'. An agent that validates its arguments against the
+        schema, which is the kind you want, therefore refused to send null,
+        so clearing a value was impossible for it while the tests here all
+        passed. Reported as the update tool not working.
+
+        The clearable fields come from _HEALTH_DAILY_FIELDS rather than a
+        literal list, so a new metric cannot be added to the handler and
+        quietly left out of the contract.
+        """
+        from api import mcp
+        from api.views import _HEALTH_DAILY_FIELDS
+
+        props = mcp.TOOLS['update_health_day']['schema']['properties']
+        for field, _coerce in _HEALTH_DAILY_FIELDS:
+            self.assertIn(field, props, msg='%s is not advertised' % field)
+            types = props[field]['type']
+            self.assertIn(
+                'null', types,
+                msg='%s cannot be cleared through the published schema: %r'
+                    % (field, types))
+
+    def test_the_sync_tool_does_not_advertise_nullable_fields(self):
+        """
+        The counterpart. `log_health_day` must NOT invite null: on the sync
+        path a partial payload sending only steps must not blank out sleep
+        and heart rate, which is the distinction this whole file turns on.
+        """
+        from api import mcp
+        from api.views import _HEALTH_DAILY_FIELDS
+
+        props = mcp.TOOLS['log_health_day']['schema']['properties']
+        for field, _coerce in _HEALTH_DAILY_FIELDS:
+            if field in props:
+                self.assertNotIn(
+                    'null', props[field]['type'],
+                    msg='%s invites null on the SYNC path' % field)
