@@ -324,6 +324,26 @@ class McpCorrectionToolTests(APITestCase):
         self.assertTrue(result['isError'])
         self.assertTrue(HealthWorkout.objects.filter(user=other).exists())
 
+    def test_the_correction_tools_are_listed_to_agents(self):
+        """
+        An agent only knows what tools/list tells it. The tests above call the
+        tools by name, which passes even if the listing leaves them out --
+        reported as the agent not being able to see the update tool.
+        """
+        res = self.client.post(reverse('mcp'), {
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        listed = {t['name']: t for t in res.data['result']['tools']}
+        for name in ('update_health_day', 'delete_health_day',
+                     'delete_health_workout'):
+            self.assertIn(name, listed)
+            self.assertFalse(listed[name]['annotations']['readOnlyHint'],
+                             msg=name)
+        self.assertIn('null',
+                      listed['update_health_day']['inputSchema']
+                      ['properties']['steps']['type'])
+
     def test_the_correction_tools_are_marked_as_writes(self):
         from api import mcp
         for name in ('update_health_day', 'delete_health_day',
