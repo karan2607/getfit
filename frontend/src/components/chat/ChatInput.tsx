@@ -69,8 +69,35 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
     return () => window.removeEventListener('resize', resize)
   }, [resize, value])
 
+  /*
+   * Focus goes into the editor, and comes back out where it started.
+   *
+   * Collapsing returned focus to `document.body`, which drops a keyboard
+   * user at the top of the page and makes them tab back through the whole
+   * transcript to reach the composer they were just typing in.
+   */
   useEffect(() => {
-    if (expanded) expandedRef.current?.focus()
+    if (!expanded) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    expandedRef.current?.focus()
+    return () => {
+      const back = previouslyFocused ?? textareaRef.current
+      back?.focus?.()
+    }
+  }, [expanded])
+
+  // Escape closes it. A full-screen dialog that traps you until you find
+  // the Collapse button is the kind of thing a keyboard user cannot guess.
+  useEffect(() => {
+    if (!expanded) return
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setExpanded(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [expanded])
 
   async function handleSend() {
@@ -99,10 +126,30 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
   // would be a keyhole. Below that the button is noise.
   const longEnoughToExpand = value.length > 180
 
+  /*
+   * Why Send is unavailable, in words.
+   *
+   * It was `disabled` with `opacity-40` and a fixed aria-label of "Send",
+   * so a greyed-out button gave a sighted user no reason and a screen
+   * reader user nothing at all. "Nothing typed yet" is self-evident on
+   * screen; "the chat is still opening" is not, and in the drawer it is
+   * exactly the state a failed start leaves you in.
+   */
+  const sendBlockedBecause = disabled
+    ? 'The chat is not ready yet'
+    : !value.trim()
+      ? 'Type a message first'
+      : null
+
   return (
     <div>
       {expanded && (
-        <div className="fixed inset-0 z-[60] bg-white flex flex-col" role="dialog" aria-label="Edit message">
+        <div
+          className="fixed inset-0 z-[60] bg-white flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit message"
+        >
           <div
             className="flex items-center justify-between px-4 py-3 border-b border-gray-200"
             style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
@@ -117,6 +164,8 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
             <button
               onClick={handleSend}
               disabled={disabled || !value.trim()}
+              title={sendBlockedBecause ?? 'Send'}
+              aria-label={sendBlockedBecause ? `Send — ${sendBlockedBecause}` : 'Send'}
               className="text-sm font-semibold text-accent-600 disabled:opacity-40 min-h-[44px] px-2"
             >
               Send
@@ -163,8 +212,9 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
         <button
           onClick={handleSend}
           disabled={disabled || !value.trim()}
+          title={sendBlockedBecause ?? 'Send'}
           className="flex-shrink-0 w-11 h-11 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-40 flex items-center justify-center transition-colors"
-          aria-label="Send"
+          aria-label={sendBlockedBecause ? `Send — ${sendBlockedBecause}` : 'Send'}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M2 8L14 2L8 14L7 9L2 8Z" fill="white" stroke="white" strokeWidth="1" strokeLinejoin="round"/>

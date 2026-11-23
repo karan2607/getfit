@@ -52,17 +52,29 @@ function SessionList({
           <p className="text-xs text-gray-400 text-center py-6 px-3">No chats yet.</p>
         ) : (
           sessions.map((s) => (
+            /* Two real buttons, not a clickable div with a button in it.
+               The row had an onClick and no role, so a keyboard could not
+               reach it, and the ✕ appeared only on hover -- unreachable by
+               touch and unannounced to a screen reader. */
             <div
               key={s.id}
-              className={`group flex items-center gap-1 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
+              className={`group flex items-center gap-1 rounded-lg transition-colors ${
                 s.id === activeId ? 'bg-accent-100 text-accent-700' : 'hover:bg-gray-200 text-gray-700'
               }`}
-              onClick={() => { navigate(`/chat/${s.id}`); onSelect?.() }}
             >
-              <span className="text-xs flex-1 truncate">{s.title}</span>
               <button
+                type="button"
+                onClick={() => { navigate(`/chat/${s.id}`); onSelect?.() }}
+                aria-current={s.id === activeId}
+                className="flex-1 min-w-0 text-left text-xs px-2 py-2 truncate"
+              >
+                {s.title}
+              </button>
+              <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setConfirmId(s.id) }}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-[10px] px-1 flex-shrink-0 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-gray-400 hover:text-red-500 text-[10px] px-2 py-2 flex-shrink-0 transition-opacity"
+                aria-label={`Delete chat: ${s.title}`}
                 title="Delete chat"
               >
                 ✕
@@ -231,7 +243,11 @@ function ChatPane({ sessionId }: { sessionId: string }) {
           }}
           className="self-center -mt-12 mb-2 min-h-[44px] px-4 rounded-full bg-ink-600 text-white text-sm shadow-lg"
         >
-          New messages ↓
+          {/* It said "New messages" whenever you had scrolled up, with or
+              without anything new -- so re-reading an old answer in a quiet
+              conversation claimed messages had arrived. It only knows you
+              are not at the bottom, so that is all it says. */}
+          {isSending ? 'New messages ↓' : 'Jump to latest ↓'}
         </button>
       )}
 

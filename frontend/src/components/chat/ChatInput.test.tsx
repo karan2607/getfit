@@ -69,3 +69,54 @@ describe('ChatInput', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * The full-screen editor, from a keyboard.
+ *
+ * It was a `role="dialog"` with no `aria-modal`, no Escape handler, and a
+ * Collapse that returned focus to `document.body` — so a keyboard user who
+ * opened it had to find the one button that closes it, and then tab back
+ * through the entire transcript to reach the composer they were typing in.
+ */
+describe('ChatInput expanded editor', () => {
+  function expand(value = 'x'.repeat(200)) {
+    render(<ChatInput onSend={vi.fn()} />)
+    const box = screen.getByRole('textbox')
+    fireEvent.change(box, { target: { value } })
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }))
+    return box
+  }
+
+  it('closes on Escape', async () => {
+    expand()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('announces itself as modal', () => {
+    expand()
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true')
+  })
+
+  it('gives focus back to the composer on collapse', async () => {
+    const box = expand()
+    box.focus()
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }))
+    fireEvent.click(screen.getByRole('button', { name: /collapse/i }))
+    await waitFor(() => expect(document.activeElement).toBe(box))
+  })
+
+  it('says why Send is unavailable', () => {
+    render(<ChatInput onSend={vi.fn()} disabled />)
+    const send = screen.getByRole('button', { name: /send/i })
+    expect(send).toBeDisabled()
+    expect(send.getAttribute('aria-label')).toMatch(/not ready/i)
+  })
+
+  it('says the other reason when there is nothing typed', () => {
+    render(<ChatInput onSend={vi.fn()} />)
+    const send = screen.getByRole('button', { name: /send/i })
+    expect(send.getAttribute('aria-label')).toMatch(/type a message/i)
+  })
+})
