@@ -889,6 +889,15 @@ class SelfHealingGuideCacheTests(APITestCase):
         self._cache('Backward Walking Treadmill', self.kb['backward drag'][:2])
         self.assertEqual(self._get('Backward Walking Treadmill')['images'], [])
 
+    def test_a_backward_walk_cached_before_the_ai_key_floor_is_re_resolved(self):
+        # Reported: "Also backward walking treadmill has wrong image". The
+        # floor that rejects 'backward drag' shipped without a version bump,
+        # so rows already stamped v5 were trusted and kept the sled photos.
+        self._cache('Backward Walking (Treadmill)', self.kb['backward drag'][:2],
+                    kb_match_version=5)
+        self.assertEqual(
+            self._get('Backward Walking (Treadmill)')['images'], [])
+
     def test_newly_written_guides_carry_the_current_version(self):
         # Without the stamp on write, every row would look stale forever and
         # be re-resolved on every single read.

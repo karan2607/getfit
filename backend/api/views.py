@@ -4452,7 +4452,10 @@ KB_AI_KEY_MARGIN = 0.15
 #    (barbell) incline bench press.
 # 4: single-arm cable row, whose photos were reported as a glute press.
 # 5: plain push-ups, which were resolving to handstand and clock push-ups.
-KB_MATCH_VERSION = 5
+# 6: the AI-key floor in _kb_key_is_consistent. Rows written before it could
+#    hold 'backward drag' (a sled) for a backward treadmill walk, and a v5
+#    stamp told the read path to trust them.
+KB_MATCH_VERSION = 6
 
 
 def _alias_for(name: str):
