@@ -7,6 +7,7 @@ import { ToastProvider } from './components/Toast'
 import Sidebar from './components/Sidebar'
 import BottomNav from './components/BottomNav'
 import FeedbackButton from './components/FeedbackButton'
+import BackToWorkout from './components/BackToWorkout'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
@@ -133,6 +134,7 @@ function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex h-dvh overflow-hidden bg-ink-600">
       <Sidebar />
       <main className="flex-1 min-w-0 bg-stone-50 overflow-y-auto overflow-x-hidden pb-16 md:pb-0 flex flex-col" id="main-content">
+        <BackToWorkout />
         {children}
       </main>
       <BottomNav />

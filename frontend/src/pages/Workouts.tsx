@@ -23,6 +23,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import TemplatePicker from '../components/workout/TemplatePicker'
 import { compressImage } from '../lib/imageUtils'
 import { shouldPromptNextWeek } from '../lib/nextWeekPrompt'
+import { forgetActiveWorkout, rememberActiveWorkout } from '../lib/activeWorkout'
 
 // ── Generate Plan Flow ─────────────────────────────────────────────────────
 
@@ -1283,7 +1284,12 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
       }
     }
     api.workouts.getSession(sessionId)
-      .then(setSession)
+      .then((s) => {
+        setSession(s)
+        // What the "Back to workout" shortcut on every other page reads.
+        if (s.is_completed) forgetActiveWorkout(s.id)
+        else if (user) rememberActiveWorkout({ userId: user.id, sessionId: s.id, dayName: s.day_name })
+      })
       .catch(() => showToast('Failed to load session', 'error'))
       .finally(() => setLoading(false))
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1399,6 +1405,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
       await flushPendingLogs(session)
       await api.workouts.completeSession(session.id)
       localStorage.removeItem(storageKey)
+      forgetActiveWorkout(session.id)
       showToast('Workout complete! Great work 💪')
       navigate('/dashboard')
     } catch (err) {
