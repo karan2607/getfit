@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatSession } from './useChatSession'
 import * as stream from '../lib/stream'
 import * as auth from '../lib/auth'
-import { api } from '../lib/api'
+import { ApiError, api } from '../lib/api'
 
 /**
  * The transport behaviours the user reported as broken.
@@ -319,5 +319,163 @@ describe('useChatSession concurrency', () => {
       .filter((id) => id.startsWith('temp-'))
     expect(temps).toHaveLength(2)
     expect(new Set(temps).size).toBe(2)
+  })
+})
+
+/**
+ * Telling the user the truth about how a turn ended.
+ *
+ * Each of these reported something that was not so: a hung server said the
+ * user had stopped it, a cut-off stream looked like a finished answer, a
+ * capped turn read as a confident one, and a draft the server had refused
+ * outright kept offering a Confirm button that could only fail again.
+ */
+describe('useChatSession honesty', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(auth, 'getToken').mockReturnValue('tok')
+    vi.spyOn(api.chat, 'getSession').mockResolvedValue({
+      id: 's1', title: 'T', source: 'main', messages: [],
+    } as never)
+  })
+
+  it('does not render the partial twice after a failure', async () => {
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'half a sentence' }, { error: 'boom' }]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.failedTurn?.partial).toBe('half a sentence')
+    expect(result.current.streamingContent).toBe('')
+  })
+
+  it('keeps a draft that arrived on the error frame', async () => {
+    const draft = { change_id: 'c1', plan_id: 'p1', draft: [] }
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'drafted it, then ' },
+        { error: 'boom', proposed_change: draft },
+      ]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('move my pull day') })
+
+    expect(result.current.proposedChange).toEqual(draft)
+  })
+
+  it('does not blame the user when the connection went quiet', async () => {
+    const idle = new stream.StreamIdleError()
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'thinking' }], idle) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.failedTurn?.stopped).toBe(false)
+    expect(result.current.failedTurn?.error.message).not.toMatch(/^Stopped/)
+    expect(result.current.failedTurn?.error.retryable).toBe(true)
+  })
+
+  it('still reports the user’s own Stop as stopped', async () => {
+    const abort = new DOMException('aborted', 'AbortError')
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'thinking' }], abort) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.failedTurn?.stopped).toBe(true)
+  })
+
+  it('finishes cleanly on a done frame that saved nothing', async () => {
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'text' }, { done: true }]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.loadSession('s1') })
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.isSending).toBe(false)
+    expect(result.current.streamingContent).toBe('')
+    expect(result.current.session?.messages.map((m) => m.role)).toEqual(['user'])
+  })
+
+  it('says when a reply was cut short', async () => {
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'it stops mid-' },
+        { done: true, message_id: 'm1', truncated: true },
+      ]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.notice).toMatch(/cut short/i)
+  })
+
+  it('says when the agent ran out of steps', async () => {
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'partial' },
+        { done: true, message_id: 'm1', stopped_early: true },
+      ]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.notice).toMatch(/ran out of steps/i)
+  })
+
+  it('drops a draft the server refuses as stale, and looks for a live one', async () => {
+    const pending = {
+      change_id: 'c2', plan_id: 'p1', needs_confirmation: true,
+      applied: false, draft: [],
+    }
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'ok' },
+        {
+          done: true, message_id: 'm1',
+          proposed_change: { change_id: 'c1', plan_id: 'p1', draft: [] },
+        },
+      ]) as never,
+    )
+    vi.spyOn(api.workouts, 'applyPlanChange').mockRejectedValue(
+      new ApiError(409, 'That draft is out of date.'),
+    )
+    const pendingSpy = vi.spyOn(api.workouts, 'pendingChange')
+      .mockResolvedValue({ proposed_change: pending } as never)
+
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('move my pull day') })
+    await act(async () => {
+      await result.current.confirmProposal().catch(() => {})
+    })
+
+    await waitFor(() => expect(pendingSpy).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(result.current.proposedChange).toEqual(pending),
+    )
+  })
+
+  it('keeps the draft when the failure is only transient', async () => {
+    const draft = { change_id: 'c1', plan_id: 'p1', draft: [] }
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'ok' }, { done: true, message_id: 'm1', proposed_change: draft }]) as never,
+    )
+    vi.spyOn(api.workouts, 'applyPlanChange').mockRejectedValue(
+      new ApiError(503, 'Service unavailable'),
+    )
+    const pendingSpy = vi.spyOn(api.workouts, 'pendingChange')
+
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('move my pull day') })
+    await act(async () => {
+      await result.current.confirmProposal().catch(() => {})
+    })
+
+    expect(result.current.proposedChange).toEqual(draft)
+    expect(pendingSpy).not.toHaveBeenCalled()
   })
 })

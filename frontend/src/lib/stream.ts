@@ -27,6 +27,10 @@ export interface StreamEvent {
   applied_change?: unknown
   verification_diff?: unknown
   needs_confirmation?: boolean
+  /** The agent hit its round ceiling, so the answer is partial by design. */
+  stopped_early?: boolean
+  /** The model ran out of tokens; the reply stops mid-thought. */
+  truncated?: boolean
 }
 
 export class StreamHttpError extends Error {
@@ -35,6 +39,30 @@ export class StreamHttpError extends Error {
     super(`Stream request failed (${status})`)
     this.name = 'StreamHttpError'
     this.status = status
+  }
+}
+
+/**
+ * The connection went quiet for IDLE_TIMEOUT_MS.
+ *
+ * Its own error type because the idle timeout used to abort the SAME
+ * controller the Stop button uses, which made a hung server indistinguishable
+ * from the user cancelling -- so someone who pressed nothing was told "Reply
+ * stopped", blamed for something they did not do and given no reason to
+ * retry.
+ */
+export class StreamIdleError extends Error {
+  constructor() {
+    super('The reply stopped arriving.')
+    this.name = 'StreamIdleError'
+  }
+}
+
+/** The stream ended without a `done` or `error` frame. */
+export class StreamTruncatedError extends Error {
+  constructor() {
+    super('The reply ended early.')
+    this.name = 'StreamTruncatedError'
   }
 }
 
@@ -59,10 +87,15 @@ export async function* streamChatMessage(
   const onAbort = () => controller.abort()
   signal?.addEventListener('abort', onAbort, { once: true })
 
+  // Which of the two aborted, so the caller can tell the user the truth.
+  let idledOut = false
   let idleTimer: ReturnType<typeof setTimeout> | undefined
   const resetIdle = () => {
     clearTimeout(idleTimer)
-    idleTimer = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS)
+    idleTimer = setTimeout(() => {
+      idledOut = true
+      controller.abort()
+    }, IDLE_TIMEOUT_MS)
   }
 
   try {
@@ -87,6 +120,7 @@ export async function* streamChatMessage(
     const decoder = new TextDecoder()
     let buffer = ''
 
+    let terminated = false
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -100,6 +134,7 @@ export async function* streamChatMessage(
         if (!line.startsWith('data: ')) continue
         try {
           const payload = JSON.parse(line.slice(6)) as StreamEvent
+          if (payload.done || payload.error) terminated = true
           yield payload
           if (payload.done) return
         } catch {
@@ -108,6 +143,17 @@ export async function* streamChatMessage(
         }
       }
     }
+
+    // The socket closed with no terminal frame: a cut proxy, a killed
+    // worker, or a `done` line that failed to parse. This used to just fall
+    // out of the loop, so the reply LOOKED complete, was never appended to
+    // the transcript, and vanished on reload -- while a stale pendingTurn
+    // record popped a bogus "interrupted" banner on the next mount.
+    if (!terminated) throw new StreamTruncatedError()
+  } catch (err) {
+    // An abort we caused ourselves is not the user stopping the reply.
+    if (idledOut) throw new StreamIdleError()
+    throw err
   } finally {
     clearTimeout(idleTimer)
     signal?.removeEventListener('abort', onAbort)

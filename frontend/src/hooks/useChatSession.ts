@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatSessionDetail } from '../lib/api'
 import { streamChatMessage, type StreamEvent } from '../lib/stream'
-import { getToken } from '../lib/auth'
+import { clearToken, getToken } from '../lib/auth'
 import { getErrorMessage, toFriendlyError, type FriendlyError } from '../lib/errors'
 import type {
   ProposedChange, VerificationDiff,
@@ -48,6 +48,13 @@ export function useChatSession(sessionId: string | undefined) {
   const [isSending, setIsSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+  /**
+   * A turn that finished but did not finish ANSWERING.
+   *
+   * Separate from `error`, because the reply is real and worth keeping --
+   * it just stops early, and the text gives the reader no way to tell.
+   */
+  const [notice, setNotice] = useState<string | null>(null)
   const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null)
   /** Seconds in flight, for honest progress copy rather than endless dots. */
   const [elapsed, setElapsed] = useState(0)
@@ -80,6 +87,8 @@ export function useChatSession(sessionId: string | undefined) {
    * same session.
    */
   const isSendingRef = useRef(false)
+  /** Same reasoning as isSendingRef, for the Confirm button. */
+  const applyingRef = useRef(false)
 
   /*
    * A draft belongs to the session it was proposed in. It no longer clears
@@ -215,6 +224,7 @@ export function useChatSession(sessionId: string | undefined) {
 
       setIsSending(true)
       setStreamingContent('')
+      setNotice(null)
       setError(null)
       setFailedTurn(null)
       setLastEvent(null)
@@ -243,6 +253,17 @@ export function useChatSession(sessionId: string | undefined) {
             // An `error` frame is never followed by `done` -- the server
             // returns immediately after sending it.
             pendingTurn.endTurn(sessionId)
+            // A draft can ride on the error frame now: the server commits
+            // the PlanChange row during the turn, so a turn that fails
+            // AFTER proposing still has a change the user should be offered.
+            if (event.proposed_change) {
+              setProposedChange(event.proposed_change as ProposedChange)
+            }
+            // The partial moves into the failure card. Leaving it in
+            // `streamingContent` too rendered the same half sentence twice,
+            // once with a blinking cursor, under a caption pointing at the
+            // wrong one.
+            setStreamingContent('')
             setFailedTurn({
               content, extra, partial: accumulated, stopped: false,
               error: toFriendlyError(new Error(event.error)),
@@ -262,7 +283,12 @@ export function useChatSession(sessionId: string | undefined) {
               pendingTurn.updatePartial(sessionId, accumulated)
             }
           }
-          if (event.done && event.message_id) {
+          if (event.done) {
+            // `done` without a message_id is a finished turn that saved
+            // nothing. It used to fall through every branch: the reply
+            // stayed in streamingContent, was never added to the
+            // transcript, vanished on reload, and left a pendingTurn record
+            // that popped a bogus "interrupted" banner on the next mount.
             pendingTurn.endTurn(sessionId)
             setLastEvent(event)
             // ONLY when this turn produced one. The old line assigned
@@ -275,23 +301,57 @@ export function useChatSession(sessionId: string | undefined) {
             if (event.proposed_change) {
               setProposedChange(event.proposed_change as ProposedChange)
             }
-            const assistantMsg: ChatMessage = {
-              id: event.message_id,
-              role: 'assistant',
-              content: accumulated,
-              created_at: new Date().toISOString(),
+            // A capped or truncated turn is NOT a complete answer, and the
+            // user has no way to tell from the text: the round cap appends
+            // an apology after whatever had already streamed, and a token
+            // cut-off says nothing at all.
+            if (event.truncated) {
+              setNotice('That reply was cut short. Ask for the rest and it '
+                + 'will carry on.')
+            } else if (event.stopped_early) {
+              setNotice('The coach ran out of steps before finishing. A '
+                + 'narrower question will get further.')
             }
-            setSession((prev) =>
-              prev ? { ...prev, messages: [...prev.messages, assistantMsg] } : prev,
-            )
+            if (event.message_id) {
+              const assistantMsg: ChatMessage = {
+                id: event.message_id,
+                role: 'assistant',
+                content: accumulated,
+                created_at: new Date().toISOString(),
+              }
+              setSession((prev) =>
+                prev ? { ...prev, messages: [...prev.messages, assistantMsg] } : prev,
+              )
+            }
             setStreamingContent('')
           }
         }
       } catch (err) {
         pendingTurn.endTurn(sessionId)
         const friendly = toFriendlyError(err)
+        setStreamingContent('')
+        /*
+         * An expired session is told to sign in again and then given no way
+         * to do it.
+         *
+         * The copy says "Sign in again to continue", Retry is correctly
+         * hidden because it is not retryable, and the composer re-enables so
+         * every further message fails the same way. In the drawer it was
+         * invisible entirely. Clearing the dead token and sending them to
+         * the login screen is the action the sentence already promises.
+         */
+        if (friendly.kind === 'auth') {
+          clearToken()
+          if (typeof window !== 'undefined') {
+            window.location.assign('/login')
+          }
+        }
         setFailedTurn({
           content, extra, partial: accumulated,
+          // Only the user's own Stop counts as stopped. A 90s idle timeout
+          // used to land here as an AbortError and be reported as "Reply
+          // stopped", telling someone who pressed nothing that they had
+          // cancelled it.
           stopped: friendly.message === 'Stopped.',
           error: friendly,
         })
@@ -340,6 +400,10 @@ export function useChatSession(sessionId: string | undefined) {
    */
   const confirmProposal = useCallback(async () => {
     if (!proposedChange?.plan_id) return null
+    // Guard the double-tap: `applying` is state and does not update within
+    // a frame, so two fast clicks both got through to the POST.
+    if (applyingRef.current) return null
+    applyingRef.current = true
     setApplying(true)
     try {
       const res = await api.workouts.applyPlanChange(
@@ -348,7 +412,34 @@ export function useChatSession(sessionId: string | undefined) {
       setAppliedDiff(res.verification_diff)
       setProposedChange(null)
       return res
+    } catch (err) {
+      /*
+       * A draft the server has refused outright is not worth offering again.
+       *
+       * 409 stale_draft and 400 bad_draft both mean THIS draft can never
+       * apply -- the plan moved on, or the draft never built. Keeping the
+       * card up left a Confirm button whose only possible outcome was the
+       * same error, which is what the user was pressing over and over. So
+       * the dead card goes, and we ask the server what it actually still
+       * holds; if there is a live draft it takes the card's place.
+       *
+       * Anything else -- a 500, an offline blip -- is transient and the
+       * draft stays exactly where it is, because retrying really can work.
+       */
+      const status = (err as { status?: number })?.status
+      if (status === 409 || status === 400) {
+        setProposedChange(null)
+        api.workouts.pendingChange()
+          .then((res) => {
+            if (res.proposed_change) {
+              setProposedChange(res.proposed_change as ProposedChange)
+            }
+          })
+          .catch(() => { /* nothing pending is the normal case */ })
+      }
+      throw err
     } finally {
+      applyingRef.current = false
       setApplying(false)
     }
   }, [proposedChange])
@@ -359,7 +450,7 @@ export function useChatSession(sessionId: string | undefined) {
   }, [])
 
   return {
-    session, isLoading, isSending, streamingContent, error,
+    session, isLoading, isSending, streamingContent, error, notice,
     failedTurn, elapsed, lastEvent, proposedChange, status,
     applying, appliedDiff,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,

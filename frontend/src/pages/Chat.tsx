@@ -80,7 +80,7 @@ function SessionList({
 function ChatPane({ sessionId }: { sessionId: string }) {
   const {
     session, isLoading, isSending, streamingContent, error,
-    failedTurn, elapsed, proposedChange, status, applying, appliedDiff,
+    failedTurn, elapsed, proposedChange, status, applying, appliedDiff, notice,
     loadSession, sendMessage, retry, stop, dismissFailure, clearProposal,
     confirmProposal, adoptProposal,
   } = useChatSession(sessionId)
@@ -191,6 +191,12 @@ function ChatPane({ sessionId }: { sessionId: string }) {
             onConfirm={handleConfirmChange}
             onCancel={clearProposal}
           />
+        )}
+
+        {notice && (
+          <p className="mb-4 text-xs text-ink-500 bg-accent-50 border border-accent-200 rounded-xl px-3 py-2">
+            {notice}
+          </p>
         )}
 
         {appliedDiff && (

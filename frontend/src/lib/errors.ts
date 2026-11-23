@@ -74,7 +74,37 @@ function statusOf(error: unknown): number | null {
   return match ? Number(match[1]) : null
 }
 
+/**
+ * Match by `name` rather than `instanceof`.
+ *
+ * The stream errors cross a module boundary and are re-thrown; matching the
+ * name keeps this file from importing the transport just to compare classes.
+ */
+function isNamed(error: unknown, name: string): boolean {
+  return (error as { name?: string })?.name === name
+}
+
 export function toFriendlyError(error: unknown): FriendlyError {
+  // A quiet connection, NOT the user pressing Stop. These shared one
+  // AbortController, so a server that hung for 90 seconds told the reader
+  // "Reply stopped" -- blaming them for something they did not do, and
+  // implying there was nothing to retry.
+  if (isNamed(error, 'StreamIdleError')) {
+    return {
+      kind: 'timeout',
+      message: 'The reply stopped arriving. Your message is saved.',
+      retryable: true,
+    }
+  }
+  // The socket closed mid-reply with no terminal frame. Whatever arrived is
+  // kept, but it is not a finished answer and must not look like one.
+  if (isNamed(error, 'StreamTruncatedError')) {
+    return {
+      kind: 'unavailable',
+      message: 'The reply ended early. Your message is saved.',
+      retryable: true,
+    }
+  }
   if (error instanceof DOMException && error.name === 'AbortError') {
     return { kind: 'timeout', message: 'Stopped.', retryable: true }
   }

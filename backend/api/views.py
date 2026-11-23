@@ -887,6 +887,13 @@ def chat_message_stream(request, session_id):
             'applied_change': None,
             'verification_diff': None,
             'needs_confirmation': bool(run_state.proposed_change),
+            # Both were set and never read. `stopped_early` means the loop
+            # hit its round ceiling, so the only signal was an apology
+            # appended to whatever half-answer had already streamed;
+            # `truncated` means the model ran out of tokens mid-sentence
+            # and nothing said so at all.
+            'stopped_early': bool(getattr(run_state, 'stopped_early', False)),
+            'truncated': bool(getattr(run_state, 'truncated', False)),
         }
         # `error` and `done` stay mutually exclusive: a client that sees both
         # would have to guess which won, and the pinned contract test says a

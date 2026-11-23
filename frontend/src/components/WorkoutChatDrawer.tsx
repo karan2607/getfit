@@ -56,7 +56,7 @@ export default function WorkoutChatDrawer({
     session, isLoading, isSending, streamingContent, error, loadSession,
     sendMessage, proposedChange, applying, appliedDiff, clearProposal,
     confirmProposal, adoptProposal,
-    failedTurn, retry, stop, dismissFailure, elapsed, status,
+    failedTurn, retry, stop, dismissFailure, elapsed, status, notice,
   } = useChatSession(sessionId)
   const { showToast } = useToast()
 
@@ -377,6 +377,12 @@ export default function WorkoutChatDrawer({
               onConfirm={handleConfirmChange}
               onCancel={clearProposal}
             />
+          )}
+
+          {notice && (
+            <p className="mb-4 text-xs text-ink-500 bg-accent-50 border border-accent-200 rounded-xl px-3 py-2">
+                {notice}
+            </p>
           )}
 
           {appliedDiff && <PlanChangeResult diff={appliedDiff} />}

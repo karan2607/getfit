@@ -45,6 +45,29 @@ MAX_ROUNDS = 4
 MAX_RESULT_CHARS = 20000
 
 
+def _why(exc) -> str:
+    """
+    A user-facing reason that distinguishes the common failures.
+
+    'AI request failed' was the single string for all of them. The one thing
+    a reader needs to know is whether waiting helps, and that sentence never
+    said.
+    """
+    status = getattr(exc, 'status_code', None)
+    name = type(exc).__name__
+    if status == 429 or 'RateLimit' in name:
+        return 'The AI is busy right now. Try again in a moment.'
+    if status in (401, 403) or 'Authentication' in name or 'Permission' in name:
+        return 'The AI rejected our credentials. This is on our side.'
+    if status == 400 or 'BadRequest' in name:
+        return 'The AI could not read our request. This is on our side.'
+    if status and 500 <= status < 600:
+        return 'The AI service is having trouble. Try again shortly.'
+    if 'Timeout' in name or 'Connection' in name or 'APIConnection' in name:
+        return 'Could not reach the AI service. Check your connection.'
+    return 'AI request failed'
+
+
 class AgentRun:
     """Everything the view needs after the generator is exhausted."""
 
@@ -52,6 +75,8 @@ class AgentRun:
         self.tool_calls = []
         self.rounds = 0
         self.stopped_early = False
+        #: True when the model hit max_tokens, so the reply stops mid-thought.
+        self.truncated = False
         self.model = ''
         #: The draft a `propose_plan_change` call produced, if any. Lifted out
         #: of the tool result so the view can put it in the `done` payload:
@@ -179,12 +204,26 @@ def run(*, user, system_prompt, history, domain, run_state,
                 message = stream.get_final_message()
         except Exception as exc:                        # noqa: BLE001
             logger.error('agent stream failed: %s', exc, exc_info=True)
-            raise claude.ClaudeError('AI request failed') from exc
+            # Every cause used to collapse into 'AI request failed': a rate
+            # limit, a credential problem and a malformed tool schema were
+            # indistinguishable to the user AND in the logs, so nobody could
+            # tell "wait a minute" from "this will never work".
+            raise claude.ClaudeError(_why(exc)) from exc
 
         claude._log_usage('agent', chosen, message.usage)
 
         if message.stop_reason == 'refusal':
             raise claude.ClaudeError('AI declined this request')
+
+        if message.stop_reason == 'max_tokens':
+            # call_claude_json checks this; the agent path did not, so a
+            # reply cut off at the ceiling was streamed, saved, and framed
+            # as complete -- a sentence that simply stops mid-word, with
+            # nothing anywhere saying why.
+            run_state.truncated = True
+            logger.warning('agent reply hit max_tokens on round %s',
+                           round_number + 1)
+            return
 
         calls = [b for b in message.content
                  if getattr(b, 'type', '') == 'tool_use']
