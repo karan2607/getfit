@@ -405,16 +405,30 @@ $STAGE_OUT"
 #
 # The test and build commands are listed so the agent can verify its own
 # work. It writes tests either way; without these it never ran them.
+# ONE verification command, not thirteen prefixes to guess at.
+#
+# This was a list of literal command prefixes -- "cd backend &&
+# venv/bin/python manage.py test:*" and friends -- and nothing in the prompt
+# told the agent what they were. So it composed the same commands its own
+# way, an absolute path here, a different cd there, and the session denied
+# every one. In its own words, from the first pass after the runner was
+# unblocked:
+#
+#   "I couldn't run the new test: this unattended session denies shell
+#    commands that need approval."
+#
+# It wrote tests and shipped them unrun, on every item. The build gate below
+# still caught breakage before any push, so this leaked rather than broke --
+# but an agent that cannot execute its own work can only guess whether it
+# did the job.
+#
+# scripts/verify.sh is the fix: one entry point, one allowlist line, nothing
+# to compose and nothing to match. The prompt names it explicitly.
 CLAUDE_ALLOWED_TOOLS=(
   Read Edit Write Glob Grep
-  "Bash(cd backend && venv/bin/python manage.py test:*)"
-  "Bash(venv/bin/python manage.py test:*)"
-  "Bash(venv/bin/python manage.py check:*)"
-  "Bash(venv/bin/python manage.py makemigrations:*)"
-  "Bash(cd frontend && npm run:*)"
-  "Bash(npm run:*)"
-  "Bash(npx tsc:*)"
-  "Bash(npx vitest:*)"
+  "Bash(bash scripts/verify.sh:*)"
+  "Bash(scripts/verify.sh:*)"
+  "Bash(./scripts/verify.sh:*)"
 )
 
 # ---------------------------------------------------------------------------
@@ -606,6 +620,13 @@ Rules:
   If the request requires that, make no change and say exactly:
   ESCALATE: security-sensitive, needs review
 - Do NOT commit or push. The runner handles git.
+- RUN YOUR TESTS. This is the only shell command available to you:
+      bash scripts/verify.sh backend <dotted.test.module>
+  Also: \`bash scripts/verify.sh frontend\`, or \`all\`. Nothing else is
+  permitted -- no git, no curl, no python, no npm directly -- so do not
+  spend turns discovering that. Run the narrow target while iterating and
+  the broader one before you finish, and say in your summary if a test
+  could not be run.
 - When done, print a summary as the LAST thing you output. It is shown to the
   person who filed this, verbatim, as your reply in the conversation -- so
   write it to them, not to a log. Two or three short sentences: what was
@@ -809,9 +830,66 @@ run_pass() {
       "$(printf '%s' "$row" | jq -r '.attempts // 0')"
   done < <(printf '%s' "$items" | jq -c 'reverse | .[]')
   log "pass complete ($n processed)"
+  report_exhausted
 }
 
-if [[ "${1:-}" == "--watch" ]]; then
+# ---------------------------------------------------------------------------
+# Work that fell out of the queue
+# ---------------------------------------------------------------------------
+# An item that burns MAX_ATTEMPTS stops being claimable and nothing ever
+# looks at it again. Thirteen were sitting there, the oldest from 21 October,
+# and TEN of them had failed on the runner rather than on the request: a
+# session limit, an expired OAuth token, a shell command the allowlist
+# denied, or a build gate that was itself broken. None of that is the item's
+# fault and all of it is invisible, because "failed" reads as a verdict.
+#
+# So the same channel that says "nothing is being worked on" also says "work
+# left the queue". Once a day at most -- this is a backlog, not an incident.
+EXHAUSTED_STATE="${GETFIT_EXHAUSTED_STATE:-$HOME/.getfit-loop-exhausted}"
+EXHAUSTED_EVERY="${GETFIT_EXHAUSTED_EVERY:-86400}"
+
+report_exhausted() {
+  local failed now last
+  failed="$(api GET '/api/feedback/?status=failed' | jq 'length' 2>/dev/null)"
+  [[ "$failed" =~ ^[0-9]+$ ]] || return 0
+  (( failed > 0 )) || { rm -f "$EXHAUSTED_STATE"; return 0; }
+
+  now="$(date +%s)"
+  last=0
+  [[ -r "$EXHAUSTED_STATE" ]] && read -r last < "$EXHAUSTED_STATE" 2>/dev/null
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+
+  log "  $failed item(s) have left the queue after $(printf '%s' "${MAX_ATTEMPTS:-3}") attempts"
+  if (( now - last >= EXHAUSTED_EVERY )); then
+    osascript -e "display notification \"$failed item(s) gave up and left the queue. Run: bash scripts/feedback_loop.sh --retry-failed\" with title \"getfit feedback\"" >/dev/null 2>&1 || true
+    printf '%s\n' "$now" > "$EXHAUSTED_STATE"
+  fi
+}
+
+# Put every exhausted item back. One command, because the alternative is
+# thirteen PATCHes by hand and therefore nobody does it.
+retry_failed() {
+  local ids id n=0
+  ids="$(api GET '/api/feedback/?status=failed' | jq -r '.[].id' 2>/dev/null)"
+  if [[ -z "$ids" ]]; then
+    log "nothing in the failed state"
+    return 0
+  fi
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    set_status "$id" new \
+      "Re-queued by a sweep: an item that runs out of attempts leaves the queue, and most of those failures were the runner's." \
+      "" 0
+    n=$((n + 1))
+  done <<< "$ids"
+  log "re-queued $n item(s)"
+  rm -f "$EXHAUSTED_STATE"
+}
+
+if [[ "${1:-}" == "--retry-failed" ]]; then
+  acquire_lock || exit 0
+  retry_failed
+elif [[ "${1:-}" == "--watch" ]]; then
   log "watching $API every ${POLL_SECONDS}s (ctrl-c to stop)"
   while true; do
     acquire_lock && run_pass
