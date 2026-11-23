@@ -415,6 +415,41 @@ describe('NotificationBell', () => {
     })
   })
 
+  describe('panel placement on a phone', () => {
+    const at = (right: number) =>
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+        top: 16, bottom: 60, left: right - 44, right, width: 44, height: 44, x: right - 44, y: 16,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+    beforeEach(() => { vi.stubGlobal('innerWidth', 390) })
+    afterEach(() => { vi.unstubAllGlobals() })
+
+    const openPanel = async () => {
+      vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
+      show()
+      await userEvent.click(await screen.findByLabelText('Notifications, 1 unread'))
+      return screen.getByTestId('notification-panel')
+    }
+
+    it('stays on screen when the header pushes the bell past the edge', async () => {
+      // The reported bug: on the session page, Edit day / Save / Finish
+      // workout make the header wider than a phone, the bell lands off the
+      // right edge, and a panel anchored to it opened mostly off-screen.
+      at(520)
+      const panel = await openPanel()
+      expect(panel.className).toContain('fixed')
+      expect(panel.style.right).toBe('16px')
+    })
+
+    it('never runs off the left edge either', async () => {
+      at(120)
+      const panel = await openPanel()
+      // 390 - 22 - 352 = 16: left edge sits exactly at the margin.
+      expect(panel.style.right).toBe('22px')
+    })
+  })
+
   it('stays quiet when a poll fails', async () => {
     vi.spyOn(api.feedback, 'notifications').mockRejectedValue(new Error('offline'))
     show()

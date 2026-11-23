@@ -35,6 +35,30 @@ const SWIPE_THRESHOLD = 72
  */
 const SCROLL_SLOP = 10
 
+/** Panel width cap (22rem) and the gap it keeps from the screen edges (1rem). */
+const PANEL_W = 352
+const EDGE = 16
+
+/**
+ * Where the panel goes, in viewport coordinates, for a bell at `rect`.
+ *
+ * It used to be `absolute right-0` against the bell. That only holds while
+ * the bell sits inside the screen -- on the workout session page the header
+ * carries Edit day, Save and Finish workout beside it, which on a phone is
+ * wider than the screen, so the bell's edge (and the panel with it) was
+ * pushed out and most of the panel opened off-screen. Measuring against the
+ * viewport keeps it on screen whatever the header holds.
+ */
+function panelPosition(rect: DOMRect) {
+  const vw = window.innerWidth
+  const width = Math.min(PANEL_W, vw - 2 * EDGE)
+  const right = Math.min(
+    Math.max(EDGE, vw - rect.right),
+    Math.max(EDGE, vw - EDGE - width),
+  )
+  return { top: rect.bottom + 8, right }
+}
+
 /** Remembers, per device, whether you asked to be alerted. */
 const ALERTS_KEY = 'getfit.feedbackAlerts'
 
@@ -202,6 +226,8 @@ export default function NotificationBell() {
   const [sending, setSending] = useState(false)
   const [threadError, setThreadError] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
+  const bellRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
   const [alertsOn, setAlertsOn] = useState(alertsWanted)
   /**
    * What the last poll saw, so an alert fires on the CHANGE only. Null until
@@ -269,6 +295,16 @@ export default function NotificationBell() {
   useEffect(() => {
     if (open) refresh()
   }, [open, refresh])
+
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      if (bellRef.current) setPos(panelPosition(bellRef.current.getBoundingClientRect()))
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open])
 
   const openThread = useCallback(async (item: Feedback) => {
     // Shown from what the list already holds, so the pane slides in with
@@ -373,6 +409,7 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={panelRef}>
       <button
+        ref={bellRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={count ? `Notifications, ${count} unread` : 'Notifications'}
@@ -391,12 +428,9 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        /* Anchored to the right edge of the HEADER, not of this button.
-           `right-0` on a bell that is not the rightmost element put the
-           panel's right edge under the button beside it, so on every page
-           with a header action it opened half off its anchor. The bell is
-           now last in the header, which is what makes this correct -- see
-           PageHeader.
+        /* Fixed to the viewport and clamped inside it -- see panelPosition.
+           Anchoring to the bell put the panel wherever the header pushed
+           the bell, including off the side of a phone screen.
 
            Thread view takes the SAME 70vh the list caps at, not a smaller
            fixed height. At `min(70vh,30rem)` a full list stood at 70vh and
@@ -404,7 +438,9 @@ export default function NotificationBell() {
            just opened is the one that needs the room. A short list still
            grows into it, and growing to read a conversation is fine. */
         <div
-          className={`absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden flex flex-col ${
+          data-testid="notification-panel"
+          style={pos ? { top: pos.top, right: pos.right } : undefined}
+          className={`fixed w-[min(22rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden flex flex-col ${
             active ? 'h-[70vh]' : 'max-h-[70vh]'
           }`}
         >
