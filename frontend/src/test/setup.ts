@@ -32,3 +32,15 @@ if (typeof localStorage === 'undefined' || typeof localStorage.clear !== 'functi
     value: shim, writable: true, configurable: true,
   })
 }
+
+/*
+ * `scrollIntoView`, which jsdom does not implement at all.
+ *
+ * Any component that keeps a transcript pinned to the bottom throws on its
+ * first render in a test -- so the chat surfaces could only ever be tested
+ * with an EMPTY message list, which is precisely how a drawer that renders
+ * no failure state kept a green suite.
+ */
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}

@@ -3,8 +3,10 @@ import { api, type WorkoutPlanPreview } from '../lib/api'
 import { useChatSession } from '../hooks/useChatSession'
 import ChatBubble from './chat/ChatBubble'
 import ChatInput from './chat/ChatInput'
-import StreamingIndicator from './chat/StreamingIndicator'
+import { InFlight, TurnFailure } from './chat/TurnStatus'
 import { PlanChangeDraft, PlanChangeResult } from './chat/PlanChangeCard'
+import { getErrorMessage } from '../lib/errors'
+import { useToast } from './Toast'
 
 interface WorkoutChatDrawerProps {
   isOpen: boolean
@@ -40,11 +42,23 @@ export default function WorkoutChatDrawer({
   const queuedRef = useRef<string[]>([])
   const [queuedCount, setQueuedCount] = useState(0)
 
+  /*
+   * Every one of these is here because the drawer rendered NONE of them.
+   *
+   * It took `error`, which only `loadSession` ever sets -- so a stream that
+   * 402s, 500s or drops left the partial reply on screen with a blinking
+   * cursor and said nothing at all. No failure, no Retry, no Stop. This is
+   * the surface plan changes are most naturally asked for, which made it the
+   * surface where "it won't update my plan" was most often simply true and
+   * invisible.
+   */
   const {
     session, isLoading, isSending, streamingContent, error, loadSession,
     sendMessage, proposedChange, applying, appliedDiff, clearProposal,
     confirmProposal, adoptProposal,
+    failedTurn, retry, stop, dismissFailure, elapsed, status,
   } = useChatSession(sessionId)
+  const { showToast } = useToast()
 
   /*
    * A draft the server is already holding, picked up when the drawer opens.
@@ -83,8 +97,13 @@ export default function WorkoutChatDrawer({
     try {
       await confirmProposal()
       onPlanUpdated?.()
-    } catch {
-      // The hook keeps the draft on failure, so the button stays available.
+    } catch (err) {
+      // This was `catch {}` with a comment. A 409 stale_draft or a 400
+      // bad_draft went nowhere: the button flicked from "Applying..." back
+      // to "Confirm" and the user pressed it again, and again. The hook
+      // keeps the draft so the button stays available -- but only now is
+      // there any way to learn why it did not work.
+      showToast(getErrorMessage(err), 'error')
     }
   }
 
@@ -98,8 +117,18 @@ export default function WorkoutChatDrawer({
     return Object.keys(extra).length ? extra : undefined
   }
 
+  // `isSending` as a ref as well as state.
+  //
+  // The queue read it from the render closure, so a message sent in the same
+  // frame the reply landed was queued against a turn that had already
+  // finished -- and the drain effect, which only runs on a transition, had
+  // already run with an empty queue. The composer cleared, "1 message
+  // queued" appeared, and it sat there until the NEXT turn ended.
+  const isSendingRef = useRef(false)
+  useEffect(() => { isSendingRef.current = isSending }, [isSending])
+
   const handleSend = (content: string) => {
-    if (isSending) {
+    if (isSendingRef.current) {
       // Don't drop it — hold it until the current reply finishes.
       queuedRef.current.push(content)
       setQueuedCount(queuedRef.current.length)
@@ -120,17 +149,29 @@ export default function WorkoutChatDrawer({
     sendMessage(combined, buildExtra())
   }, [isSending]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /*
+   * Open the conversation.
+   *
+   * The `.catch(() => {})` here used to leave `sessionId` undefined with a
+   * perfectly usable-looking composer above it: `busy` went false, the input
+   * enabled, and every message typed into it was dropped on the floor by the
+   * hook's `if (!sessionId) return`. Offline, or one 500 from this endpoint,
+   * and the drawer silently ate everything you said to it.
+   */
+  const [startFailed, setStartFailed] = useState(false)
+  const [startAttempt, setStartAttempt] = useState(0)
   useEffect(() => {
     if (!isOpen || sessionId) return
     setInitializing(true)
+    setStartFailed(false)
     api.chat.createSession({ source: 'embedded' })
       .then((s) => {
         setSessionId(s.id)
         loadSession(s.id)
       })
-      .catch(() => {})
+      .catch(() => setStartFailed(true))
       .finally(() => setInitializing(false))
-  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, startAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Keep the newest message in view -- but only when the user has not scrolled
@@ -167,7 +208,13 @@ export default function WorkoutChatDrawer({
   useEffect(() => {
     if (!isOpen || !sessionId) return
     function onVisible() {
-      if (document.visibilityState === 'visible') loadSession(sessionId!)
+      // Not while a turn is in flight. `loadSession` replaces the whole
+      // session object, so a reload resolving just after `done` appended the
+      // reply hands back a snapshot taken before the server saved it -- and
+      // the reply vanishes in front of the user.
+      if (document.visibilityState !== 'visible') return
+      if (isSendingRef.current) return
+      loadSession(sessionId!)
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
@@ -289,7 +336,26 @@ export default function WorkoutChatDrawer({
                 />
               )}
 
-              {isSending && !streamingContent && <StreamingIndicator />}
+              {/* Whatever arrived before the turn died. Rendered only once
+                  the turn is over, so it never doubles the streaming bubble. */}
+              {!isSending && failedTurn?.partial && (
+                <ChatBubble role="assistant" content={failedTurn.partial} />
+              )}
+
+              {/* InFlight, not the bare dots: it carries the elapsed time, the
+                  step the agent is on, and a Stop button. The drawer had no
+                  way to stop a turn at all. */}
+              {isSending && (
+                <InFlight elapsed={elapsed} onStop={stop} status={status} />
+              )}
+
+              {failedTurn && (
+                <TurnFailure
+                  turn={failedTurn}
+                  onRetry={retry}
+                  onDismiss={dismissFailure}
+                />
+              )}
 
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
@@ -330,6 +396,18 @@ export default function WorkoutChatDrawer({
               change is applied.
             </p>
           )}
+          {startFailed && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2 flex items-center justify-between gap-3">
+              <span>Couldn't start this chat.</span>
+              <button
+                type="button"
+                onClick={() => setStartAttempt((n) => n + 1)}
+                className="min-h-[44px] px-3 rounded-full border border-red-300 text-sm font-medium text-red-700"
+              >
+                Try again
+              </button>
+            </div>
+          )}
           {queuedCount > 0 && (
             <p className="text-[11px] text-gray-400 px-2 pb-1">
               {queuedCount} message{queuedCount > 1 ? 's' : ''} queued
@@ -337,7 +415,11 @@ export default function WorkoutChatDrawer({
           )}
           {/* `disabled` is only the hard block (session not ready). While a reply
               streams the input stays usable and messages queue instead. */}
-          <ChatInput onSend={handleSend} disabled={busy} isReplying={isSending} />
+          <ChatInput
+            onSend={handleSend}
+            disabled={busy || startFailed}
+            isReplying={isSending}
+          />
         </div>
       </div>
     </>
