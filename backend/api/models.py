@@ -540,6 +540,11 @@ class SetLog(models.Model):
     workout_session = models.ForeignKey(WorkoutSession, on_delete=models.CASCADE, related_name='set_logs')
     exercise = models.ForeignKey(Exercise, on_delete=models.SET_NULL, null=True, blank=True)
     exercise_name = models.CharField(max_length=150)   # denormalized — survives plan edits
+    # The prescription as it stood when this set was logged ("6", "8-12").
+    # Plan edits rewrite Exercise.reps in place, so reading it through the FK
+    # showed every past set the plan's latest target. Blank on sets logged
+    # before this was recorded.
+    target_reps = models.CharField(max_length=100, blank=True, default='')
     set_number = models.PositiveIntegerField()
     # Which of these carry meaning depends on the parent Exercise's
     # measurement_type. See api/exercise_types.FIELD_CONTRACT -- it is enforced on

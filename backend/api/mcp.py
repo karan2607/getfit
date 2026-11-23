@@ -303,6 +303,8 @@ def _tool_log_set(user, args):
         defaults={'exercise_name': exercise.name},
     )
     log.exercise_name = exercise.name
+    if not log.target_reps:
+        log.target_reps = exercise.reps
 
     # Start from what is stored so a partial update stays partial, then
     # overlay only what the caller sent. Built by iterating the contract, so a

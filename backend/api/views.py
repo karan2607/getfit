@@ -3185,6 +3185,7 @@ def workout_sessions(request):
                 workout_session=session,
                 exercise=exercise,
                 exercise_name=exercise.name,
+                target_reps=exercise.reps,
                 set_number=set_num,
             )
 
@@ -3244,6 +3245,10 @@ def workout_session_log_set(request, session_id):
         defaults={'exercise_name': canonical_name},
     )
     log.exercise_name = canonical_name
+    # Recorded once: a plan edit later in the session must not rewrite what
+    # this set was asked for.
+    if not log.target_reps:
+        log.target_reps = exercise.reps
 
     # Enforce the measurement-type field contract on write. This endpoint
     # previously accepted whatever the client sent, which is how seconds ended up
@@ -4170,12 +4175,17 @@ def workout_exercise_history(request, exercise_name):
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
             'speed_kmh', 'incline_pct', 'distance_m',
-            # The prescription each set was logged against, so the modal can
-            # show "target 6" next to what was done. Null when the plan row
-            # the set pointed at has since been deleted.
-            target_reps=F('exercise__reps'),
+            'target_reps', plan_reps=F('exercise__reps'),
         )
     )
+    # The prescription each set was logged against, so the modal can show
+    # "target 6" next to what was done. The set's own record wins: the plan
+    # row is edited in place, so through the FK every past set showed whatever
+    # the plan says today. Sets logged before that record existed fall back to
+    # the plan row, and are null when that row has since been deleted.
+    for row in logs:
+        plan_reps = row.pop('plan_reps')
+        row['target_reps'] = row['target_reps'] or plan_reps
     return Response({
         'exercise_name': exercise_name,
         'measurement_type': measurement_type,

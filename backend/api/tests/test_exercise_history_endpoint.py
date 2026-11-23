@@ -121,6 +121,32 @@ class HistoryEndpointTests(APITestCase):
         rows = self.get()['logs']
         self.assertEqual([row['target_reps'] for row in rows], ['6'])
 
+    def test_a_later_plan_edit_does_not_rewrite_past_targets(self):
+        """
+        "Low to cable also has wrong ones. Maybe all these are from last
+        creation?" Plan edits update Exercise.reps in place, and the target was
+        read through the FK, so every past set showed the plan's latest
+        prescription instead of the one it was logged against.
+        """
+        exercise = self.day.exercises.get()
+        exercise.reps = '6'
+        exercise.save()
+        session = WorkoutSession.objects.create(
+            user=self.user, exercise_day=self.day, day_name='Push')
+        res = self.client.post(
+            reverse('workout-session-log-set', args=[session.id]),
+            {'exercise_id': str(exercise.id), 'set_number': 1,
+             'weight_kg': 17, 'reps_completed': 6, 'is_completed': True},
+            format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        # The plan moves on after the workout.
+        exercise.reps = '12-15'
+        exercise.save()
+
+        self.assertEqual([row['target_reps'] for row in self.get()['logs']],
+                         ['6'])
+
     def test_target_is_null_when_the_plan_row_is_gone(self):
         self.log('Incline Dumbbell Press', 5, 100, 10)
         self.assertEqual({row['target_reps'] for row in self.get()['logs']},
