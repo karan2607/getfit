@@ -1,7 +1,15 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react'
 
 interface Props {
-  onSend: (content: string) => void
+  /**
+   * Hand the message over. Return false (or a promise of it) to say it was
+   * NOT accepted, and the composer keeps what was typed.
+   *
+   * It used to return nothing and the textarea was cleared regardless, so
+   * every path that dropped a message -- no session, no token, a turn
+   * already in flight -- also destroyed the words.
+   */
+  onSend: (content: string) => boolean | void | Promise<boolean | void>
   /**
    * Hard block — the input cannot be used at all (e.g. the chat session is
    * still being created). Deliberately NOT set while a reply is streaming:
@@ -65,10 +73,13 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
     if (expanded) expandedRef.current?.focus()
   }, [expanded])
 
-  function handleSend() {
+  async function handleSend() {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
-    onSend(trimmed)
+    const accepted = await onSend(trimmed)
+    // Only `false` means refused. A handler that returns nothing is the
+    // old contract and still clears, so queueing surfaces keep working.
+    if (accepted === false) return
     setValue('')
     setExpanded(false)
     if (textareaRef.current) {

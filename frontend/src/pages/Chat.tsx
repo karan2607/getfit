@@ -372,7 +372,9 @@ export default function Chat() {
             )}
           </div>
 
-          {sessionId ? <ChatPane sessionId={sessionId} /> : <ChatEmpty />}
+          {/* `key` matters: without it, switching chats reuses the same hook
+              instance and the in-flight turn keeps writing into it. */}
+          {sessionId ? <ChatPane key={sessionId} sessionId={sessionId} /> : <ChatEmpty />}
         </div>
 
       </div>

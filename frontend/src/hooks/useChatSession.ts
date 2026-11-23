@@ -9,6 +9,21 @@ import type {
 import * as pendingTurn from '../lib/pendingTurn'
 
 /**
+ * An id for an optimistic message, unique even within one millisecond.
+ *
+ * `temp-${Date.now()}` collided whenever two sends landed in the same tick,
+ * giving React two children with the same key.
+ */
+function newId(): string {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    // Older Safari and any non-secure context.
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
+}
+
+/**
  * A turn that failed or was stopped, kept so the user can act on it.
  *
  * The old hook set an `error` string and cleared `streamingContent` on both
@@ -56,6 +71,15 @@ export function useChatSession(sessionId: string | undefined) {
   const [appliedDiff, setAppliedDiff] = useState<VerificationDiff | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+  /*
+   * In-flight as a ref, not only as state.
+   *
+   * The guard in `send` read the state captured in its closure, which does
+   * not update within a frame -- so a double-tap on Send, or two Enters in
+   * quick succession, both passed it and started two streams against the
+   * same session.
+   */
+  const isSendingRef = useRef(false)
 
   /*
    * A draft belongs to the session it was proposed in. It no longer clears
@@ -132,17 +156,51 @@ export function useChatSession(sessionId: string | undefined) {
     abortRef.current?.abort()
   }, [])
 
+  /*
+   * Abandon the turn when this surface goes away.
+   *
+   * Nothing did this: abort was reachable only from the user's Stop button.
+   * So a reply whose turn outlived its component kept running, and on `done`
+   * was appended to whatever session was mounted by then -- send in chat A,
+   * tap chat B, and A's answer lands in B's transcript while B's composer
+   * sits disabled for a turn it never sent.
+   *
+   * Unmount is also the one case where the turn genuinely cannot be
+   * recovered into the UI, so `pendingTurn` keeps its record: the next mount
+   * restores it rather than finding nothing.
+   */
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
   const send = useCallback(
     async (content: string, extra?: Record<string, unknown>, isRetry = false) => {
-      if (!sessionId || isSending) return
+      /*
+       * Every refusal here returns a reason, and the caller only clears the
+       * composer on `true`.
+       *
+       * These were four silent `return`s. `isSending` is state captured in
+       * this closure, so two Enters in the same frame BOTH passed it: two
+       * user bubbles, two concurrent streams, and abortRef overwritten so
+       * the first could never be stopped. A missing session or token simply
+       * ate the message -- the drawer over a failed createSession swallowed
+       * everything typed into it -- and ChatInput had already blanked the
+       * textarea, so the words were gone too.
+       */
+      if (!sessionId) return false
+      if (isSendingRef.current) return false
       const token = getToken()
-      if (!token) return
+      if (!token) {
+        setError('Sign in again to send this.')
+        return false
+      }
+      isSendingRef.current = true
 
       // On a retry the user's message is already in the transcript; adding it
       // again would show their question twice.
       if (!isRetry) {
         const userMsg: ChatMessage = {
-          id: `temp-${Date.now()}`,
+          // A random id, not a timestamp: two sends in the same millisecond
+          // produced duplicate React keys.
+          id: `temp-${newId()}`,
           role: 'user',
           content,
           created_at: new Date().toISOString(),
@@ -239,11 +297,13 @@ export function useChatSession(sessionId: string | undefined) {
         })
       } finally {
         abortRef.current = null
+        isSendingRef.current = false
         setIsSending(false)
         setStatus(null)
       }
+      return true
     },
-    [sessionId, isSending],
+    [sessionId],
   )
 
   const sendMessage = useCallback(

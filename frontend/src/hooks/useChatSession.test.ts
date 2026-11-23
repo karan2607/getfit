@@ -224,3 +224,100 @@ describe('useChatSession proposals', () => {
     expect(result.current.proposedChange?.change_id).toBe('c1')
   })
 })
+
+/**
+ * Turns that used to end up somewhere other than where they started.
+ *
+ * None of this was covered: every existing test sends once, into a fixed
+ * session id, and never unmounts. So two sends in one frame, a session
+ * switch mid-turn, and an unmount mid-turn were all untested and all broken.
+ */
+describe('useChatSession concurrency', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(auth, 'getToken').mockReturnValue('tok')
+    vi.spyOn(api.chat, 'getSession').mockResolvedValue({
+      id: 's1', title: 'T', source: 'main', messages: [],
+    } as never)
+  })
+
+  it('refuses a second send while one is in flight, in the same frame', async () => {
+    const spy = vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      (() => async function* () {
+        yield { chunk: 'working' }
+        await new Promise(() => {})
+      }()) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+
+    // Both calls before React can re-render: this is a double-tap.
+    let first: unknown, second: unknown
+    await act(async () => {
+      first = result.current.sendMessage('one')
+      second = result.current.sendMessage('two')
+      await Promise.resolve()
+    })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(await second).toBe(false)
+    void first
+  })
+
+  it('says a message was not accepted when there is no session', async () => {
+    const { result } = renderHook(() => useChatSession(undefined))
+    let accepted: unknown
+    await act(async () => { accepted = await result.current.sendMessage('hi') })
+    expect(accepted).toBe(false)
+  })
+
+  it('says so, and explains, when the token has gone', async () => {
+    vi.spyOn(auth, 'getToken').mockReturnValue(null as never)
+    const { result } = renderHook(() => useChatSession('s1'))
+    let accepted: unknown
+    await act(async () => { accepted = await result.current.sendMessage('hi') })
+    expect(accepted).toBe(false)
+    await waitFor(() => expect(result.current.error).toMatch(/sign in/i))
+  })
+
+  it('abandons the stream when the surface unmounts', async () => {
+    let signal: AbortSignal | undefined
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      ((_s: string, _c: string, _t: string, _e: unknown, sig: AbortSignal) => {
+        signal = sig
+        return (async function* () {
+          yield { chunk: 'half' }
+          await new Promise(() => {})
+        })()
+      }) as never,
+    )
+    const { result, unmount } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      result.current.sendMessage('hi')
+      await Promise.resolve()
+    })
+    expect(signal?.aborted).toBe(false)
+    unmount()
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('gives optimistic messages ids that cannot collide', async () => {
+    // A frozen clock, because the old id was `temp-${Date.now()}` and two
+    // sends milliseconds apart happened to differ -- so without this the
+    // test passes against the bug it exists to catch.
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([{ chunk: 'ok' }, { done: true, message_id: 'm1' }]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.loadSession('s1') })
+    await act(async () => { await result.current.sendMessage('one') })
+    await act(async () => { await result.current.sendMessage('two') })
+    // Only the optimistic ids are this test's business; the assistant ids
+    // come from the server and the mock reuses one.
+    const temps = (result.current.session?.messages ?? [])
+      .map((m) => m.id)
+      .filter((id) => id.startsWith('temp-'))
+    expect(temps).toHaveLength(2)
+    expect(new Set(temps).size).toBe(2)
+  })
+})

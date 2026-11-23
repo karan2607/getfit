@@ -132,9 +132,9 @@ export default function WorkoutChatDrawer({
       // Don't drop it — hold it until the current reply finishes.
       queuedRef.current.push(content)
       setQueuedCount(queuedRef.current.length)
-      return
+      return true
     }
-    sendMessage(content, buildExtra())
+    return sendMessage(content, buildExtra())
   }
 
   // Drain the queue when the in-flight reply completes.
