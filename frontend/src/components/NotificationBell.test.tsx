@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import NotificationBell from './NotificationBell'
 import { api, type Feedback, type FeedbackMessage } from '../lib/api'
 
@@ -348,6 +348,71 @@ describe('NotificationBell', () => {
     // Filled vs outlined, which holds up before hue does.
     expect(fixed).toContain('bg-ink-600')
     expect(failed).toContain('bg-red-50')
+  })
+
+  describe('device alerts', () => {
+    let created: { title: string; opts: NotificationOptions }[]
+
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      created = []
+      localStorage.clear()
+      class FakeNotification {
+        static permission: NotificationPermission = 'granted'
+        static requestPermission = vi.fn(async () => 'granted' as NotificationPermission)
+        onclick: (() => void) | null = null
+        constructor(title: string, opts: NotificationOptions) { created.push({ title, opts }) }
+        close() {}
+      }
+      vi.stubGlobal('Notification', FakeNotification)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    })
+
+    it('alerts when a queued request finishes, once you opt in', async () => {
+      const working = { unseen: 0, items: [item({ status: 'in_progress', unread: 0 })] }
+      const poll = vi.spyOn(api.feedback, 'notifications')
+        .mockResolvedValueOnce(working) // mount
+        .mockResolvedValueOnce(working) // panel opened
+        .mockResolvedValue({ unseen: 1, items: [item({ status: 'done', unread: 1 })] })
+      show()
+      await userEvent.click(await screen.findByLabelText('Notifications'))
+      await userEvent.click(screen.getByLabelText(/Alert me on this device/))
+      expect(localStorage.getItem('getfit.feedbackAlerts')).toBe('on')
+      expect(created).toHaveLength(0)
+
+      // The next background poll sees it finish.
+      await act(async () => { vi.advanceTimersByTime(60_000) })
+      await waitFor(() => expect(created).toHaveLength(1))
+      expect(created[0].title).toBe('Fixed: your request')
+      expect(created[0].opts.body).toBe('Add a bell for superusers')
+
+      // The same finished item on the next poll is not news again.
+      await act(async () => { vi.advanceTimersByTime(60_000) })
+      await waitFor(() => expect(poll.mock.calls.length).toBeGreaterThanOrEqual(4))
+      expect(created).toHaveLength(1)
+    })
+
+    it('does not alert for what was already waiting when the app opened', async () => {
+      localStorage.setItem('getfit.feedbackAlerts', 'on')
+      vi.spyOn(api.feedback, 'notifications').mockResolvedValue({ unseen: 1, items: [item()] })
+      show()
+      expect(await screen.findByLabelText('Notifications, 1 unread')).toBeInTheDocument()
+      expect(created).toHaveLength(0)
+    })
+
+    it('does not alert unless you opted in', async () => {
+      vi.spyOn(api.feedback, 'notifications')
+        .mockResolvedValueOnce({ unseen: 0, items: [item({ status: 'new', unread: 0 })] })
+        .mockResolvedValue({ unseen: 1, items: [item({ unread: 1 })] })
+      show()
+      await userEvent.click(await screen.findByLabelText('Notifications'))
+      expect(await screen.findByLabelText('Notifications, 1 unread')).toBeInTheDocument()
+      expect(created).toHaveLength(0)
+    })
   })
 
   it('stays quiet when a poll fails', async () => {

@@ -35,6 +35,20 @@ const SWIPE_THRESHOLD = 72
  */
 const SCROLL_SLOP = 10
 
+/** Remembers, per device, whether you asked to be alerted. */
+const ALERTS_KEY = 'getfit.feedbackAlerts'
+
+/** Statuses that mean the automation stopped. Mirrors Feedback.FINISHED. */
+const FINISHED = new Set(['done', 'failed', 'skipped'])
+
+const canAlert = () => typeof window !== 'undefined' && 'Notification' in window
+
+function alertsWanted() {
+  return canAlert()
+    && Notification.permission === 'granted'
+    && localStorage.getItem(ALERTS_KEY) === 'on'
+}
+
 function when(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   if (mins < 1) return 'just now'
@@ -188,17 +202,60 @@ export default function NotificationBell() {
   const [sending, setSending] = useState(false)
   const [threadError, setThreadError] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
+  const [alertsOn, setAlertsOn] = useState(alertsWanted)
+  /**
+   * What the last poll saw, so an alert fires on the CHANGE only. Null until
+   * the first poll: whatever was already waiting when you opened the app is
+   * on the badge, and popping a system alert for each of it would be noise.
+   */
+  const lastSeen = useRef<Map<string, { status: string; unread: number }> | null>(null)
+  const openThreadRef = useRef<(item: Feedback) => void>(() => {})
+
+  const alertFinished = useCallback((next: Feedback[]) => {
+    const prev = lastSeen.current
+    lastSeen.current = new Map(next.map((i) => [i.id, { status: i.status, unread: i.unread }]))
+    if (!prev || !alertsWanted()) return
+    for (const item of next) {
+      if (!FINISHED.has(item.status) || item.unread === 0) continue
+      const was = prev.get(item.id)
+      if (was && was.status === item.status && item.unread <= was.unread) continue
+      const n = new Notification(`${statusLine(item).label}: your request`, {
+        body: item.body.slice(0, 140),
+        tag: `feedback-${item.id}`,
+      })
+      n.onclick = () => {
+        window.focus()
+        setOpen(true)
+        openThreadRef.current(item)
+        n.close()
+      }
+    }
+  }, [])
+
+  const toggleAlerts = useCallback(async () => {
+    if (alertsOn) {
+      localStorage.removeItem(ALERTS_KEY)
+      setAlertsOn(false)
+      return
+    }
+    const granted = Notification.permission === 'granted'
+      || (await Notification.requestPermission()) === 'granted'
+    if (granted) localStorage.setItem(ALERTS_KEY, 'on')
+    setAlertsOn(granted)
+  }, [alertsOn])
 
   const refresh = useCallback(async () => {
     if (!isSuperuser) return
     try {
-      setItems((await api.feedback.notifications()).items)
+      const next = (await api.feedback.notifications()).items
+      setItems(next)
+      alertFinished(next)
     } catch {
       // A failed poll is not worth a visible error: the bell is ambient.
       // Showing a banner because a background poll missed would be louder
       // than the thing it is reporting.
     }
-  }, [isSuperuser])
+  }, [isSuperuser, alertFinished])
 
   useEffect(() => {
     if (!isSuperuser) return
@@ -242,6 +299,7 @@ export default function NotificationBell() {
       setThreadError('Could not load the latest messages.')
     }
   }, [])
+  useEffect(() => { openThreadRef.current = openThread }, [openThread])
 
   const reply = useCallback(
     async (body: string) => {
@@ -390,6 +448,22 @@ export default function NotificationBell() {
                 </div>
               </div>
 
+              {/* Opt-in, per device: a system alert when the automation
+                  finishes something you queued, so you do not have to keep
+                  checking the badge. */}
+              {canAlert() && (
+                <label className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100 text-xs text-gray-600">
+                  <span>Alert me on this device when a request is done</span>
+                  <input
+                    type="checkbox"
+                    checked={alertsOn}
+                    onChange={toggleAlerts}
+                    disabled={!alertsOn && Notification.permission === 'denied'}
+                    className="accent-accent-500"
+                  />
+                </label>
+              )}
+
               {/* The cap is on the scroller ITSELF, not inherited. It used to
                   rely on flex-1/min-h-0 passing the panel's max-height down
                   through the track and the pane -- but a max-height is not a
@@ -397,8 +471,8 @@ export default function NotificationBell() {
                   carry it through a stretched pane. So the list grew to its
                   full length, the panel's overflow-hidden clipped it, nothing
                   scrolled, and a drag that went nowhere landed as a press on
-                  the row. 3rem covers the header row above. */}
-              <div className="flex-1 min-h-0 max-h-[calc(70vh-3rem)] overflow-y-auto overscroll-contain">
+                  the row. 5.5rem covers the header and alert rows above. */}
+              <div className="flex-1 min-h-0 max-h-[calc(70vh-5.5rem)] overflow-y-auto overscroll-contain">
                 {items.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-gray-400 text-center">
                     Nothing here. You'll see items as the automation picks them up.
