@@ -1963,7 +1963,7 @@ function LineChart({ points, formatValue }: {
   )
 }
 
-function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => void }) {
+export function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { user } = useAuth()
   const unit: WeightUnit = (user?.profile?.preferred_unit ?? 'lb') as WeightUnit
 
@@ -2030,14 +2030,15 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
       .map(([date, rows]) => ({
         date,
         rows: [...rows].sort((x, y) => x.set_number - y.set_number),
-        // What the plan asked for that day, so a session can be read against
-        // its own target rather than whatever the plan says today.
-        target: rows.find((r) => r.target_reps)?.target_reps ?? null,
       }))
   })()
 
   const visibleSessions = sessionLimit === 0
     ? sessions : sessions.slice(0, sessionLimit)
+  // What the plan asked for, in its own column beside what was done, so "8-10"
+  // and the 10 actually logged read side by side. Hidden when no set has one.
+  const showTarget = logs.some((p) => p.target_reps)
+  const columnCount = 1 + (showTarget ? 1 : 0) + fieldsFor(mType).length
 
   // Personal best uses the metric for this type, not weight_kg unconditionally.
   const pb = metric
@@ -2106,6 +2107,9 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                   <thead>
                     <tr className="border-b border-gray-200">
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-400">Set</th>
+                      {showTarget && (
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Target</th>
+                      )}
                       {/* Columns follow the measurement type instead of always
                           showing Weight/Reps. */}
                       {fieldsFor(mType).map((f) => (
@@ -2121,25 +2125,22 @@ function ExerciseDetailsModal({ name, onClose }: { name: string; onClose: () => 
                           read as a workout rather than an undifferentiated
                           wall of rows. */}
                       <tr className="bg-gray-100/80">
-                        <td colSpan={1 + fieldsFor(mType).length}
+                        <td colSpan={columnCount}
                             className="px-4 py-1.5 text-[11px] font-semibold text-gray-500">
                           {new Date(s.date + 'T00:00:00').toLocaleDateString('en-US', {
                             weekday: 'short', month: 'short', day: 'numeric',
                           })}
                           <span className="font-normal text-gray-400">
                             {' · '}{s.rows.length} set{s.rows.length === 1 ? '' : 's'}
-                            {s.target && (
-                              <>
-                                {' · target '}{s.target}
-                                {/^\d+(\s*-\s*\d+)?$/.test(s.target) ? ' reps' : ''}
-                              </>
-                            )}
                           </span>
                         </td>
                       </tr>
                       {s.rows.map((p, i) => (
                         <tr key={i} className="border-b border-gray-100 last:border-0">
                           <td className="px-4 py-2 text-gray-500 text-xs">{p.set_number}</td>
+                          {showTarget && (
+                            <td className="px-4 py-2 text-right text-gray-500">{p.target_reps ?? '—'}</td>
+                          )}
                           {fieldsFor(mType).map((f) => {
                             const raw = p[f]
                             return (
