@@ -49,6 +49,23 @@ def _model(override=None):
     return override or os.getenv('ANTHROPIC_MODEL') or DEFAULT_MODEL
 
 
+#: How long one model call may take before we give up on it.
+#:
+#: The SDK's default is 10 MINUTES with 2 automatic retries, against a
+#: browser that stops listening after 90 seconds. So a slow call kept a
+#: gunicorn thread busy long after the only person waiting for it had gone,
+#: and the deployment runs `--workers 1 --threads 4`: four such calls block
+#: every other request on the instance, health checks included.
+#:
+#: 75s leaves room under the client's 90s idle timeout for the frame that
+#: reports the failure to actually arrive.
+REQUEST_TIMEOUT_SECONDS = float(os.getenv('ANTHROPIC_TIMEOUT', '75'))
+
+#: Retries are the SDK's, and they multiply the wall clock by the attempt
+#: count. One is enough to ride out a blip without outliving the reader.
+MAX_RETRIES = int(os.getenv('ANTHROPIC_MAX_RETRIES', '1'))
+
+
 def _client():
     import anthropic
 
@@ -56,7 +73,10 @@ def _client():
         # Workload identity federation also satisfies the SDK, so an absent
         # key is not proof of no credentials -- let the SDK decide and report.
         logger.debug('ANTHROPIC_API_KEY unset; relying on the SDK credential chain')
-    return anthropic.Anthropic()
+    return anthropic.Anthropic(
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        max_retries=MAX_RETRIES,
+    )
 
 
 def _log_usage(action, model, usage):

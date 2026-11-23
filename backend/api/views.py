@@ -2499,23 +2499,17 @@ def workout_plan_propose_change(request, plan_id):
     if request.method == 'GET':
         return Response({'proposed_change': _pending_change(plan)})
 
+    # One validator, shared with the agent's propose_plan_change.
+    #
+    # That tool checked only that the list was non-empty, so the two doors
+    # into the same table enforced different rules -- and the laxer one let
+    # through drafts that could only ever fail at the confirm button.
     draft = request.data.get('changes')
-    if not isinstance(draft, list) or not draft:
-        return Response({'detail': 'changes must be a non-empty list'},
+    try:
+        plan_changes.validate_draft(draft, plan=plan)
+    except plan_changes.DraftError as exc:
+        return Response({'detail': str(exc)},
                         status=status.HTTP_400_BAD_REQUEST)
-    for item in draft:
-        if not isinstance(item, dict):
-            return Response({'detail': 'each change needs a name'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        # A day action is addressed by `day`; `name` carries the new day name
-        # for a rename and nothing at all for a move. Demanding an exercise
-        # name from it would reject the one shape that has no exercise in it.
-        named = (item.get('name') or '').strip() or (
-            (item.get('action') or '').lower() in plan_changes.DAY_ACTIONS
-            and (item.get('day') or '').strip())
-        if not named:
-            return Response({'detail': 'each change needs a name'},
-                            status=status.HTTP_400_BAD_REQUEST)
 
     keep_list = request.data.get('keep_list') or []
     if not isinstance(keep_list, list):
@@ -2559,29 +2553,6 @@ def workout_plan_apply_change(request, plan_id, change_id):
     if plan is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    change = PlanChange.objects.filter(pk=change_id, plan=plan).first()
-    if change is None:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if change.is_applied:
-        return Response({
-            'change_id': str(change.id),
-            'applied': True,
-            'already_applied': True,
-            'verification_diff': change.verification_diff,
-        })
-
-    before = plan_changes.snapshot_plan(plan)
-    if plan_changes.plan_digest(before) != change.base_hash:
-        # The plan moved on since the draft was made. Applying anyway would
-        # overwrite work the user never saw.
-        return Response({
-            'detail': 'This plan changed since the draft was made. '
-                      'Re-propose the change so you can see it against the '
-                      'current plan.',
-            'code': 'stale_draft',
-        }, status=status.HTTP_409_CONFLICT)
-
     # The payload is BUILT from the recorded draft, not supplied by the
     # caller. The model never re-emits the plan: that was the original
     # failure, where chat was shown all eight weeks and asked to return all
@@ -2605,8 +2576,46 @@ def workout_plan_apply_change(request, plan_id, change_id):
     #
     # The whole block is one atomic unit so a draft that fails validation
     # halfway cannot leave the week reordered and the exercises unchanged.
+    #
+    # The row is LOCKED for the whole operation, checks included.
+    #
+    # `is_applied` and the staleness digest used to be plain reads outside
+    # any transaction, so two confirms landing together -- a double tap, or
+    # a client retrying an apply that had actually succeeded but timed out
+    # -- both saw `proposed`, both passed the digest check, and both
+    # applied. For an `add` that puts the exercise in the plan twice. The
+    # docstring promised idempotence and delivered it only against
+    # SEQUENTIAL retries, which is also all the test covered.
+    #
+    # Holding the lock across the mutation rather than claiming the row up
+    # front matters: a draft that fails validation halfway must roll back
+    # to `proposed`, not sit there marked applied with nothing applied.
     try:
         with transaction.atomic():
+            change = (PlanChange.objects.select_for_update()
+                      .filter(pk=change_id, plan=plan).first())
+            if change is None:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+            if change.is_applied:
+                return Response({
+                    'change_id': str(change.id),
+                    'applied': True,
+                    'already_applied': True,
+                    'verification_diff': change.verification_diff,
+                })
+
+            before = plan_changes.snapshot_plan(plan)
+            if plan_changes.plan_digest(before) != change.base_hash:
+                # The plan moved on since the draft was made. Applying
+                # anyway would overwrite work the user never saw.
+                return Response({
+                    'detail': 'This plan changed since the draft was made. '
+                              'Re-propose the change so you can see it '
+                              'against the current plan.',
+                    'code': 'stale_draft',
+                }, status=status.HTTP_409_CONFLICT)
+
             plan_changes.apply_day_structure(plan, change.draft)
 
             payload = request.data.get('plan')

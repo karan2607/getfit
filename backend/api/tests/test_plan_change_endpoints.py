@@ -16,6 +16,10 @@ them is a way real training data gets quietly destroyed.
 
 import json
 
+from unittest import skipUnless
+
+from django.db import connection
+from django.test import TransactionTestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
@@ -342,13 +346,24 @@ class DraftBuildsItsOwnPayloadTests(APITestCase):
         resp = self.apply(change_id)
         self.assertTrue(resp.data['clean'], resp.data['verification_diff'])
 
-    def test_a_draft_naming_an_unknown_day_is_refused(self):
-        change_id = self.propose([{
-            'day': 'Nonexistent Day', 'action': 'remove', 'name': 'Anything',
-        }])
-        resp = self.apply(change_id)
-        self.assertEqual(resp.status_code, 400)
-        self.assertEqual(resp.data['code'], 'bad_draft')
+    def test_a_draft_naming_an_unknown_day_is_refused_at_propose(self):
+        """
+        This used to be recorded happily and refused only at apply.
+
+        That is the worst possible moment: the card renders, the user reads
+        it, presses Confirm, and gets a 400. A draft that can never apply is
+        not a pending decision -- the same reasoning that makes
+        `_pending_change` withhold stale drafts. Refusing it here also lets
+        the model correct itself in the same turn.
+        """
+        response = self.client.post(
+            reverse('workout-plan-propose-change', args=[self.plan.id]),
+            {'changes': [{'day': 'Nonexistent Day', 'action': 'remove',
+                          'name': 'Anything'}]},
+            format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Nonexistent Day', response.data['detail'])
+        self.assertFalse(PlanChange.objects.filter(plan=self.plan).exists())
 
     def test_removing_something_already_gone_is_not_an_error(self):
         """Idempotence at the operation level: the end state is what matters."""
@@ -570,3 +585,148 @@ class PendingChangeWithoutAPlanIdTests(APITestCase):
     def test_it_needs_authentication(self):
         self.client.credentials()
         self.assertIn(self.client.get(self.url).status_code, (401, 403))
+
+
+class OneValidatorForBothDoorsTests(APITestCase):
+    """
+    The agent and the HTTP endpoint record drafts into the same table.
+
+    They did not enforce the same rules: the endpoint checked a draft's
+    shape, while `propose_plan_change` checked only that the list was not
+    empty. So the model could propose against a day it had invented, the
+    server recorded it, the card rendered, and Confirm answered 400 -- the
+    "button that can only fail" that withholding stale drafts exists to
+    prevent, reached through the other door.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='bothdoors@test.local',
+                                             password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=1)
+        day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Push')
+        Exercise.objects.create(
+            day=day, name='Dumbbell Lateral Raises', sets=3, reps='8-12',
+            order=0, measurement_type='weight_reps')
+
+    def propose_as_agent(self, changes):
+        """Returns (result, error) -- a refusal comes back as a string."""
+        from api import agent_tools
+        return agent_tools.run_tool(
+            self.user, 'propose_plan_change',
+            {'plan_id': str(self.plan.id), 'changes': changes})
+
+    def test_the_agent_cannot_record_a_draft_for_a_day_that_is_not_there(self):
+        result, error = self.propose_as_agent([
+            {'day': 'Leg Day That Does Not Exist', 'action': 'remove',
+             'name': 'Anything'}])
+        self.assertIsNone(result)
+        self.assertIn('Leg Day That Does Not Exist', error)
+        self.assertFalse(PlanChange.objects.filter(plan=self.plan).exists())
+
+    def test_the_agent_cannot_record_a_move_with_nowhere_to_move_to(self):
+        result, error = self.propose_as_agent([
+            {'day': 'Push', 'action': 'move_day'}])
+        self.assertIsNone(result)
+        self.assertIn('position', error)
+        self.assertFalse(PlanChange.objects.filter(plan=self.plan).exists())
+
+    def test_a_good_draft_still_goes_through(self):
+        result, error = self.propose_as_agent([
+            {'day': 'Push', 'action': 'remove',
+             'name': 'Dumbbell Lateral Raises'}])
+        self.assertFalse(error)
+        self.assertTrue(result['change_id'])
+
+    def test_the_agent_card_carries_the_same_keys_as_the_reload_card(self):
+        """
+        Two places assert "one card renders either". They were not the same
+        shape: keep_list was on the reload payload and missing here, so a
+        client reading it off the chat card got undefined.
+        """
+        result, _error = self.propose_as_agent([
+            {'day': 'Push', 'action': 'remove',
+             'name': 'Dumbbell Lateral Raises'}])
+        token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        pending = self.client.get(
+            reverse('workout-plan-propose-change', args=[self.plan.id]),
+        ).data['proposed_change']
+        self.assertEqual(sorted(result), sorted(pending))
+
+
+@skipUnless(connection.vendor == 'postgresql',
+            'row locking is a no-op on SQLite, so this would pass for the '
+            'wrong reason')
+class ConcurrentApplyTests(TransactionTestCase):
+    """
+    Two confirms landing together must apply once.
+
+    THIS DOES NOT RUN LOCALLY. Local tests use SQLite, where
+    `select_for_update` is ignored and the whole table locks instead -- so
+    the test would either error or pass without exercising anything. It is
+    written against the production backend, and the same case is checked by
+    hand on a deployed build. A skipped test is not a passing one, and this
+    comment is here so nobody reads the green suite as covering it.
+
+    `is_applied` and the staleness digest were read outside any transaction
+    with no row lock, so a double tap -- or a client retrying an apply that
+    had succeeded but timed out -- could have both requests pass the checks
+    and both apply. For an `add` that is the exercise in the plan twice.
+
+    TransactionTestCase, not APITestCase: the usual test case wraps
+    everything in one transaction, so `select_for_update` has nothing to
+    contend with and a concurrency test inside it proves nothing.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='race@test.local',
+                                             password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, duration_weeks=1)
+        self.day = WorkoutDay.objects.create(
+            plan=self.plan, day_number=1, week_number=1, name='Push')
+        Exercise.objects.create(
+            day=self.day, name='Dumbbell Lateral Raises', sets=3, reps='8-12',
+            order=0, measurement_type='weight_reps')
+
+    def test_two_simultaneous_confirms_add_the_exercise_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from django.db import connections
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Token ' + self.token.key)
+        change_id = client.post(
+            reverse('workout-plan-propose-change', args=[self.plan.id]),
+            {'changes': [{'day': 'Push', 'action': 'add',
+                          'name': 'Cable Lateral Raise'}]},
+            format='json').data['change_id']
+
+        url = reverse('workout-plan-apply-change',
+                      args=[self.plan.id, change_id])
+
+        def apply_once():
+            try:
+                each = APIClient()
+                each.credentials(HTTP_AUTHORIZATION='Token ' + self.token.key)
+                return each.post(url, {}, format='json').status_code
+            finally:
+                # Each thread gets its own connection; close it or the test
+                # database cannot be torn down.
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            codes = [f.result() for f in
+                     [pool.submit(apply_once), pool.submit(apply_once)]]
+
+        self.assertEqual(sorted(codes), [200, 200])
+        self.assertEqual(
+            Exercise.objects.filter(day=self.day,
+                                    name='Cable Lateral Raise').count(),
+            1,
+            'the exercise was added twice: the apply checks raced')

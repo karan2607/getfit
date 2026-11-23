@@ -526,6 +526,93 @@ def _day_rows(plan, wanted, week=None, renames=None):
     return out
 
 
+def validate_draft(draft, plan=None):
+    """
+    Refuse a draft now, rather than at the confirm button.
+
+    The HTTP propose endpoint checked the shape of a draft; the agent's
+    `propose_plan_change` checked only that the list was not empty. So the
+    model could propose against a day it had invented, the server would
+    record it, the card would render, and Confirm returned 400 bad_draft --
+    exactly the "button that can only fail" that withholding stale drafts
+    exists to prevent, reached by a different door.
+
+    Both callers use this. With `plan`, it also checks that every day the
+    draft names actually exists, which is the check that was only ever run
+    at apply time.
+
+    Raises DraftError, whose message is written for the person reading it.
+    """
+    if not isinstance(draft, list) or not draft:
+        raise DraftError('changes must be a non-empty list')
+
+    for item in draft:
+        if not isinstance(item, dict):
+            raise DraftError('each change has to be an object')
+
+        action = (item.get('action') or REPLACE).lower()
+        if action not in ACTIONS:
+            raise DraftError('unknown action %r' % action)
+
+        name = (item.get('name') or '').strip()
+        day = (item.get('day') or '').strip()
+
+        if action in DAY_ACTIONS:
+            # A day action is addressed by `day`; `name` carries the NEW day
+            # name for a rename and nothing at all for a move.
+            if not day:
+                raise DraftError('a day change has to say which day')
+            if action == RENAME_DAY and not name:
+                raise DraftError('a rename has to say the new name')
+            if action == MOVE_DAY and not item.get('to_position'):
+                raise DraftError('a move has to say the new position')
+        elif not name:
+            raise DraftError('every change needs an exercise name')
+
+    if plan is not None:
+        _validate_days_exist(plan, draft)
+
+
+def _validate_days_exist(plan, draft):
+    """Every day the draft addresses is a day the plan actually has."""
+    snapshot = snapshot_plan(plan)
+    weeks = {
+        int(week): [
+            {'day_number': d['day_number'], 'week_number': int(week),
+             'name': d['name']}
+            for d in days
+        ]
+        for week, days in (snapshot.get('weeks') or {}).items()
+    }
+    if not weeks:
+        raise DraftError('this plan has no weeks to change')
+
+    # A draft may rename a day and then address it by its NEW name --
+    # "rename Cardio to Pull + Abs, then add a Lat Pulldown to Pull + Abs"
+    # is one perfectly ordinary restructure. At apply time the rows have
+    # already been renamed by `apply_day_structure`, so the later item
+    # resolves; here nothing has been renamed yet, so the new name has to be
+    # treated as valid from the moment the rename is declared. Without this
+    # the validator rejects the restructure it is supposed to wave through.
+    pending_names = {
+        (item.get('name') or '').strip()
+        for item in draft
+        if (item.get('action') or '').lower() == RENAME_DAY
+        and (item.get('name') or '').strip()
+    }
+
+    renames = day_renames(draft)
+    for item in draft:
+        day = (item.get('day') or '').strip()
+        if not day:
+            # A change with no day applies plan-wide; nothing to resolve.
+            continue
+        if day in pending_names:
+            continue
+        if not _matching_days(weeks, item, renames):
+            raise DraftError('no day called %r in this plan' % item['day'])
+
+
 def build_payload(plan, draft, week_numbers=None):
     """
     The plan payload a confirmed draft produces, built from RECORDED STATE.

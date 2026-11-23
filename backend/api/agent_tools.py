@@ -282,7 +282,8 @@ def _tool_propose_plan_change(user, args):
     apply its own proposal even if it decides it should.
     """
     from .models import PlanChange, PlanSnapshot, WorkoutPlan
-    from .plan_changes import library_warnings, plan_digest, snapshot_plan
+    from .plan_changes import (DraftError, library_warnings, plan_digest,
+                               snapshot_plan, validate_draft)
 
     plan = WorkoutPlan.objects.filter(
         pk=args.get('plan_id'), user=user).first()
@@ -290,8 +291,17 @@ def _tool_propose_plan_change(user, args):
         raise mcp.McpError('plan not found')
 
     changes = args.get('changes') or []
-    if not isinstance(changes, list) or not changes:
-        raise mcp.McpError('changes must be a non-empty list')
+    # The same validator the HTTP endpoint uses, plan included.
+    #
+    # This checked only that the list was non-empty, so a draft naming a day
+    # that does not exist was recorded happily, rendered as a confirm card,
+    # and then refused by apply with 400 bad_draft. Told here instead, the
+    # model can correct itself in the same turn -- the user never sees a
+    # button that cannot work.
+    try:
+        validate_draft(changes, plan=plan)
+    except DraftError as exc:
+        raise mcp.McpError(str(exc)) from exc
 
     snapshot = snapshot_plan(plan)
     change = PlanChange.objects.create(
@@ -312,6 +322,10 @@ def _tool_propose_plan_change(user, args):
         'applied': False,
         'warnings': change.warnings,
         'draft': change.draft,
+        # Present on the reload-path payload too. Two places assert "one
+        # card renders either", and without this the chat-path card was
+        # missing a key the other one has.
+        'keep_list': change.keep_list,
     }
 
 

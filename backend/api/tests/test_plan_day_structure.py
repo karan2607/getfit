@@ -351,22 +351,49 @@ class DayStructureOverHttpTests(APITestCase):
                       [e.name for e in day.exercises.all()])
         self.assertTrue(response.data['clean'], response.data)
 
-    def test_a_day_that_is_not_there_is_refused_and_changes_nothing(self):
-        response = self.apply_draft([
-            {'action': 'move_day', 'day': 'Mobility', 'name': 'Mobility',
-             'to_position': 1}])
+    def test_a_day_that_is_not_there_is_refused_at_propose(self):
+        """
+        This used to be recorded, rendered as a card, and refused only when
+        the user pressed Confirm. The draft is now checked against the plan
+        as it is written, so nothing is recorded and no card appears.
+        """
+        response = self.client.post(
+            reverse('workout-plan-propose-change', args=[self.plan.id]),
+            {'changes': [{'action': 'move_day', 'day': 'Mobility',
+                          'name': 'Mobility', 'to_position': 1}]},
+            format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Mobility', response.data['detail'])
+        self.assertEqual([name for _n, name in positions(self.plan, 1)], DAYS)
+        self.assertFalse(PlanChange.objects.exists())
+
+    def test_a_refused_draft_leaves_an_earlier_day_op_rolled_back(self):
+        """
+        One confirmation is one transaction, or a half-applied week.
+
+        The draft is recorded DIRECTLY rather than through the propose
+        endpoint, which now rejects an unknown day up front. That rejection
+        is the better behaviour and does not replace this test: a draft can
+        still be valid when proposed and impossible by the time it is
+        confirmed, and the guarantee being checked here is that the day move
+        rolls back with the rest when the exercise half fails.
+        """
+        snapshot = plan_changes.snapshot_plan(self.plan)
+        change = PlanChange.objects.create(
+            plan=self.plan,
+            draft=[
+                {'action': 'move_day', 'day': 'Upper Pull',
+                 'name': 'Upper Pull', 'to_position': 2},
+                {'action': 'add', 'day': 'Mobility', 'name': 'Lat Pulldown'},
+            ],
+            base_hash=plan_changes.plan_digest(snapshot))
+
+        response = self.client.post(
+            reverse('workout-plan-apply-change',
+                    args=[self.plan.id, change.id]), {}, format='json')
+
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['code'], 'bad_draft')
         self.assertEqual([name for _n, name in positions(self.plan, 1)], DAYS)
-        self.assertEqual(
-            PlanChange.objects.get().status, PlanChange.PROPOSED)
-
-    def test_a_refused_draft_leaves_an_earlier_day_op_rolled_back(self):
-        """One confirmation is one transaction, or a half-applied week."""
-        response = self.apply_draft([
-            {'action': 'move_day', 'day': 'Upper Pull', 'name': 'Upper Pull',
-             'to_position': 2},
-            {'action': 'add', 'day': 'Mobility', 'name': 'Lat Pulldown'},
-        ])
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual([name for _n, name in positions(self.plan, 1)], DAYS)
+        change.refresh_from_db()
+        self.assertEqual(change.status, PlanChange.PROPOSED)
