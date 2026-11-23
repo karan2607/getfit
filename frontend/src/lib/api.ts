@@ -457,6 +457,19 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    /** Recompute suggestions from today's sets, including unsaved ones. Logs nothing. */
+    sessionSuggestions: (sessionId: string, actuals: Array<{
+      exercise_id: string
+      set_number: number
+      reps_completed?: number | null
+      is_completed?: boolean
+    }>) =>
+      request<{ weight_suggestions: Record<string, WeightSuggestion> }>(
+        `/api/workouts/sessions/${sessionId}/suggestions/`, {
+          method: 'POST',
+          body: JSON.stringify({ actuals }),
+        }),
+
     /**
      * Start generating one week in the background. 202 when it started,
      * 200 when the week already exists (a race with the auto-trigger),
@@ -986,8 +999,20 @@ export interface WorkoutSessionDetail {
   notes: string
   is_completed: boolean
   set_logs: SetLog[]
+  // Keyed by exercise id. Advisory only: never part of set_logs, and only
+  // weighted exercises appear, so a bodyweight composite member has none.
+  weight_suggestions?: Record<string, WeightSuggestion>
   already_active?: boolean
   conflict_day_name?: string
+}
+
+/** A suggested working weight for one exercise instance. */
+export interface WeightSuggestion {
+  weight: number | null             // in `unit`; null when there is no history
+  weight_kg: number | null          // the same value, in storage units
+  unit: string
+  confidence: 'high' | 'medium' | 'low' | 'none'
+  basis: string
 }
 
 export interface WorkoutSessionSummary {

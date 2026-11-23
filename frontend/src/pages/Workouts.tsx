@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType } from '../lib/api'
+import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType, type WeightSuggestion } from '../lib/api'
+import { actualsFromDrafts, weightToConfirm } from '../lib/weightSuggestions'
 import {
   type SetField, type WeightUnit, type TimeUnit, type DistanceUnit,
   fieldsFor, fieldLabel, prescriptionMismatch, toDisplayField, toStorageField,
@@ -1305,6 +1306,28 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
     }
   }, [pendingLogs, storageKey])
 
+  // Suggested weights, per exercise instance. Only for a workout in progress:
+  // a finished one shows what was lifted, not what might have been.
+  const [suggestions, setSuggestions] = useState<Record<string, WeightSuggestion>>({})
+  useEffect(() => {
+    setSuggestions(session && !session.is_completed ? session.weight_suggestions ?? {} : {})
+  }, [session])
+
+  // Recompute from today's actuals as sets are ticked, before they are saved,
+  // so beating (or missing) early targets moves later suggestions.
+  useEffect(() => {
+    if (!session || session.is_completed) return
+    const actuals = actualsFromDrafts(pendingLogs)
+    if (actuals.length === 0) return
+    const timer = setTimeout(() => {
+      api.workouts.sessionSuggestions(session.id, actuals)
+        .then((r) => setSuggestions(r.weight_suggestions))
+        // Advisory: on failure keep the last suggestions rather than nag.
+        .catch(() => console.warn('could not refresh weight suggestions'))
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [pendingLogs, session])
+
   /** Current value for a set field: pending edit wins, else what the server has. */
   function setFieldValue(log: SetLog, field: SetField): number | null {
     const pending = pendingLogs[pendKey(log.exercise_id, log.set_number)]
@@ -1335,7 +1358,19 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
   function handleToggle(log: SetLog) {
     const key = pendKey(log.exercise_id, log.set_number)
     const current = isSetCompleted(log)
-    setPendingLogs((prev) => ({ ...prev, [key]: { ...prev[key], is_completed: !current } }))
+    setPendingLogs((prev) => {
+      const next: PendingLog = { ...prev[key], is_completed: !current }
+      // Ticking a set whose weight input still shows only the suggestion is
+      // the user confirming it. A typed or cleared weight is in the draft and
+      // always wins; see lib/weightSuggestions.
+      if (!current) {
+        const confirmed = weightToConfirm(
+          prev[key], log.weight_kg,
+          log.exercise_id ? suggestions[log.exercise_id] : undefined)
+        if (confirmed !== undefined) next.weight_kg = confirmed
+      }
+      return { ...prev, [key]: next }
+    })
     setIsDirty(true)
   }
 
@@ -1665,6 +1700,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                   key={ru.key}
                   members={members}
                   unit={unit}
+                  suggestions={suggestions}
                   isCompleted={isCompleted}
                   isOpen={isOpen}
                   onToggleOpen={() => toggleCard(ru.key, isOpen)}
@@ -1704,6 +1740,11 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         <p className="text-xs text-gray-400 mt-0.5">
                           {planEx.sets} sets · {planEx.reps}
                           {planEx.rest_seconds ? ` · ${planEx.rest_seconds}s rest` : ''}
+                        </p>
+                      )}
+                      {planEx && !isCompleted && suggestions[planEx.id]?.weight_kg != null && (
+                        <p className="text-xs text-brand-500 mt-0.5" title={suggestions[planEx.id].basis}>
+                          Suggested {toDisplayField('weight_kg', suggestions[planEx.id].weight_kg, unit)} {unit}
                         </p>
                       )}
                     </div>
@@ -1878,7 +1919,11 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                                     // dip/pull-up machine takes load off.
                                     type="number" min={field === 'weight_kg' ? undefined : 0}
                                     step={field === 'weight_kg' || (field === 'duration_seconds' && timeUnit === 'min') ? 0.5 : 1}
-                                    placeholder="0"
+                                    // The suggestion shows here but is not a
+                                    // value until the set is ticked or typed.
+                                    placeholder={field === 'weight_kg' && planEx && suggestions[planEx.id]?.weight_kg != null
+                                      ? String(toDisplayField('weight_kg', suggestions[planEx.id].weight_kg, unit))
+                                      : '0'}
                                     value={display ?? ''}
                                     onChange={(e) => handleSetField(
                                       log, field, e.target.value, timeUnit,

@@ -50,6 +50,7 @@ urlpatterns = [
     path('workouts/sessions/', views.workout_sessions, name='workout-sessions'),
     path('workouts/sessions/<uuid:session_id>/', views.workout_session_detail, name='workout-session-detail'),
     path('workouts/sessions/<uuid:session_id>/sets/', views.workout_session_log_set, name='workout-session-log-set'),
+    path('workouts/sessions/<uuid:session_id>/suggestions/', views.workout_session_suggestions, name='workout-session-suggestions'),
     # Superset grouping for one day. One endpoint for the whole day, because
     # the invariants are about the SET of groups, not one exercise.
     path('workouts/days/<uuid:day_id>/supersets/', views.workout_day_supersets,

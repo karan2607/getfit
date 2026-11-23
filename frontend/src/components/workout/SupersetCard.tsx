@@ -1,4 +1,4 @@
-import type { Exercise, SetLog, MeasurementType } from '../../lib/api'
+import type { Exercise, SetLog, MeasurementType, WeightSuggestion } from '../../lib/api'
 import {
   type SetField, type WeightUnit, type TimeUnit, type DistanceUnit,
   fieldsFor, fieldLabel, toDisplayField, formatDuration, timeUnitFor,
@@ -35,11 +35,14 @@ export interface SupersetMember {
 }
 
 export default function SupersetCard({
-  members, unit, isCompleted, isOpen, onToggleOpen,
+  members, unit, suggestions = {}, isCompleted, isOpen, onToggleOpen,
   setFieldValue, isSetCompleted, onFieldChange, onToggleSet, onShowProgress,
 }: {
   members: SupersetMember[]
   unit: WeightUnit
+  // Per member, by exercise id: the weighted member gets its own, a
+  // bodyweight member gets none.
+  suggestions?: Record<string, WeightSuggestion>
   isCompleted: boolean
   isOpen: boolean
   onToggleOpen: () => void
@@ -100,6 +103,15 @@ export default function SupersetCard({
                   </p>
                 </div>
               ))}
+              {!isCompleted && members.map((member) => {
+                const s = suggestions[member.planEx.id]
+                if (s?.weight_kg == null) return null
+                return (
+                  <p key={member.planEx.id} className="text-[11px] text-brand-500 truncate" title={s.basis}>
+                    {member.planEx.name}: suggested {toDisplayField('weight_kg', s.weight_kg, unit)} {unit}
+                  </p>
+                )
+              })}
             </div>
           </div>
           {/* Rounds completed, NOT sets. This read "0/8" for a 2-member
@@ -193,7 +205,11 @@ export default function SupersetCard({
                                   step={field === 'weight_kg'
                                     || (field === 'duration_seconds' && timeUnit === 'min')
                                     ? 0.5 : 1}
-                                  placeholder="0"
+                                  placeholder={field === 'weight_kg'
+                                    && suggestions[member.planEx.id]?.weight_kg != null
+                                    ? String(toDisplayField('weight_kg',
+                                        suggestions[member.planEx.id].weight_kg, unit))
+                                    : '0'}
                                   value={display ?? ''}
                                   onChange={(e) => onFieldChange(
                                     log, field, e.target.value, timeUnit,

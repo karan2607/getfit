@@ -82,6 +82,23 @@ describe('SupersetCard', () => {
     expect(rest).toHaveLength(1)
   })
 
+  it('suggests a weight for the weighted member only, without filling it in', () => {
+    renderCard({
+      suggestions: {
+        e1: { weight: 185, weight_kg: 185 * 0.453592, unit: 'lb',
+              confidence: 'high', basis: 'from this slot' },
+      },
+    })
+    expect(screen.getByText(/Barbell Bench Press: suggested 185 lb/)).toBeInTheDocument()
+    expect(screen.queryByText(/Push-ups: suggested/)).not.toBeInTheDocument()
+
+    const benchRow = screen.getAllByRole('button', { name: 'Barbell Bench Press' })[0]
+      .closest('div.rounded-xl') as HTMLElement
+    const weight = benchRow.querySelectorAll('input[type=number]')[0] as HTMLInputElement
+    expect(weight.placeholder).toBe('185')
+    expect(weight.value).toBe('')      // advisory: not a value until confirmed
+  })
+
   it('names the group by its size', () => {
     renderCard()
     expect(screen.getByText(/Superset/)).toBeInTheDocument()

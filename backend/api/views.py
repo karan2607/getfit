@@ -63,6 +63,7 @@ from . import plan_changes
 from . import plan_templates
 from . import agent_loop
 from . import agent_router
+from . import weights
 from .user_time import user_today
 
 User = get_user_model()
@@ -3144,7 +3145,7 @@ def workout_sessions(request):
         user=request.user, exercise_day=day, is_completed=False
     ).first()
     if same_day:
-        return Response(WorkoutSessionSerializer(same_day).data)
+        return Response(_session_data(same_day))
 
     # Warn if there's an incomplete session for a different day (unless force=true)
     if not force:
@@ -3189,7 +3190,46 @@ def workout_sessions(request):
                 set_number=set_num,
             )
 
-    return Response(WorkoutSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+    return Response(_session_data(session), status=status.HTTP_201_CREATED)
+
+
+def _session_data(session, actuals=None):
+    """
+    The session payload, plus a suggested weight per exercise instance.
+
+    `weight_suggestions` is advisory and lives beside `set_logs`, never in
+    them: a suggestion written into a SetLog would become history the next
+    suggestion is computed from. Best-effort -- a failure here must never stop
+    a workout from opening.
+    """
+    data = WorkoutSessionSerializer(session).data
+    try:
+        data['weight_suggestions'] = weights.suggest_for_session(
+            session, unit=_user_unit(session.user), actuals=actuals)
+    except Exception:
+        logger.exception('weight suggestions failed for session %s', session.id)
+        data['weight_suggestions'] = {}
+    return data
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def workout_session_suggestions(request, session_id):
+    """
+    Recompute suggestions from today's actuals, including sets the client has
+    typed but not saved yet (`actuals`). Read-only: nothing is logged.
+    """
+    session = get_object_or_404(WorkoutSession, pk=session_id, user=request.user)
+    actuals = request.data.get('actuals') or []
+    if not isinstance(actuals, list):
+        actuals = []
+    try:
+        suggestions = weights.suggest_for_session(
+            session, unit=_user_unit(request.user), actuals=actuals)
+    except Exception:
+        logger.exception('weight suggestions failed for session %s', session.id)
+        suggestions = {}
+    return Response({'weight_suggestions': suggestions})
 
 
 @api_view(['GET', 'PATCH'])
@@ -3198,7 +3238,7 @@ def workout_session_detail(request, session_id):
     session = get_object_or_404(WorkoutSession, pk=session_id, user=request.user)
 
     if request.method == 'GET':
-        return Response(WorkoutSessionSerializer(session).data)
+        return Response(_session_data(session))
 
     if 'is_completed' in request.data and request.data['is_completed']:
         from django.utils import timezone as tz
