@@ -4252,7 +4252,8 @@ KB_AI_KEY_MARGIN = 0.15
 #    BARBELL CURL -- holds the wrong images and has to be re-resolved.
 # 3: machine incline press, which was resolving to the Smith-machine
 #    (barbell) incline bench press.
-KB_MATCH_VERSION = 3
+# 4: single-arm cable row, whose photos were reported as a glute press.
+KB_MATCH_VERSION = 4
 
 
 def _alias_for(name: str):
@@ -4591,6 +4592,23 @@ _KB_ALIASES = {
     'dumbbell single arm row': 'one-arm dumbbell row',
     'dumbbell single-arm row': 'one-arm dumbbell row',
     'single arm db row': 'one-arm dumbbell row',
+    # The cable version scored highest against "seated one-arm cable pulley
+    # rows", and every other key it could reach is also a row -- so the photo
+    # reported as a glute press came from that entry itself. Reported: "Single
+    # arm cable row also has wrong image. It's showing glute press". Not added
+    # to MISLABELLED_KB_KEYS: nobody has looked at its photos yet, and that
+    # list requires it. The two-arm seated cable row is the same pull from the
+    # same seat.
+    'single arm cable row': 'seated cable rows',
+    'single arm cable rows': 'seated cable rows',
+    'single-arm cable row': 'seated cable rows',
+    'single-arm cable rows': 'seated cable rows',
+    'one arm cable row': 'seated cable rows',
+    'one-arm cable row': 'seated cable rows',
+    'cable single arm row': 'seated cable rows',
+    'cable single-arm row': 'seated cable rows',
+    'seated single arm cable row': 'seated cable rows',
+    'single arm seated cable row': 'seated cable rows',
     # A standing dumbbell lateral raise was matching "dumbbell lying rear
     # lateral raise" -- the model picked a LYING rear-delt exercise to
     # illustrate a standing side-delt one. "side lateral raise" is the right key.

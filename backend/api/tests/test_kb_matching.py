@@ -326,8 +326,8 @@ class ReportedImageRegressionTests(SimpleTestCase):
         row exercise.
         """
         self.assertNotIn(views._kb_stem('row'), views._EQUIPMENT_STEMS)
-        self.assertEqual(views._resolve_kb_key('Single Arm Cable Row')[0],
-                         'seated one-arm cable pulley rows')
+        self.assertEqual(views._resolve_kb_key('Seated Cable Row')[0],
+                         'seated cable rows')
 
     def test_bird_dog_gets_no_image_rather_than_a_superman(self):
         """A quadruped opposite-limb hold is not a prone superman."""
@@ -526,9 +526,38 @@ class SingleArmDumbbellRowTests(SimpleTestCase):
                                        'dumbbell one-arm upright row'),
             kb[self.KEY][:2])
 
-    def test_cable_row_is_unchanged(self):
-        self.assertEqual(views._resolve_kb_key('Single Arm Cable Row')[0],
-                         'seated one-arm cable pulley rows')
+    def test_cable_row_is_not_the_dumbbell_entry(self):
+        self.assertNotEqual(views._resolve_kb_key('Single Arm Cable Row')[0],
+                            self.KEY)
+
+
+class SingleArmCableRowTests(SimpleTestCase):
+    """
+    "Single arm cable row also has wrong image. It's showing glute press".
+    It resolved to 'seated one-arm cable pulley rows', and that entry's photos
+    are what was reported.
+    """
+
+    KEY = 'seated cable rows'
+
+    def test_each_variant_resolves_to_the_seated_cable_row(self):
+        for name in ('Single Arm Cable Row', 'Single-Arm Cable Row',
+                     'Single Arm Cable Rows', 'One Arm Cable Row',
+                     'Single Arm Cable Row (Seated)',
+                     'Seated Single Arm Cable Row'):
+            self.assertEqual(views._resolve_kb_key(name)[0], self.KEY, msg=name)
+
+    def test_ai_picking_the_reported_entry_is_rejected(self):
+        self.assertFalse(views._kb_key_is_consistent(
+            'Single Arm Cable Row', 'seated one-arm cable pulley rows'))
+        kb = views._load_exercise_kb()
+        self.assertEqual(
+            views._images_for_exercise(
+                'Single Arm Cable Row', 'seated one-arm cable pulley rows'),
+            kb[self.KEY][:2])
+
+    def test_the_version_was_bumped_so_cached_rows_re_resolve(self):
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 4)
 
 
 class CachedGuideImageTests(APITestCase):
