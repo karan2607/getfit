@@ -5,8 +5,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
+    # Renumbered from 0056: the feedback loop shipped 0056_meallog_fiber_g
+    # to staging while this was being written, and two leaves in the graph
+    # stop `migrate` dead. Stacked behind it rather than merged -- the two
+    # touch different tables and there is nothing to reconcile.
     dependencies = [
-        ('api', '0055_feedback_branch'),
+        ('api', '0056_meallog_fiber_g'),
     ]
 
     operations = [
