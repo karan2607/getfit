@@ -3607,6 +3607,7 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
         target_low, target_high = target_reps
     else:
         target_low = target_high = target_reps
+    has_target = bool(target_high)
     target_high = target_high or 10
     target_low = target_low or target_high
     target = target_high          # retained for the summary strings
@@ -3618,18 +3619,31 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
             continue
         reps = [s['reps_completed'] or 0 for s in sets]
         best = max(values)
+        # Each session is judged against the range it was asked for. Scoring
+        # an accumulation-phase 12 against an intensification 6-8 (or the
+        # reverse) is how the guide advice ignored phase changes the plan
+        # itself had made. Sets from before targets were recorded fall back to
+        # today's range, which is what every session used to be judged by.
+        own_low, own_high = None, None
+        for s in sets:
+            own_low, own_high = _target_rep_range(
+                s.get('target_reps') or s.get('exercise__reps'))
+            if own_high:
+                break
+        s_low, s_high = ((own_low, own_high) if own_high
+                         else (target_low, target_high))
         if metric_field == 'weight_kg':
             best = _to_display_weight(best, unit)
             worked = [r for r in reps if r > 0]
             # Reached the range -> not a failure, even if the top wasn't hit.
-            hit_all = bool(worked) and all(r >= target_low for r in worked)
+            hit_all = bool(worked) and all(r >= s_low for r in worked)
             # Topped the range -> eligible for more weight.
-            topped = bool(worked) and all(r >= target_high for r in worked)
+            topped = bool(worked) and all(r >= s_high for r in worked)
         else:
             # For time/rep-driven work the metric IS the target.
             hit_all = topped = True
         results.append({'value': best, 'hit_all': hit_all, 'topped': topped,
-                        'reps': reps})
+                        'reps': reps, 'range': (s_low, s_high)})
 
     if len(results) < 2:
         return {'direction': None, 'summary': None}
@@ -3657,11 +3671,52 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     # The heaviest weight at which the target rep count was actually achieved,
     # across all the history we were given. This is the single most useful fact
     # for recovering from an over-ambitious jump, and it was previously ignored.
-    proven = [r['value'] for r in results if r['hit_all'] and r['value'] is not None]
+    # Only sessions done for TODAY's range count: hitting 12 reps in an
+    # accumulation block says nothing about where 6-8 reps sits.
+    proven = [r['value'] for r in results
+              if r['hit_all'] and r['value'] is not None
+              and r['range'] == (target_low, target_high)]
     best_at_target = max(proven) if proven else None
 
-    target_str = (f'{target_low}-{target_high}'
-                  if target_low != target_high else str(target_high))
+    def range_str(low, high):
+        return f'{low}-{high}' if low != high else str(high)
+
+    target_str = range_str(target_low, target_high)
+
+    # The plan moved to a different rep range since the last session (say
+    # accumulation 10-12 -> intensification 6-8). Neither "topped the old
+    # range, add 5lb" nor "short of the new range, drop" is right: the load
+    # should move with the range. Estimated the way the weight suggestion
+    # does it, about 2.5% per rep, so the two cannot disagree in direction.
+    if has_target and recent['range'] != (target_low, target_high):
+        recent_desc, recent_avg = _describe_reps(recent['reps'])
+        factor = 1.0
+        if recent_avg and recent_avg < target_low:
+            factor = max(0.75, 1.0 - weights._REP_STEP * (target_low - recent_avg))
+        elif recent_avg and recent_avg > target_high:
+            factor = min(1.10, 1.0 + weights._REP_STEP * (recent_avg - target_high))
+        value = recent['value']
+        estimate = (round(weights._round_to_increment(value * factor, unit), 1)
+                    if value and value > 0 and factor != 1.0 else value)
+        if estimate is not None and value is not None and estimate > value:
+            verdict = 'HEAVIER FOR FEWER REPS'
+        elif estimate is not None and value is not None and estimate < value:
+            verdict = 'LIGHTER FOR MORE REPS'
+        else:
+            verdict = 'KEEP THE WEIGHT'
+        previous = range_str(*recent['range'])
+        summary = (f"New rep range {target_str} (was {previous}). Last session "
+                   f"{recent_desc} at {fmt(value)} → {verdict}")
+        if estimate != value:
+            summary += f", about {fmt(estimate)}"
+        return {
+            'direction': 'rerange',
+            'last_value': value,
+            'suggested_value': estimate,
+            'previous_range': previous,
+            'best_at_target': best_at_target,
+            'summary': summary,
+        }
 
     # Double progression: completing EVERY set at the top of the range earns a
     # weight increase next session. One such session is the standard trigger.
@@ -3724,8 +3779,9 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
     # `mild` stops the advice from sending the user all the way back to
     # best_at_target: being a rep or two short at 37.5lb was answered with
     # "drop to about 20lb", because 20lb was the last weight that met TODAY's
-    # target. Logs don't record the target they were done against, so an older,
-    # lower-rep target makes every heavier session look like a failure.
+    # target. Sets logged before targets were recorded are judged against
+    # today's range, so an older, lower-rep target can still make a heavier
+    # session look like a failure.
     if not recent['hit_all'] and not prev['hit_all']:
         return {
             'direction': 'decrease',
@@ -3819,6 +3875,9 @@ def _exercise_history(user, exercise_name, measurement_type, limit=30):
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
             'speed_kmh', 'incline_pct', 'distance_m',
+            # What each set was asked for, so a session from an earlier phase
+            # is judged against its own range rather than today's.
+            'target_reps', 'exercise__reps',
         )[:limit]
     )
     return logs, metric
@@ -3870,7 +3929,24 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
             r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
             exercise_name, re.I) else 'upper'
         step = _increment_for(unit, body)
-        if direction == 'increase':
+        if direction == 'rerange':
+            suggested = prog.get('suggested_value')
+            change = (f'new {low}-{high} rep range' if low != high
+                      else f'new {high}-rep target')
+            was = prog.get('previous_range')
+            if suggested is not None and suggested > last:
+                out['recommended_weight'] = (
+                    f'Go up to about {suggested}{unit} for the {change} — you '
+                    f'used {last}{unit} for {was} reps.')
+            elif suggested is not None and suggested < last:
+                out['recommended_weight'] = (
+                    f'Come down to about {suggested}{unit} for the {change} — '
+                    f'you used {last}{unit} for {was} reps.')
+            else:
+                out['recommended_weight'] = (
+                    f'Start the {change} at {last}{unit} — your last session '
+                    f'already landed in it.')
+        elif direction == 'increase':
             # Don't claim a session count here -- the streak is only known to
             # _analyze_progression, and asserting "twice" was wrong whenever a
             # single top-of-range session triggered the increase.
@@ -4057,7 +4133,9 @@ def workout_plan_prepare_week(request, plan_id):
         'OVERRIDES your own judgement. If it says DECREASE WEIGHT, your advice\n'
         'must lower the weight — do not suggest maintaining or "working on reps"\n'
         'at a load the user demonstrably could not complete the target reps at.\n'
-        'If it names a weight the target was previously hit at, recommend that.\n')
+        'If it names a weight the target was previously hit at, recommend that.\n'
+        'If it says "New rep range", the plan has moved to a new training\n'
+        'phase: set the load for the NEW range, as the hint says.\n')
     prompt_lines.append('Exercises (the [tag] is authoritative — respect it):')
     for i, name in enumerate(exercise_names, 1):
         mtype = type_by_name[name]
