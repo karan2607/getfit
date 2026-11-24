@@ -12,5 +12,12 @@ export default defineConfig({
     globals: true,
     // Only our own tests. Without this, vitest walks node_modules.
     include: ['src/**/*.test.{ts,tsx}'],
+    // Pinned so date handling is tested somewhere other than UTC. Half the
+    // date bugs this app has had are invisible at UTC+0: `new Date('2026-11-23')`
+    // is midnight UTC, which only renders as the 22nd once you are west of
+    // Greenwich. An unpinned suite agrees with the bug on a UTC machine.
+    // Pacific is the owner's own zone, so a test that passes here passes
+    // where it matters.
+    env: { TZ: 'America/Los_Angeles' },
   },
 })

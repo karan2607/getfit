@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "check:palette": "node scripts/check-palette.mjs"
+    "check:palette": "node scripts/check-palette.mjs",
+    "check:dates": "node scripts/check-dates.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

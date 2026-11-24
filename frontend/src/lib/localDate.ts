@@ -39,3 +39,48 @@ export function describeDate(iso: string, now: Date = new Date()): string {
 
   return pretty
 }
+
+/** A date-only string: 2026-11-23, with no time and no zone. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Parse a server date, reading a date-only string as the LOCAL day.
+ *
+ * `new Date('2026-11-23')` is midnight UTC, which anywhere west of Greenwich
+ * is the previous afternoon. The health page rendered every row through it,
+ * so a day's steps were labelled a day early and "last synced" read
+ * yesterday. The diet page had the same bug in November.
+ *
+ * A full timestamp is an instant and is left exactly as it is: the health
+ * views pass both shapes through one formatter, and appending midnight to an
+ * instant would move it.
+ */
+export function parseLocal(iso: string): Date {
+  if (DATE_ONLY.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  return new Date(iso)
+}
+
+/** "Nov 23" for either a date-only string or an instant. */
+export function formatDayLabel(iso: string): string {
+  return parseLocal(iso).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+  })
+}
+
+/**
+ * Whole days from `iso` to now, counted on the local calendar.
+ *
+ * Subtracting raw milliseconds and dividing is what made "days since the
+ * latest data" read 1 on a day the watch had already synced: midnight UTC is
+ * eight hours into yesterday in Pacific, so a same-day record looked a day
+ * old. Comparing local midnights removes the offset entirely.
+ */
+export function daysSince(iso: string, now: Date = new Date()): number {
+  const then = parseLocal(iso)
+  const thenMidnight = new Date(then.getFullYear(), then.getMonth(), then.getDate())
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((nowMidnight.getTime() - thenMidnight.getTime()) / 86_400_000)
+}

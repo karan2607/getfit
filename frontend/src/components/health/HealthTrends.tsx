@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { daysSince } from '../../lib/localDate'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
@@ -216,7 +217,7 @@ export default function HealthTrends({ latestSummaryDate }: {
   // reason. A day boundary crossing mid-session is not worth a re-render.
   const [now] = useState(() => Date.now())
   const staleDays = latestSummaryDate
-    ? Math.floor((now - new Date(latestSummaryDate).getTime()) / 86_400_000)
+    ? daysSince(latestSummaryDate, new Date(now))
     : null
 
   return (

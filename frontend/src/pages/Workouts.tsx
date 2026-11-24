@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatDayLabel } from '../lib/localDate'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type WorkoutPlan, type WorkoutPlanDetail, type WorkoutPlanPreview, type WorkoutSessionDetail, type WorkoutSessionSummary, type SetLog, type ExerciseHistory, type Exercise, type MeasurementType, type WeightSuggestion } from '../lib/api'
 import { actualsFromDrafts, weightToConfirm } from '../lib/weightSuggestions'
@@ -2000,7 +2001,7 @@ function LineChart({ points, formatValue }: {
         <g key={i}>
           <circle cx={x(i)} cy={y(p.value)} r="4" fill="#be123c" />
           <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#9ca3af">
-            {new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {formatDayLabel(p.date)}
           </text>
         </g>
       ))}

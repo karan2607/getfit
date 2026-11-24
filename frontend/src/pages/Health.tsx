@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDayLabel } from '../lib/localDate'
 import { api, type HealthWorkout, type HealthRecovery, type HealthCalorieBalance, type HealthActivitySuggestion, type HealthDailySummary } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getErrorMessage } from '../lib/errors'
@@ -11,9 +12,11 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+// Dates arrive in two shapes here: `s.date` is a calendar day, while
+// `lastSyncAt` and `workout.start_time` are instants. `formatDayLabel` reads
+// a date-only string as the LOCAL day -- parsing it as midnight UTC is what
+// labelled every row a day early in Pacific.
+const fmtDate = formatDayLabel
 
 function fmtDuration(secs: number | null) {
   if (!secs) return '—'

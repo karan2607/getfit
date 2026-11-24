@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeDate, localToday } from './localDate'
+import { daysSince, describeDate, formatDayLabel, localToday, parseLocal } from './localDate'
 
 /**
  * The diet page defaulted its date picker to `toISOString().split('T')[0]`,
@@ -43,5 +43,50 @@ describe('describeDate', () => {
 
   it('returns the input unchanged if it is not a date', () => {
     expect(describeDate('not-a-date', now)).toBe('not-a-date')
+  })
+})
+
+describe('parseLocal', () => {
+  it('reads a date-only string as local midnight, not UTC midnight', () => {
+    // The live bug: `new Date('2026-11-23')` is midnight UTC, which in
+    // Pacific is 23 Nov 16:00 the previous day -- so every health row was
+    // labelled a day early.
+    const d = parseLocal('2026-11-23')
+    expect(d.getFullYear()).toBe(2026)
+    expect(d.getMonth()).toBe(10)
+    expect(d.getDate()).toBe(23)
+    expect(d.getHours()).toBe(0)
+  })
+
+  it('leaves a full timestamp alone', () => {
+    // fmtDate is called with both shapes -- `s.date` is date-only, but
+    // `workout.start_time` and `lastSyncAt` are instants. Appending
+    // midnight to an instant would move it.
+    const iso = '2026-11-23T10:30:00Z'
+    expect(parseLocal(iso).getTime()).toBe(new Date(iso).getTime())
+  })
+})
+
+describe('formatDayLabel', () => {
+  it('labels a date-only string on its own day', () => {
+    expect(formatDayLabel('2026-11-23')).toBe('Nov 23')
+  })
+
+  it('still formats an instant', () => {
+    expect(formatDayLabel('2026-11-23T20:00:00Z')).toBe('Nov 23')
+  })
+})
+
+describe('daysSince', () => {
+  it('reads zero on the day of the latest data', () => {
+    // The staleness line said "1 day" on a day the watch had just synced,
+    // because midnight UTC is yesterday afternoon in Pacific.
+    const now = new Date(2026, 10, 23, 9, 0, 0)
+    expect(daysSince('2026-11-23', now)).toBe(0)
+  })
+
+  it('counts whole local days back', () => {
+    const now = new Date(2026, 10, 23, 9, 0, 0)
+    expect(daysSince('2026-11-20', now)).toBe(3)
   })
 })
