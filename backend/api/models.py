@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from . import exercise_types
@@ -1052,6 +1053,24 @@ class ExerciseGuide(models.Model):
     class Meta:
         ordering = ['name']
         unique_together = ('user', 'name')
+        constraints = [
+            # `unique_together` does NOT constrain the shared guides.
+            # Postgres treats NULLs as distinct, so every generic row has
+            # user=NULL and no two of them ever collide -- the table happily
+            # held two rows for one exercise, and `update_or_create` then
+            # raised MultipleObjectsReturned and the guide endpoint 503'd.
+            # Reported from staging as "Incline Dumbbell Press has no photo",
+            # which it did have; the request never got that far.
+            #
+            # Lower(name) because every read is `name__iexact` while every
+            # write passes the exact string. Two spellings differing only in
+            # case are one row to the reader and were two to the writer.
+            models.UniqueConstraint(
+                Lower('name'),
+                condition=models.Q(user__isnull=True),
+                name='uniq_generic_exercise_guide_name',
+            ),
+        ]
 
     def __str__(self):
         return self.name
