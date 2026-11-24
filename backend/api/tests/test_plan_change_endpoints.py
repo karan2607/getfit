@@ -292,7 +292,7 @@ class DraftBuildsItsOwnPayloadTests(APITestCase):
         self.assertNotIn('Barbell Bench Press', names)
         # The untouched exercises are still there.
         self.assertIn(exercise_names.canonical('Standing Calf Raise'), names)
-        self.assertIn('Leg Extension', names)
+        self.assertIn(exercise_names.canonical('Leg Extension'), names)
 
     def test_a_replacement_keeps_the_slots_prescription(self):
         """A substitution changes the exercise, not the programming."""

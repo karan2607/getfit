@@ -19,6 +19,7 @@ from django.test import TestCase, SimpleTestCase
 from api import views
 from api.models import (
     User, UserProfile, WorkoutPlan, WorkoutDay, Exercise,
+    ExerciseLibraryEntry,
 )
 
 
@@ -265,6 +266,52 @@ class ProfileCompletenessTests(TestCase):
         self.assertIn('age', res.data['missing_for_planning'])
 
 
+
+class CatalogueContraindicationTests(TestCase):
+    """A client's own "do not offer me this" must reach the vocabulary."""
+
+    ENTRY = 'Barbell Squat [barbell]'
+
+    def entries(self, prompt):
+        """
+        The catalogue's entries as a set, so a name is matched WHOLE.
+
+        A substring check is not enough here: 'Barbell Squat [barbell]' sits
+        inside 'Wide Stance Barbell Squat [barbell]', a different movement
+        that stays on offer, so a naive assertNotIn can never pass.
+        """
+        body = prompt.split('CATALOGUE (grouped by primary muscle', 1)[1]
+        found = set()
+        for line in body.splitlines():
+            if ':' not in line:
+                continue
+            found.update(e.strip() for e in line.split(':', 1)[1].split(';'))
+        return found
+
+    def test_a_contraindicated_movement_is_kept_out_of_the_catalogue(self):
+        user = User.objects.create_user(email='contra@test.local', password='x')
+        self.assertIn(self.ENTRY,
+                      self.entries(views._workout_system_prompt(user=user)))
+        ExerciseLibraryEntry.objects.create(
+            user=user, name='Barbell Squat',
+            canonical_key='Barbell Squat', contraindicated=True,
+            contraindication_reason='knee')
+        after = self.entries(views._workout_system_prompt(user=user))
+        self.assertNotIn(self.ENTRY, after)
+        # Only that movement. Its neighbours are still named.
+        self.assertIn('Wide Stance Barbell Squat [barbell]', after)
+
+    def test_another_users_contraindication_does_not_narrow_this_one(self):
+        mine = User.objects.create_user(email='mine@test.local', password='x')
+        theirs = User.objects.create_user(email='theirs@test.local', password='x')
+        ExerciseLibraryEntry.objects.create(
+            user=theirs, name='Barbell Squat',
+            canonical_key='Barbell Squat', contraindicated=True,
+            contraindication_reason='knee')
+        self.assertIn(self.ENTRY,
+                      self.entries(views._workout_system_prompt(user=mine)))
+
+
 class InjuryProtocolTests(SimpleTestCase):
     """
     The injury protocol must reason, not look up.
@@ -290,8 +337,21 @@ class InjuryProtocolTests(SimpleTestCase):
                       prompt.index('WARMUP & MOBILITY')]
 
     def test_it_no_longer_prescribes_a_trap_bar_deadlift(self):
-        """Lifted from the floor, so it contradicts the standing back rule."""
-        self.assertNotIn('trap bar', views._workout_system_prompt().lower())
+        """
+        Lifted from the floor, so it contradicts the standing back rule.
+
+        Scoped to the DOCTRINE, not the whole prompt. The prompt now ends
+        with the exercise catalogue, a vocabulary of every movement the app
+        can illustrate -- "Trap Bar Deadlift" is in the library and so is in
+        that list. Naming a movement as the correct spelling is not
+        prescribing it, and the doctrine above still rules it out for a
+        client who should not lift from the floor. What a particular client
+        must never be offered is filtered per user; see
+        `test_a_contraindicated_movement_is_kept_out_of_the_catalogue`.
+        """
+        prompt = views._workout_system_prompt()
+        doctrine = prompt[:prompt.index('CATALOGUE (grouped by primary muscle')]
+        self.assertNotIn('trap bar', doctrine.lower())
 
     def test_it_tells_the_model_to_generalise_past_the_named_exercise(self):
         protocol = self.protocol().lower()

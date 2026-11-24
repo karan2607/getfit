@@ -40,6 +40,7 @@ _DOMAIN = {
 
     'get_plan_week': WORKOUT,
     'propose_plan_change': WORKOUT,
+    'search_exercise_catalogue': WORKOUT,
 
     'list_workout_plans': WORKOUT,
     'get_workout_plan': WORKOUT,
@@ -250,7 +251,8 @@ def run_tool(user, name, arguments, session=None, model=''):
 # draft never reproduces the weeks it did not touch, so it never needs to see
 # them.
 
-PLAN_TOOLS = ('get_plan_week', 'propose_plan_change')
+PLAN_TOOLS = ('get_plan_week', 'propose_plan_change',
+              'search_exercise_catalogue')
 
 
 def _tool_get_plan_week(user, args):
@@ -356,7 +358,62 @@ def _tool_propose_plan_change(user, args):
     }
 
 
+def _tool_search_exercise_catalogue(user, args):
+    """
+    Exercises the app can illustrate, filtered by muscle and equipment.
+
+    Here so a swap can be named from the catalogue the plan generator uses.
+    Without it the model proposes a replacement out of its own head, the name
+    resolves to no photo, and the user sees a blank card -- the same gap that
+    left 766 of the library's 873 folders unreachable.
+    """
+    from . import exercise_catalogue
+
+    muscle = (args.get('muscle') or '').strip()
+    if not muscle:
+        raise mcp.McpError('muscle is required')
+    found = exercise_catalogue.search(
+        muscle=muscle, equipment=(args.get('equipment') or '').strip() or None,
+        limit=40)
+    return {
+        'muscle': muscle,
+        'count': len(found),
+        'exercises': [
+            {'name': e['name'],
+             'equipment': exercise_catalogue.equipment_label(e.get('equipment')),
+             'mechanic': e.get('mechanic')}
+            for e in found
+        ],
+    }
+
 _PLAN_TOOL_SPECS = {
+    'search_exercise_catalogue': {
+        'description': (
+            'Exercises the app can illustrate, for a muscle group. Name a '
+            'replacement or a new exercise from this list rather than from '
+            'memory: a name that is not in the library shows the user a blank '
+            'where the photo goes. '
+            'Muscle is one of: abdominals, abductors, adductors, biceps, '
+            'calves, chest, forearms, glutes, hamstrings, lats, lower back, '
+            'middle back, neck, quadriceps, shoulders, traps, triceps. '
+            'It matches exercises that work the muscle either primarily or '
+            'as a secondary, so a press appears under triceps.'),
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'muscle': {'type': 'string'},
+                'equipment': {
+                    'type': 'string',
+                    'description':
+                        'Optional exact filter: barbell, dumbbell, machine, '
+                        'cable, kettlebells, bands, body only.',
+                },
+            },
+            'required': ['muscle'],
+        },
+        'handler': _tool_search_exercise_catalogue,
+        'writes': False,
+    },
     'get_plan_week': {
         'description': (
             'Read ONE week of a workout plan, with the program phase map. '

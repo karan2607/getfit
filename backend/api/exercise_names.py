@@ -60,6 +60,7 @@ tokenising, so the two never compare equal.
 """
 
 import re
+import threading
 
 # ---------------------------------------------------------------------------
 # Normalisation
@@ -243,6 +244,23 @@ CANONICAL_NAMES = (
 # Every entry here is a judgement call that can be read and vetoed. Nothing is
 # inferred by similarity.
 ALIASES = {
+    # The exercise library's own spelling for movements this app already had
+    # a name for. These are not stylistic: the catalogue the plan generator
+    # reads is built from library names, so without an alias here the model
+    # is told to write "Barbell Bench Press - Medium Grip" and the curated
+    # "Barbell Bench Press" -- the spelling with a human-verified photo --
+    # never appears in a plan again.
+    #
+    # Only movements that are genuinely the same. Deliberately NOT aliased:
+    # "Barbell Glute Bridge" onto "Glute Bridges" (loaded vs unloaded, the
+    # same merge refused for Walking Lunges below), "Cable Seated Lateral
+    # Raise" onto "Cable Lateral Raise" (seated vs standing), and every
+    # push-up variant onto "Push-ups".
+    'barbell bench press medium grip': 'Barbell Bench Press',
+    'barbell incline bench press medium grip': 'Incline Barbell Press',
+    'close grip barbell bench press': 'Close-Grip Bench Press',
+    'machine shoulder military press': 'Machine Shoulder Press',
+    'bent over two dumbbell row': 'Dumbbell Bent-Over Row',
     # Closed-up compounds. `tokens()` cannot fold these onto the hyphenated
     # spelling on its own -- "pushups" is one token, "push-ups" is two -- and
     # teaching it to re-join adjacent tokens would merge things that are not
@@ -351,10 +369,44 @@ def _build_index():
             raise ValueError(
                 'ALIASES target %r is not in CANONICAL_NAMES' % target)
         index.setdefault(key(variant), target)
+
+    # The exercise catalogue, registered LAST and only with setdefault, so a
+    # curated spelling above always wins. The plan generator now names
+    # exercises from that catalogue (see api/exercise_catalogue.py), which means
+    # ~876 new spellings can arrive in plans. Registering them keeps history
+    # folding working for them, and folds the library's spelling onto the
+    # curated one where both exist -- the library writes "Wide-Grip Lat
+    # Pulldown", this app has always written "Lat Pulldown (Wide Grip)", and a
+    # user's logged sets must not split across the two.
+    #
+    # Imported here, and the whole index built lazily, because
+    # exercise_muscles imports THIS module. Building at import time made that
+    # a partial-initialisation cycle the moment the catalogue was wired in.
+    from . import exercise_muscles
+    for rec in exercise_muscles.records().values():
+        name = rec.get('display')
+        if name:
+            index.setdefault(key(name), name)
     return index
 
 
-_BY_KEY = _build_index()
+_BY_KEY = None
+_INDEX_LOCK = threading.Lock()
+
+
+def _index():
+    """The folding index, built on first use.
+
+    Lazy because `_build_index` reads `exercise_muscles`, which imports this
+    module: building at import time meant whichever of the two was imported
+    first saw the other half-initialised.
+    """
+    global _BY_KEY
+    if _BY_KEY is None:
+        with _INDEX_LOCK:
+            if _BY_KEY is None:
+                _BY_KEY = _build_index()
+    return _BY_KEY
 
 
 def canonical(name):
@@ -370,7 +422,7 @@ def canonical(name):
     text = str(name).strip()
     if not text:
         return text
-    return _BY_KEY.get(key(text), text)
+    return _index().get(key(text), text)
 
 
 def is_canonical(name):

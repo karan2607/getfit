@@ -168,7 +168,11 @@ class RefusedMergeTests(SimpleTestCase):
 
     def test_an_unregistered_name_is_returned_unchanged(self):
         """Never guesses: a movement with no registry entry is left alone."""
-        for name in ('Jefferson Curl', 'Zercher Squat', 'Nordic Curl',
+        # Names the library genuinely does not carry. 'Zercher Squat'
+        # used to be one and is not any more: registering the library's own
+        # 873 names brought 'Zercher Squats' in, and the singular now folds
+        # to it. That is the registry working, not a guess.
+        for name in ('Jefferson Curl', 'Copenhagen Plank', 'Nordic Curl',
                      'Some Exercise Nobody Has Heard Of'):
             self.assertEqual(en.canonical(name), name)
             self.assertTrue(en.is_canonical(name))
@@ -400,5 +404,5 @@ class CreationTests(TestCase):
         day = WorkoutDay.objects.create(plan=plan, day_number=1,
                                         week_number=1, name='Push')
         exercise = views._create_exercise(
-            day, {'name': 'Zercher Squat', 'sets': 3, 'reps': '5'}, 0)
-        self.assertEqual(exercise.name, 'Zercher Squat')
+            day, {'name': 'Copenhagen Plank', 'sets': 3, 'reps': '5'}, 0)
+        self.assertEqual(exercise.name, 'Copenhagen Plank')

@@ -189,8 +189,10 @@ class MergedExerciseSavePathTests(APITestCase):
             {'name': 'Barbell Squat', 'sets': 3, 'reps': '5'},
             {'name': 'Leg Extension + Leg Curl', 'sets': 3, 'reps': '12'},
         ])
+        # Stored under the library's spelling: 'Leg Extension' is saved
+        # as 'Leg Extensions'.
         groups = [e.composite_id for e in saved
-                  if e.name in ('Leg Extension', 'Leg Curl')]
+                  if e.name in ('Leg Extensions', 'Leg Curl')]
         self.assertEqual(len(groups), 2)
         self.assertIsNotNone(groups[0])
         self.assertEqual(groups[0], groups[1])

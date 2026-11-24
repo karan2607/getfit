@@ -145,6 +145,18 @@ def catalogue_names():
     return list(_load().keys())
 
 
+def records():
+    """
+    Every stored record, keyed as stored (lowercase name).
+
+    Exposed so the catalogue (api/exercise_catalogue.py) can read display
+    names, category and level without opening this file a second time. A
+    second copy of the upstream dataset is exactly what the exercise-library
+    seeder warns against, and this file already holds all 876 records.
+    """
+    return _load()
+
+
 def profile_for(name):
     """
     Movement facts for an exercise name, or None when unknown.

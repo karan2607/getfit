@@ -42,7 +42,7 @@ class CanonicalBackfillTests(TestCase):
             day=self.day, name='Dumbbell Incline Press', sets=3, reps='8-12',
             measurement_type=et.WEIGHT_REPS)
         self.untouched = Exercise.objects.create(
-            day=self.day, name='Zercher Squat', sets=3, reps='5',
+            day=self.day, name='Copenhagen Plank', sets=3, reps='5',
             measurement_type=et.WEIGHT_REPS, order=1)
 
         self.logged = {
@@ -50,7 +50,7 @@ class CanonicalBackfillTests(TestCase):
             'Incline Dumbbell Press': 6,
             'Dumbbell Triceps Extension (Overhead)': 3,
             'Overhead Dumbbell Extension (Seated)': 3,
-            'Zercher Squat': 3,
+            'Copenhagen Plank': 3,
         }
         self.session = WorkoutSession.objects.create(
             user=self.user, exercise_day=self.day, day_name='Push',
@@ -125,8 +125,8 @@ class CanonicalBackfillTests(TestCase):
         """Never guesses: no registry entry means no rewrite."""
         self.run_step()
         self.untouched.refresh_from_db()
-        self.assertEqual(self.untouched.name, 'Zercher Squat')
-        self.assertEqual(self.names().get('Zercher Squat'), 3)
+        self.assertEqual(self.untouched.name, 'Copenhagen Plank')
+        self.assertEqual(self.names().get('Copenhagen Plank'), 3)
 
     def test_sessions_survive(self):
         self.run_step()

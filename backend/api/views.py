@@ -59,6 +59,8 @@ from .gemini import stream_gemini_chat, call_gemini_json, GeminiError
 from .claude import ClaudeError
 from . import exercise_types
 from . import exercise_names
+from . import exercise_catalogue
+from . import photo_audit
 from . import plan_changes
 from . import plan_templates
 from . import agent_loop
@@ -1085,7 +1087,25 @@ def _client_context_lines(profile, plan=None, preferred_unit='lb',
     return lines
 
 
-def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
+def _contraindicated_identities(user):
+    """
+    Movement identities this client must not be offered, or an empty set.
+
+    Reads the same `ExerciseLibraryEntry` rows the template filter reads, so
+    "do not offer me this" means the same thing whether the plan comes from a
+    template or from the model. Returns identities rather than spellings:
+    the catalogue prints canonical names and the library stores its own.
+    """
+    if user is None:
+        return frozenset()
+    from .plan_templates import _contraindicated_keys
+
+    return frozenset(exercise_names.key(k)
+                     for k in _contraindicated_keys(user) if k)
+
+
+def _workout_system_prompt(preferred_unit: str = 'lb',
+                           equipment: str = '', user=None) -> str:
     """
     The coaching doctrine, shared by whole-plan and single-week generation.
 
@@ -1093,6 +1113,10 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
     measurement types, the conventional rep brackets, the injury protocol and
     the ban on weights in notes. Two copies would drift, and the drift would
     show up as weeks 2+ quietly violating gates week 1 passes.
+
+    `equipment` narrows the exercise catalogue below. It is the free text from
+    the generation form, and a gym with everything -- the common case -- leaves
+    the catalogue whole.
     """
     return (
 
@@ -1224,10 +1248,28 @@ def _workout_system_prompt(preferred_unit: str = 'lb') -> str:
         'Repeat them if they are the optimal choice. Vary them if the phase calls for a different stimulus. '
         'Never avoid an exercise just because it appeared before — effectiveness over novelty.\n\n'
 
-        'EXERCISE NAMES: Use exact common names found in standard gym facilities.\n'
+        # The catalogue is why this section exists. Before it, exercise names
+        # came out of the model's own head and the photo library was searched
+        # afterwards for something that matched -- which is how 766 of its 873
+        # folders became unreachable and 98 named exercises ended up with no
+        # photo. Naming from a list that is known to resolve replaces the
+        # search with a lookup. See api/exercise_catalogue.py.
+        'EXERCISE NAMES — NAME THEM FROM THE CATALOGUE BELOW:\n'
+        'Spell each exercise EXACTLY as the catalogue spells it. Every name in\n'
+        'it is a real movement the app can illustrate; a name you invent\n'
+        'probably is not, and the client sees a blank where the photo goes.\n'
+        'Choose on merit — the catalogue is a spelling authority, not a\n'
+        'suggestion to use obscure movements. The best exercise for the goal\n'
+        'is almost always a well-known compound, and it is in the list.\n'
+        'If nothing in the catalogue genuinely fits, use the simplest\n'
+        'recognisable name and carry on; the plan is still correct.\n'
         'Cable crossover valid variants: "High-to-Low Cable Crossover", "Low-to-High Cable Crossover", '
-        '"Standing Cable Crossover". "Mid-to-High" does not exist — never use it.\n'
-        'When uncertain, use the simplest, most recognisable name.\n\n'
+        '"Standing Cable Crossover". "Mid-to-High" does not exist — never use it.\n\n'
+        'CATALOGUE (grouped by primary muscle, equipment in brackets):\n'
+        + (exercise_catalogue.catalogue_text(
+            equipment=equipment,
+            exclude=_contraindicated_identities(user)) or '(unavailable)')
+        + '\n\n'
 
         'MEASUREMENT TYPE (mandatory for every exercise):\n'
         'Each exercise must include a "measurement_type" field. Use this reference:\n'
@@ -1294,7 +1336,8 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
     level = experience_level or getattr(profile, 'experience_level', 'beginner') or 'beginner'
     equip = equipment or 'full gym'
 
-    system = _workout_system_prompt(preferred_unit)
+    system = _workout_system_prompt(
+        preferred_unit, equipment=equip, user=getattr(profile, 'user', None))
 
     # Build the structured user prompt
     age = getattr(profile, 'age', None) if profile else None
@@ -1509,7 +1552,11 @@ def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
         '            "is_rest_day": false, "exercises": [...]}]',
         '}',
     ]
-    return _workout_system_prompt(preferred_unit), '\n'.join(
+    # Week N is narrowed by the plan's own equipment, so a dumbbells-only
+    # plan does not get a barbell catalogue in week 5.
+    return _workout_system_prompt(
+        preferred_unit, equipment=getattr(plan, 'equipment', '') or '',
+        user=getattr(plan, 'user', None)), '\n'.join(
         line for line in lines if line is not None)
 
 
@@ -4575,11 +4622,53 @@ def _resolve_kb_key(name: str):
 
     Returns (key, score) with key=None on a miss.
     """
+    exact = _resolve_exact_kb_key(name)
+    if exact:
+        return exact, 1.0
+
+    return _best_scored_kb_key(name)
+
+
+def _resolve_exact_kb_key(name: str):
+    """
+    The folder this name IS, with no scoring: alias, library spelling, or
+    canonical spelling. None when the name is not one of the library's own.
+
+    Split out from the scorer because the two answer different questions and
+    the comparative AI-key guard needs them apart. An exact answer is not a
+    score of 1.0 to be compared against -- `_kb_score` is unbounded and
+    routinely exceeds 1 -- it is the answer, and an AI key that disagrees
+    with it is simply wrong.
+    """
     kb = _load_exercise_kb()
 
     alias = _alias_for(name)
     if alias and alias in kb:
-        return alias, 1.0
+        return alias
+
+    # The library's own spelling is tried BEFORE the canonical one, and the
+    # order is load-bearing. `canonical()` folds some library names into a
+    # neighbour ("floor press", "hang clean", "cable shoulder press"), so
+    # canonicalising first made six folders resolve to a DIFFERENT folder's
+    # photos. A name that is already a folder is that folder; folding is for
+    # names that are not.
+    raw = (name or '').strip().lower()
+    if raw in kb:
+        return raw
+
+    # An exact catalogue name. The plan generator now names exercises from
+    # the library, so for a generated plan this is the common path and no
+    # scoring happens at all -- which is the point: scoring a name against
+    # folder names is what served a calf stretch for a plank.
+    canonical_key = (exercise_names.canonical(name) or '').strip().lower()
+    if canonical_key in kb:
+        return canonical_key
+    return None
+
+
+def _best_scored_kb_key(name: str):
+    """The scorer alone: the best-matching folder and its score."""
+    kb = _load_exercise_kb()
 
     query_words = _kb_tokenize(name)
     if not query_words:
@@ -4591,7 +4680,12 @@ def _resolve_kb_key(name: str):
         if score > best_score:
             best_key, best_score = key, score
 
+    # 3. The scorer, kept only as a fallback for names outside the catalogue,
+    #    and still subject to the audit: a folder the readers could not agree
+    #    on is not shown just because a name scored well against its label.
     if best_key and best_score >= KB_MATCH_THRESHOLD:
+        logger.info('exercise_kb fell back to scoring for %r -> %r (%.2f)',
+                    name, best_key, best_score)
         return best_key, best_score
     return None, best_score
 
@@ -4615,9 +4709,13 @@ def _kb_key_is_consistent(name: str, key: str) -> bool:
     """
     if not key:
         return False
-    alias = _alias_for(name)
-    if alias:
-        return key == alias
+    # An exact answer settles it. The alias branch has always worked this
+    # way; a library or canonical spelling is just as certain, and comparing
+    # a certain answer by score let 'upright cable row' through for a seated
+    # cable row.
+    exact = _resolve_exact_kb_key(name)
+    if exact:
+        return key == exact
     if key not in _load_exercise_kb():
         return False
 
@@ -4630,7 +4728,7 @@ def _kb_key_is_consistent(name: str, key: str) -> bool:
     # below the threshold, so a name with no real match in the library (a
     # backward treadmill walk, say) holds the AI key to the threshold itself
     # -- which is what rejects 'backward drag' at 0.40.
-    _, best = _resolve_kb_key(name)
+    _, best = _best_scored_kb_key(name)
     floor = max(best - KB_AI_KEY_MARGIN, KB_MATCH_THRESHOLD)
     return key_score >= floor
 
@@ -4714,8 +4812,32 @@ def _kb_key_for_images(images):
 
 
 def _lookup_exercise_images(name: str) -> list:
+    """
+    The photos to show for an exercise, or none.
+
+    The photo audit is applied HERE and not in `_resolve_kb_key`, which also
+    answers "what muscles does this work" for superset validation. Gating the
+    shared resolver on photo verification meant an unverified PHOTO also
+    removed the exercise's MUSCLE DATA, and `profile_for` started returning
+    None for exercises it had always known -- two unrelated questions broken
+    by one answer.
+    """
     kb = _load_exercise_kb()
+
+    # What the audit decided for this exercise by name: a folder re-pointed
+    # at what it actually shows, or a human's answer from the review page.
+    # `none` is a recorded answer -- nothing in the library depicts this --
+    # and is honoured rather than fallen through.
+    assigned = photo_audit.key_for(exercise_names.canonical(name))
+    if assigned == 'none':
+        logger.info('photo audit: %r deliberately has no photo', name)
+        return []
+    if assigned and assigned in kb:
+        return kb[assigned][:2]
+
     key, score = _resolve_kb_key(name)
+    if key and not photo_audit.may_serve(key, name=name):
+        return []
     if key:
         logger.info('exercise_kb hit for %r via key %r (score=%.2f)', name, key, score)
         return kb[key][:2]
@@ -4732,7 +4854,8 @@ def _images_for_exercise(name: str, kb_key=None) -> list:
     guide-generating paths and performed no sanity check on kb_key.
     """
     kb = _load_exercise_kb()
-    if kb_key and kb_key in kb and _kb_key_is_consistent(name, kb_key):
+    if (kb_key and kb_key in kb and _kb_key_is_consistent(name, kb_key)
+            and photo_audit.may_serve(kb_key, name=name)):
         return kb[kb_key][:2]
     if kb_key:
         logger.info('exercise_kb rejected AI key %r for %r', kb_key, name)

@@ -212,9 +212,24 @@ class AiKeyValidationTests(SimpleTestCase):
 
     def test_images_for_exercise_honours_a_valid_key(self):
         kb = views._load_exercise_kb()
-        key = 'barbell bench press - medium grip'
+        key = 'dumbbell bench press'
         self.assertEqual(
-            views._images_for_exercise('Barbell Bench Press', key), kb[key][:2])
+            views._images_for_exercise('Flat Dumbbell Press', key), kb[key][:2])
+
+    def test_a_valid_key_is_still_refused_when_the_audit_withheld_it(self):
+        """
+        `barbell bench press - medium grip` reads as a sane key for a barbell
+        bench press, and the consistency guard accepts it. The audit does not:
+        two readers agreed the photos in that folder show a CLOSE-grip bench
+        press. A key being plausible is not evidence about what is in the
+        pictures, so the audit wins and the exercise falls back to the folder
+        the readers found actually holds a plain bench press.
+        """
+        kb = views._load_exercise_kb()
+        key = 'barbell bench press - medium grip'
+        self.assertTrue(views._kb_key_is_consistent('Barbell Bench Press', key))
+        self.assertEqual(views._images_for_exercise('Barbell Bench Press', key),
+                         kb['reverse band bench press'][:2])
 
 
 class CandidateShortlistTests(SimpleTestCase):
@@ -644,15 +659,36 @@ class CachedGuideImageTests(APITestCase):
         self.assertEqual(res.data['images'], self.kb['one-arm dumbbell row'][:2])
 
     def test_unaliased_cached_images_are_left_alone(self):
-        images = self.kb['barbell bench press - medium grip'][:2]
+        images = self.kb['dumbbell bench press'][:2]
+        ExerciseGuide.objects.create(
+            user=None, name='Flat Dumbbell Press',
+            data={'steps': ['a'], 'images': images,
+                  'advice_version': views.ADVICE_VERSION})
+        res = self.client.get(reverse('exercise-guide'),
+                              {'name': 'Flat Dumbbell Press'})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['images'], images)
+
+    def test_a_cached_row_is_re_resolved_when_the_audit_moved_its_photo(self):
+        """
+        The bench press is the audit's clearest find, so it guards the
+        self-healing path. Two readers agreed the folder named `barbell bench
+        press - medium grip` holds a CLOSE-grip bench press, and that the
+        folder named `reverse band bench press` holds a plain barbell bench
+        press with no bands in sight. So the plain bench press is illustrated
+        from the reverse-band folder, and a row cached against the old
+        assignment must not keep serving it.
+        """
+        stale = self.kb['barbell bench press - medium grip'][:2]
         ExerciseGuide.objects.create(
             user=None, name='Barbell Bench Press',
-            data={'steps': ['a'], 'images': images,
+            data={'steps': ['a'], 'images': stale,
                   'advice_version': views.ADVICE_VERSION})
         res = self.client.get(reverse('exercise-guide'),
                               {'name': 'Barbell Bench Press'})
         self.assertEqual(res.status_code, 200, res.data)
-        self.assertEqual(res.data['images'], images)
+        self.assertEqual(res.data['images'],
+                         self.kb['reverse band bench press'][:2])
 
 
 class ComparativeAiKeyGuardTests(SimpleTestCase):
@@ -762,10 +798,12 @@ class ApparatusModifierTests(SimpleTestCase):
         # the same exercise under another name) and no others.
         kb = views._load_exercise_kb()
         misses = [k for k in kb if views._resolve_kb_key(k)[0] != k]
-        # 'squats - with bands' -> 'squat with bands' is the same exercise
-        # under another name. A mislabelled key is SUPPOSED to miss itself:
-        # that is the point of redirecting it.
-        expected = sorted(['squats - with bands'] + list(views.MISLABELLED_KB_KEYS))
+        # 'squats - with bands' used to miss itself, folding into 'squat with
+        # bands'. It resolves to itself now that the resolver tries the
+        # library's own spelling before the canonical one, so the only
+        # remaining miss is the mislabelled key, which is SUPPOSED to miss
+        # itself: that is the point of redirecting it.
+        expected = sorted(views.MISLABELLED_KB_KEYS)
         self.assertEqual(sorted(misses), expected)
 
 
