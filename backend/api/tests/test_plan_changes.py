@@ -146,6 +146,36 @@ class DiffTests(TestCase):
             approved=[{'day': 'Upper Push', 'name': 'Dumbbell Lateral Raise'}])
         self.assertTrue(result['clean'])
 
+    def test_approval_survives_the_canonical_rename_apply_performs(self):
+        """
+        Found live on production: the draft said "Dumbbell Bench Press", apply
+        stored the canonical "Flat Dumbbell Press", and the diff then reported
+        all eight weeks as unapproved -- the "1 change was not approved"
+        report. Token-set identity alone cannot see through an alias, so the
+        comparison has to canonicalise both sides first.
+        """
+        before = self.snap([self.ex('1', 'Machine Chest Press')])
+        after = self.snap([self.ex('2', 'Flat Dumbbell Press')])
+        result = diff_snapshots(
+            before, after,
+            approved=[{'day': 'Upper Push', 'action': 'replace',
+                       'name': 'Dumbbell Bench Press',
+                       'replaces': 'Machine Chest Press'}])
+        self.assertEqual(result['unapproved'], [])
+        self.assertTrue(result['clean'])
+
+    def test_a_keep_list_entry_is_recognised_through_an_alias(self):
+        """
+        The keep list is the one thing the user explicitly protected, so it
+        must match the stored row through the same rename.
+        """
+        before = self.snap([self.ex('1', 'Flat Dumbbell Press')])
+        after = self.snap([])
+        result = diff_snapshots(before, after, approved=None,
+                                keep_list=['Dumbbell Bench Press'])
+        self.assertEqual([e['name'] for e in result['keep_list_violations']],
+                         ['Flat Dumbbell Press'])
+
     def test_no_draft_means_nothing_can_be_unapproved(self):
         """`approved=None` is "not checked", which is not "approved nothing"."""
         before = self.snap([self.ex('1', 'A')])

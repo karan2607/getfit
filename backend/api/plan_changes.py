@@ -188,9 +188,9 @@ def diff_snapshots(before, after, approved=None, keep_list=()):
     unapproved = [e for e in touched
                   if not _was_approved(e, approved, renames)]
 
-    wanted = {exercise_names.key(n) for n in keep_list}
+    wanted = {_identity(n) for n in keep_list}
     violations = [e for e in removed + changed
-                  if exercise_names.key(e['name']) in wanted]
+                  if _identity(e['name']) in wanted]
 
     return {
         'added': _sorted(added),
@@ -213,6 +213,21 @@ def _sorted(entries):
                                           e.get('name', '')))
 
 
+def _identity(name):
+    """
+    The identity apply itself uses: the token set of the CANONICAL spelling.
+
+    Token-set identity alone is not enough here, because apply rewrites the
+    name through the registry on the way in. A draft for "Dumbbell Bench
+    Press" is stored as "Flat Dumbbell Press", whose token set is different,
+    so the diff reported the user's own confirmed change as unapproved -- on
+    every week of the plan. Canonicalising both sides first closes that gap
+    without widening what counts as the same movement: an unregistered name
+    is returned unchanged and still compared on its own tokens.
+    """
+    return exercise_names.key(exercise_names.canonical(name or ''))
+
+
 def _was_approved(entry, approved, renames=None):
     """
     Whether one touched exercise is covered by the approved draft.
@@ -229,7 +244,7 @@ def _was_approved(entry, approved, renames=None):
     """
     if approved is None:
         return True
-    entry_key = exercise_names.key(entry.get('name', ''))
+    entry_key = _identity(entry.get('name', ''))
     for item in approved:
         # A day action approves no exercise change. Its `name` is a day name,
         # and letting it into `candidates` would approve any exercise that
@@ -241,9 +256,9 @@ def _was_approved(entry, approved, renames=None):
         # addition and flagged the removal, so every substitution reported
         # "not as approved" -- the diff crying wolf on the most common edit
         # there is, which is how a diff stops being read.
-        candidates = {exercise_names.key(item.get('name', ''))}
+        candidates = {_identity(item.get('name', ''))}
         if item.get('replaces'):
-            candidates.add(exercise_names.key(item['replaces']))
+            candidates.add(_identity(item['replaces']))
         if entry_key not in candidates:
             continue
         day = item.get('day')
