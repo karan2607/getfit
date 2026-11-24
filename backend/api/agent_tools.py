@@ -21,9 +21,12 @@ only the tools it can act on. That is not cosmetic: a model offered
 prevent a wrong tool call is for the tool not to be on the list.
 """
 
+import logging
 import time
 
 from . import mcp
+
+logger = logging.getLogger(__name__)
 
 WORKOUT = 'workout'
 FOOD = 'food'
@@ -303,12 +306,36 @@ def _tool_propose_plan_change(user, args):
     except DraftError as exc:
         raise mcp.McpError(str(exc)) from exc
 
+    # One draft per turn, per plan.
+    #
+    # This tool is a WRITE, so the loop deliberately never serves it from the
+    # per-turn cache: asking twice means two drafts and hiding that would be
+    # dishonest. True -- but the row it left behind was not harmless. A turn
+    # that drafts in pieces (common once it is near the round ceiling) left
+    # several PROPOSED rows against one plan, only the newest of which is
+    # ever offered, so confirming it applied PART of what the model had
+    # worked out and the rest was silently unreachable. Reported as "it only
+    # does part of the job".
+    #
+    # Earlier drafts from this same turn are superseded rather than kept:
+    # they were never shown to anyone, and two drafts on one plan can never
+    # both apply -- the first to land makes the other stale by definition.
     snapshot = snapshot_plan(plan)
+    base_hash = plan_digest(snapshot)
+    superseded = (PlanChange.objects
+                  .filter(plan=plan, status=PlanChange.PROPOSED,
+                          base_hash=base_hash)
+                  .exclude(base_hash='')
+                  .delete()[0])
+    if superseded:
+        logger.info('superseded %d unanswered draft(s) on plan %s',
+                    superseded, plan.id)
+
     change = PlanChange.objects.create(
         plan=plan, draft=changes,
         keep_list=args.get('keep_list') or [],
         warnings=library_warnings(changes, user=user),
-        base_hash=plan_digest(snapshot))
+        base_hash=base_hash)
     PlanSnapshot.objects.create(
         plan=plan, change_id=change.id, phase=PlanSnapshot.BEFORE,
         data=snapshot)

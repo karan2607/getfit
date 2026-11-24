@@ -269,6 +269,70 @@ class PlanMutationToolTests(TestCase):
                  .values_list('name', flat=True)), before)
         self.assertEqual(PlanChange.objects.get().status, PlanChange.PROPOSED)
 
+    def test_a_second_draft_replaces_the_first_rather_than_stacking(self):
+        """
+        Reported: "it only does part of the job", and a Confirm pressed four
+        times.
+
+        This tool is a write, so the loop never replays it from the per-turn
+        cache -- two calls mean two drafts, deliberately. But only the newest
+        draft is ever OFFERED, so a turn that drafted in pieces left the
+        earlier pieces unreachable: confirming applied part of what the model
+        had worked out and silently dropped the rest.
+
+        Two drafts against the same plan state can never both apply anyway --
+        the first to land makes the other stale -- so the earlier one is
+        superseded rather than kept.
+        """
+        from api.models import PlanChange
+
+        args = {'plan_id': str(self.plan.id),
+                'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}]}
+        first, error = agent_tools.run_tool(self.user, 'propose_plan_change', args)
+        self.assertEqual(error, '')
+
+        second_args = dict(args, changes=[
+            {'day': 'Upper Push', 'name': 'Machine Chest Press'},
+            {'day': 'Upper Push', 'name': 'Cable Face Pulls'},
+        ])
+        second, error = agent_tools.run_tool(
+            self.user, 'propose_plan_change', second_args)
+        self.assertEqual(error, '')
+
+        live = PlanChange.objects.filter(plan=self.plan,
+                                         status=PlanChange.PROPOSED)
+        self.assertEqual(live.count(), 1)
+        self.assertEqual(str(live.get().id), second['change_id'])
+        self.assertNotEqual(first['change_id'], second['change_id'])
+
+    def test_a_draft_against_a_moved_plan_does_not_supersede_the_other(self):
+        """
+        Superseding keys on the base snapshot, so it only ever removes drafts
+        that describe the SAME starting plan. A draft made after the plan
+        moved on is a different decision and survives.
+        """
+        from api.models import Exercise, PlanChange
+
+        agent_tools.run_tool(
+            self.user, 'propose_plan_change',
+            {'plan_id': str(self.plan.id),
+             'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}]})
+
+        # The fixture plan has this day in several weeks; any one of them
+        # moves the plan's snapshot, which is the point.
+        day = self.plan.days.filter(name='Upper Push').first()
+        Exercise.objects.create(day=day, name='Dumbbell Floor Press',
+                                sets=3, reps='8-12', order=99)
+
+        agent_tools.run_tool(
+            self.user, 'propose_plan_change',
+            {'plan_id': str(self.plan.id),
+             'changes': [{'day': 'Upper Push', 'name': 'Cable Face Pulls'}]})
+
+        self.assertEqual(
+            PlanChange.objects.filter(plan=self.plan,
+                                      status=PlanChange.PROPOSED).count(), 2)
+
     def test_the_proposal_is_logged_like_any_tool_call(self):
         agent_tools.run_tool(
             self.user, 'propose_plan_change',
