@@ -1459,6 +1459,38 @@ def _workout_generate_prompt(profile, days_per_week: int, duration_weeks: int,
     return system, user
 
 
+def phase_for_week(plan, week_number):
+    """
+    The program phase covering `week_number`, or None.
+
+    Shared by week generation and by the guide advice, which is the point.
+    The plan knew week 8 was a deload and the advice did not, so the drawer
+    told a client mid-deload to go for more reps than the week prescribed.
+    """
+    outline = (getattr(plan, 'program_outline', None) or []) if plan else []
+    return next(
+        (p for p in outline
+         if isinstance(p, dict)
+         and (p.get('start_week') or 0) <= week_number <= (p.get('end_week') or 0)),
+        None)
+
+
+def is_deload(phase):
+    """
+    Whether a phase is a deload, by its own name.
+
+    Name-matched because the outline is model-written prose and carries no
+    flag: observed spellings are "Deload", "Deload Week", "Taper/Deload".
+    Loose on purpose -- a missed deload tells someone to add load during
+    recovery, while a false positive only holds them at the prescribed
+    number, which is never wrong.
+    """
+    if not isinstance(phase, dict):
+        return False
+    text = '%s %s' % (phase.get('name') or '', phase.get('focus') or '')
+    return 'deload' in text.lower() or 'taper' in text.lower()
+
+
 def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
                           user_note='', history=None, previous_week=None):
     """
@@ -1473,11 +1505,7 @@ def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
     had nowhere to go previously.
     """
     outline = plan.program_outline or []
-    phase = next(
-        (p for p in outline
-         if isinstance(p, dict)
-         and (p.get('start_week') or 0) <= week_number <= (p.get('end_week') or 0)),
-        None)
+    phase = phase_for_week(plan, week_number)
 
     # WHO this is for. `profile` was already being passed in and was never
     # read, so weeks 2-N were written with no demographics, no experience
@@ -3687,8 +3715,14 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
             # Topped the range -> eligible for more weight.
             topped = bool(worked) and all(r >= s_high for r in worked)
         else:
-            # For time/rep-driven work the metric IS the target.
-            hit_all = topped = True
+            # For time/rep-driven work the metric IS the target -- which is
+            # the reason to compare it against the range, not the reason to
+            # skip the comparison. Hardcoding True meant the prescription
+            # gated nothing: a deload week prescribing 5 reps still read as
+            # "topped the range, keep progressing" off a 12-rep session from
+            # the block before.
+            hit_all = (not s_low) or best >= s_low
+            topped = bool(s_high) and best >= s_high
         results.append({'value': best, 'hit_all': hit_all, 'topped': topped,
                         'reps': reps, 'range': (s_low, s_high)})
 
@@ -3701,6 +3735,23 @@ def _analyze_progression(logs, target_reps=None, measurement_type=None, unit='kg
         return f'{value}{metric_label}' if metric_label != 'reps' else f'{value} reps'
 
     if metric_field != 'weight_kg':
+        # Already at or past what the plan asks for. Comparing only recent
+        # against previous is what produced "go for 14" against a prescribed
+        # 5: both sessions were from the block before, the trend was up, and
+        # nothing in the comparison knew what this week wants.
+        #
+        # Reps only. A duration prescription is seconds and `reps` is a rep
+        # count, so comparing a 52-second plank against a "45" would cap it
+        # on a number that does not mean the same thing. Holding a plank
+        # during a deload is handled by the phase, which is explicit.
+        # `has_target`, not `target_high`: an absent prescription defaults
+        # the range to 10 for the summary strings, and capping on that
+        # invented number held a 15-rep set at a target nobody set.
+        if (metric_field == 'reps_completed' and has_target
+                and recent['value'] >= target_high):
+            return {'direction': 'at_target', 'last_value': recent['value'],
+                    'target_high': target_high,
+                    'summary': 'At the prescribed %d → HOLD' % target_high}
         # Time/reps: progress when the latest session matched or beat the previous.
         if recent['value'] > prev['value']:
             direction, summary = 'increase', (
@@ -3930,9 +3981,18 @@ def _exercise_history(user, exercise_name, measurement_type, limit=30):
     return logs, metric
 
 
-def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
+def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
+                           exercise=None):
     """
-    Progression advice for one exercise, computed from logged history.
+    Progression advice for one exercise, computed from the plan row first.
+
+    `exercise` is the row the user is looking at. Without it this function
+    knew only a NAME, so it could not tell which week, which phase or which
+    slot it was advising on -- and told a client in a deload week prescribing
+    5 reps to "go for 14", off two sessions from the block before. The row is
+    optional because some callers genuinely have only a name, but when it is
+    present the plan wins: the phase decides whether progression is wanted at
+    all, and the prescription caps it.
 
     Deliberately deterministic and uncached. The advice used to be AI prose
     baked into the ExerciseGuide row by prepare_week, which meant it was wrong
@@ -3951,6 +4011,10 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
     if measurement_type == exercise_types.WARMUP:
         return blank
 
+    day = getattr(exercise, 'day', None)
+    deload = is_deload(phase_for_week(getattr(day, 'plan', None),
+                                      getattr(day, 'week_number', 0) or 0))
+
     logs, metric = _exercise_history(user, exercise_name, measurement_type)
     if not logs:
         return blank
@@ -3967,7 +4031,11 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
         return blank
 
     out = dict(blank)
-    out['coaching_note'] = prog.get('summary')
+    # The summary is written by the trend analysis, which speaks in
+    # "KEEP PROGRESSING". During a deload that contradicts the plan on the
+    # same screen as the advice that respects it.
+    out['coaching_note'] = ('Deload week — hold what you have.' if deload
+                            else prog.get('summary'))
 
     if measurement_type in (exercise_types.WEIGHT_REPS,
                             exercise_types.WEIGHT_DURATION,
@@ -3976,7 +4044,14 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
             r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
             exercise_name, re.I) else 'upper'
         step = _increment_for(unit, body)
-        if direction == 'rerange':
+        if deload:
+            # The plan has deliberately pulled the load back. Whatever the
+            # history says, the number for this week is the one in the plan.
+            target = f'{low}-{high}' if low and low != high else (high or low)
+            out['recommended_weight'] = (
+                f'Deload week — stay at {last}{unit} and stop at the '
+                f'prescribed {target} reps. Recovery is the work.')
+        elif direction == 'rerange':
             suggested = prog.get('suggested_value')
             change = (f'new {low}-{high} rep range' if low != high
                       else f'new {high}-rep target')
@@ -4023,7 +4098,10 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
 
     elif measurement_type in (exercise_types.DURATION,
                               exercise_types.CARDIO_MACHINE):
-        if direction == 'increase':
+        if deload:
+            out['recommended_target'] = (
+                f'Deload week — hold {int(last)} sec, no longer.')
+        elif direction == 'increase':
             step = _duration_increment(int(last))
             out['recommended_target'] = (
                 f'Aim for {int(last) + step} sec — you held {int(last)} sec.')
@@ -4032,9 +4110,26 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
                 f'Rebuild to {int(last)} sec with clean form.')
 
     elif measurement_type == exercise_types.BODYWEIGHT_REPS:
-        if direction == 'increase':
+        prescribed = high or low
+        if deload and prescribed:
             out['recommended_target'] = (
-                f'Go for {int(last) + 2} reps — you hit {int(last)}.')
+                f'Deload week — stay at {prescribed} reps. '
+                f'You are not meant to push this week.')
+        elif direction == 'at_target' and prescribed:
+            out['recommended_target'] = (
+                f'Stay at {prescribed} reps — that is what the plan asks '
+                f'for, and you are already there.')
+        elif direction == 'increase':
+            # Capped at the prescription. Uncapped, this said last + 2
+            # forever: 12 reps against a prescribed 5 became "go for 14".
+            goal = min(int(last) + 2, prescribed) if prescribed else int(last) + 2
+            if goal <= int(last):
+                out['recommended_target'] = (
+                    f'Stay at {prescribed} reps — the plan does not ask for '
+                    f'more than that this week.')
+            else:
+                out['recommended_target'] = (
+                    f'Go for {goal} reps — you hit {int(last)}.')
         else:
             out['recommended_target'] = (
                 f'Rebuild to {int(last)} clean reps.')
@@ -4042,9 +4137,13 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit):
     return out
 
 
-def _exercise_prescription(user, exercise_name, exercise_id=None):
+def _prescription_row(user, exercise_name, exercise_id=None):
     """
-    The measurement type and prescribed reps for one of the user's exercises.
+    The plan row the user is looking at, or None.
+
+    Returns the Exercise itself rather than two of its fields, because the
+    advice needs the week and the phase as much as the rep count: knowing
+    only the name is what let the drawer urge a client past a deload.
 
     `exercise_id` identifies the exact row the user is looking at and is the only
     unambiguous answer, because one name legitimately carries DIFFERENT
@@ -4065,13 +4164,11 @@ def _exercise_prescription(user, exercise_name, exercise_id=None):
             # Still scoped to the user: an id from another account must not
             # resolve. A junk id is a 500 from the UUID field, so swallow it and
             # fall through rather than failing the whole guide request.
-            row = (qs.filter(pk=exercise_id)
-                     .values_list('measurement_type', 'reps')
-                     .first())
+            row = qs.filter(pk=exercise_id).select_related('day__plan').first()
         except (ValidationError, ValueError, TypeError):
             row = None
         if row:
-            return row[0] or exercise_types.classify(exercise_name), row[1]
+            return row
         # Fall through: a stale id (deleted plan) should degrade, not 404.
 
     # Match any spelling of the movement, for plans created before names were
@@ -4086,12 +4183,18 @@ def _exercise_prescription(user, exercise_name, exercise_id=None):
         ))
         .order_by('-day__plan__is_active', '-on_current_week',
                   '-day__plan__created_at', 'day__week_number', 'day__day_number')
-        .values_list('measurement_type', 'reps')
+        .select_related('day__plan')
         .first()
     )
-    if row:
-        return row[0] or exercise_types.classify(exercise_name), row[1]
-    return exercise_types.classify(exercise_name), None
+    return row
+
+
+def _exercise_prescription(user, exercise_name, exercise_id=None):
+    """The measurement type and prescribed reps, for callers that want only those."""
+    row = _prescription_row(user, exercise_name, exercise_id=exercise_id)
+    if row is None:
+        return exercise_types.classify(exercise_name), None
+    return row.measurement_type or exercise_types.classify(exercise_name), row.reps
 
 
 @api_view(['POST'])
@@ -5139,15 +5242,18 @@ def exercise_guide(request):
     unit = _user_unit(request.user)
     # The caller passes the id of the exact exercise row on the card, so the
     # advice is computed against the same prescription the user is reading.
-    measurement_type, prescribed = _exercise_prescription(
+    row = _prescription_row(
         request.user, name, exercise_id=request.GET.get('exercise_id') or None)
+    measurement_type = ((row.measurement_type if row else None)
+                        or exercise_types.classify(name))
+    prescribed = row.reps if row else None
 
     # Progression advice is computed fresh on EVERY request, never served from
     # the cache. It is derived from logged history, so a cached copy is wrong the
     # moment a set is logged -- which is exactly how 31 guides ended up still
     # repeating "Maintain 90.0lb" days after that logic was fixed.
     advice = _build_exercise_advice(
-        request.user, name, measurement_type, prescribed, unit)
+        request.user, name, measurement_type, prescribed, unit, exercise=row)
 
     # The cache holds only stable content: steps, muscles, tips, images.
     # Prefer this user's row, fall back to the shared generic one. `.filter()
