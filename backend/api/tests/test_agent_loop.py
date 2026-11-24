@@ -78,9 +78,11 @@ class AgentLoopTests(TestCase):
         UserProfile.objects.create(user=self.user, preferred_unit='lb')
         self.state = agent_loop.AgentRun()
 
-    def run_loop(self, client):
+    def run_loop(self, client, proposed_change=None):
         """The turn's TEXT. Progress frames are collected separately."""
         self.statuses = []
+        if proposed_change is not None:
+            self.state.proposed_change = proposed_change
         with mock.patch.object(claude, '_client', return_value=client):
             out = []
             for piece in agent_loop.run(
@@ -157,6 +159,21 @@ class AgentLoopTests(TestCase):
         self.assertTrue(self.state.stopped_early)
         self.assertEqual(self.state.rounds, agent_loop.MAX_ROUNDS)
         self.assertIn('stopped after several lookups', out)
+
+    def test_it_does_not_claim_no_answer_when_it_drafted_one(self):
+        """
+        Reported: "I stopped after several lookups without reaching an
+        answer" rendered directly above a "Proposed change" card with a
+        working Confirm button. The draft IS the answer; running out of
+        lookups after producing it is a footnote, not a failure.
+        """
+        turns = [([], _Final([_ToolUse('get_profile', {})]))
+                 for _ in range(agent_loop.MAX_ROUNDS)]
+        out = self.run_loop(_client_yielding(*turns),
+                            proposed_change={'change_id': 'abc', 'changes': []})
+        self.assertTrue(self.state.stopped_early)
+        self.assertNotIn('without reaching an answer', out)
+        self.assertIn('confirm it to apply', out.lower())
 
     def test_running_out_of_rounds_says_so(self):
         """

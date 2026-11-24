@@ -35,9 +35,21 @@ logger = logging.getLogger(__name__)
 
 #: A turn that has not answered after this many rounds of tool calls is
 #: looping. Each round is a billed request, so this is a cost ceiling as much
-#: as a correctness one. Four is comfortably above the 1-2 a real answer
-#: takes.
-MAX_ROUNDS = 4
+#: as a correctness one.
+#:
+#: Was 4, on the reasoning that a real answer takes 1-2. That held for a
+#: question. It does not hold for an EDIT, which is what the agent is mostly
+#: asked for: read the week, look up a replacement, propose the change, then
+#: say what it did is already 4, and anything that needs a second look --
+#: another day, a second muscle group, a plan the user keeps adjusting --
+#: runs out mid-draft. The user sees a partial restructure and a message
+#: about running out of steps: "it says coach ran out of space or something
+#: and only does part of the job".
+#:
+#: Seven, because the cost ceiling is still the point: a turn that genuinely
+#: loops is capped at under two cents, and a turn that needs six rounds
+#: finishes instead of apologising.
+MAX_ROUNDS = 7
 
 #: Tool results are small (a plan week, a handful of logs). The ceiling is
 #: here so a pathological result cannot push the request over Haiku's 100K
@@ -274,6 +286,17 @@ def run(*, user, system_prompt, history, domain, run_state,
 
     # Out of rounds. Say so rather than stopping mid-thought: a turn that
     # just stops looks identical to a crash from the user's side.
+    #
+    # But say the right thing. This used to claim it had reached no answer
+    # even when it had already drafted a change, so the user read "I stopped
+    # without reaching an answer" directly above a "Proposed change" card
+    # with a working Confirm button on it. Reported as exactly that. A draft
+    # IS the answer; running out of lookups afterwards is a footnote.
     run_state.stopped_early = True
-    yield ('\n\nI stopped after several lookups without reaching an answer. '
-           'Could you narrow the question?')
+    if run_state.proposed_change:
+        yield ('\n\nThe change is drafted below — confirm it to apply. '
+               'I used up my lookups for this turn, so ask again if you '
+               'want me to check anything else first.')
+    else:
+        yield ('\n\nI stopped after several lookups without reaching an answer. '
+               'Could you narrow the question?')
