@@ -4580,7 +4580,14 @@ KB_AI_KEY_MARGIN = 0.15
 # 6: the AI-key floor in _kb_key_is_consistent. Rows written before it could
 #    hold 'backward drag' (a sled) for a backward treadmill walk, and a v5
 #    stamp told the read path to trust them.
-KB_MATCH_VERSION = 6
+# 7: the photo audit. Two blind reads of all 873 folders moved 116 of them to
+#    the exercise they actually depict and withheld those under their own
+#    name, and resolution now tries the library's own spelling before the
+#    canonical one. Every cached row predates all of it, so without this
+#    bump an existing user keeps the pre-audit photos forever -- which is
+#    how this was caught: a staging plan resolved Incline Dumbbell Press to
+#    nothing because a stale row said so.
+KB_MATCH_VERSION = 7
 
 
 def _alias_for(name: str):

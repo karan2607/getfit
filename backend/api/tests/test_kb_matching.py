@@ -608,6 +608,15 @@ class PlainPushUpTests(SimpleTestCase):
     def test_the_version_was_bumped_so_cached_rows_re_resolve(self):
         self.assertGreaterEqual(views.KB_MATCH_VERSION, 5)
 
+    def test_the_audit_bumped_the_version_so_old_photos_self_heal(self):
+        """
+        Every cached ExerciseGuide row predates the audit. Without a bump an
+        existing user keeps the pre-audit photos forever, however right the
+        new mapping is -- the read path trusts any row stamped at or above
+        the current version.
+        """
+        self.assertGreaterEqual(views.KB_MATCH_VERSION, 7)
+
 
 class CachedGuideImageTests(APITestCase):
     """A guide cached before an alias existed must not keep its wrong photos."""
