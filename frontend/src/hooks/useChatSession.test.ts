@@ -427,6 +427,25 @@ describe('useChatSession honesty', () => {
     expect(result.current.notice).toMatch(/ran out of steps/i)
   })
 
+  it('does not say it ran out of steps when it drafted a change', async () => {
+    const draft = {
+      change_id: 'c1', plan_id: 'p1', needs_confirmation: true,
+      applied: false, draft: [],
+    }
+    vi.spyOn(stream, 'streamChatMessage').mockImplementation(
+      streamOf([
+        { chunk: 'The change is drafted below.' },
+        { done: true, message_id: 'm1', stopped_early: true,
+          proposed_change: draft },
+      ]) as never,
+    )
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => { await result.current.sendMessage('hi') })
+
+    expect(result.current.proposedChange).toEqual(draft)
+    expect(result.current.notice ?? '').not.toMatch(/ran out of steps/i)
+  })
+
   it('drops a draft the server refuses as stale, and looks for a live one', async () => {
     const pending = {
       change_id: 'c2', plan_id: 'p1', needs_confirmation: true,

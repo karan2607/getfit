@@ -305,10 +305,16 @@ export function useChatSession(sessionId: string | undefined) {
             // user has no way to tell from the text: the round cap appends
             // an apology after whatever had already streamed, and a token
             // cut-off says nothing at all.
+            //
+            // Except a capped turn that DRAFTED a change: the draft is the
+            // answer, and the reply already says so. The banner claimed the
+            // coach had not finished directly above a working Confirm card --
+            // reported as "coach ran out of space or something and only does
+            // part of the job".
             if (event.truncated) {
               setNotice('That reply was cut short. Ask for the rest and it '
                 + 'will carry on.')
-            } else if (event.stopped_early) {
+            } else if (event.stopped_early && !event.proposed_change) {
               setNotice('The coach ran out of steps before finishing. A '
                 + 'narrower question will get further.')
             }
