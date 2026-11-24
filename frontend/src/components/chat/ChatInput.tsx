@@ -103,15 +103,33 @@ export default function ChatInput({ onSend, disabled, isReplying }: Props) {
   async function handleSend() {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
-    const accepted = await onSend(trimmed)
-    // Only `false` means refused. A handler that returns nothing is the
-    // old contract and still clears, so queueing surfaces keep working.
-    if (accepted === false) return
+
+    /*
+     * Clear first, put it back only if the send is refused.
+     *
+     * Waiting for `onSend` to resolve before clearing looked like the safe
+     * way to avoid losing typed text, and it was wrong: the hook resolves
+     * when the whole REPLY has finished streaming, not when the message is
+     * accepted. So the composer sat there still full of the question for the
+     * entire answer -- eight seconds on a good turn, a hundred on a slow one
+     * -- and reported as "on sending message, textbox doesn't become empty".
+     *
+     * A refusal is decided by guards at the top of the hook and comes back
+     * in the same tick, so the text reappears instantly in the one case
+     * where it matters, and nothing typed is ever lost.
+     */
     setValue('')
     setExpanded(false)
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       textareaRef.current.style.overflowY = 'hidden'
+    }
+    // Only `false` means refused. A handler that returns nothing is the
+    // old contract and keeps the composer cleared.
+    const accepted = await onSend(trimmed)
+    if (accepted === false) {
+      setValue(trimmed)
+      requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }
 

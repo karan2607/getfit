@@ -120,3 +120,40 @@ describe('ChatInput expanded editor', () => {
     expect(send.getAttribute('aria-label')).toMatch(/type a message/i)
   })
 })
+
+describe('clearing the composer', () => {
+  /*
+   * Reported: "on sending message, textbox doesn't become empty".
+   *
+   * The hook's send resolves when the REPLY has finished streaming, not when
+   * the message is accepted, so awaiting it before clearing left the question
+   * sitting in the composer for the whole answer.
+   */
+  it('empties the box as soon as the message is sent, not when the reply ends', async () => {
+    let finish: (v: boolean) => void = () => {}
+    const onSend = vi.fn(() => new Promise<boolean>((r) => { finish = r }))
+    render(<ChatInput onSend={onSend} />)
+    const box = screen.getByRole('textbox')
+
+    fireEvent.change(box, { target: { value: 'swap my squats' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    // The reply has NOT arrived yet.
+    await waitFor(() => expect(box).toHaveValue(''))
+    expect(onSend).toHaveBeenCalledWith('swap my squats')
+
+    finish(true)
+    await waitFor(() => expect(box).toHaveValue(''))
+  })
+
+  it('puts the text back when the send is refused', async () => {
+    const onSend = vi.fn(async () => false)
+    render(<ChatInput onSend={onSend} />)
+    const box = screen.getByRole('textbox')
+
+    fireEvent.change(box, { target: { value: 'swap my squats' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+
+    await waitFor(() => expect(box).toHaveValue('swap my squats'))
+  })
+})
