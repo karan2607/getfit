@@ -303,9 +303,16 @@ export function PlanChangeResult({
 
       {failed && (
         <div className="mt-3">
+          {/* "1 change was not approved" was reported as unreadable -- it
+              names a state the user was never shown and gives them nothing
+              to do about it. What it actually means is that the plan came
+              out different from what they confirmed, which is worth saying
+              in those words. */}
           <p className="text-sm text-red-700 font-medium">
-            {diff.unapproved.length} change
-            {diff.unapproved.length === 1 ? ' was' : 's were'} not approved:
+            Applied — but {diff.unapproved.length === 1
+              ? 'one exercise changed that was not'
+              : `${diff.unapproved.length} exercises changed that were not`}{' '}
+            in what you confirmed:
           </p>
           <ul className="mt-1 space-y-1">
             {diff.unapproved.map((e, i) => (
@@ -314,6 +321,11 @@ export function PlanChangeResult({
               </li>
             ))}
           </ul>
+          <p className="text-sm text-ink-500 mt-2">
+            Everything you did confirm went through. Tell the coach to put
+            {diff.unapproved.length === 1 ? ' it' : ' them'} back if that is
+            not what you wanted.
+          </p>
           {diff.keep_list_violations.length > 0 && (
             <p className="text-sm text-red-700 mt-2">
               {diff.keep_list_violations.length} protected{' '}
