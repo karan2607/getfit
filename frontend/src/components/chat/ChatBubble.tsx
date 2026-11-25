@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, type WorkoutPlanPreview, type DietPlanPreview } from '../../lib/api'
 import { useToast } from '../Toast'
 import { getErrorMessage } from '../../lib/errors'
+import { renderMarkdown } from '../../lib/markdown'
 
 interface Props {
   role: 'user' | 'assistant'
@@ -291,13 +292,16 @@ export default function ChatBubble({ role, content, isStreaming, planId, dietPla
       <div className={`max-w-[75%] ${isUser ? '' : 'w-full'}`}>
         {(text || (!isGeneratingPlan && isStreaming)) && (
           <div
-            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed space-y-2 ${
+              isUser ? 'whitespace-pre-wrap ' : ''}${
               isUser
                 ? 'bg-brand-500 text-white rounded-br-sm'
                 : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
             }`}
           >
-            {text}
+            {/* The assistant writes markdown; the user's own words are
+                shown exactly as typed. */}
+            {isUser ? text : renderMarkdown(text)}
             {isStreaming && !isGeneratingPlan && (
               <span className="inline-block w-1.5 h-4 bg-current opacity-70 animate-pulse ml-0.5 align-text-bottom" />
             )}

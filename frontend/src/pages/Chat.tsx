@@ -300,13 +300,26 @@ export default function Chat() {
       .finally(() => setListLoading(false))
   }, [])
 
+  const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
+
   async function handleNew() {
+    // A second tap before the first request returns creates a second empty
+    // conversation, and the list then shows two "New chat" rows the user
+    // has to tell apart and delete. A ref rather than state: two taps in
+    // one frame both read the same stale `false`.
+    if (creatingRef.current) return
+    creatingRef.current = true
+    setCreating(true)
     try {
       const session = await api.chat.createSession()
       setSessions((prev) => [session, ...prev])
       navigate(`/chat/${session.id}`)
     } catch (err) {
       showToast(getErrorMessage(err), 'error')
+    } finally {
+      creatingRef.current = false
+      setCreating(false)
     }
   }
 
@@ -343,9 +356,10 @@ export default function Chat() {
         action={
           <button
             onClick={handleNew}
-            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition-colors"
+            disabled={creating}
+            className="bg-white text-brand-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 disabled:opacity-60 transition-colors"
           >
-            + New chat
+            {creating ? 'Starting...' : '+ New chat'}
           </button>
         }
       />

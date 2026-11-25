@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { api, type DietPlan, type DietPlanDetail, type DietPlanPreview, type Meal, type FoodScanResult, type MealLog, type DietDocument } from '../lib/api'
 import { describeDate, localToday } from '../lib/localDate'
 import { useToast } from '../components/Toast'
+import { SkeletonCard, SkeletonRow, SkeletonText } from '../components/Skeleton'
 import { getErrorMessage } from '../lib/errors'
 import PageHeader from '../components/PageHeader'
 import WorkoutChatDrawer from '../components/WorkoutChatDrawer'
@@ -99,7 +100,16 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-400">Loading...</div>
+  // A skeleton in the shape of what is coming, as the Body page already
+  // does. "Loading..." moves the whole page when the real content lands.
+  if (loading) {
+    return (
+      <div className="p-6 space-y-3">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-2xl">
@@ -638,7 +648,14 @@ function PlanDetailView({ planId, onBack }: { planId: string; onBack: () => void
     loadPlan()
   }, [planId])
 
-  if (loading) return <div className="p-6 text-sm text-gray-400">Loading...</div>
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <SkeletonCard />
+        <SkeletonText lines={4} />
+      </div>
+    )
+  }
   if (!plan) return null
 
   const numDays = plan.meals.reduce((max, m) => Math.max(max, m.day_number), 1)
@@ -991,7 +1008,11 @@ export function MealLogger() {
 
       {/* Log entries */}
       {loading ? (
-        <div className="text-sm text-gray-400">Loading...</div>
+        <div className="space-y-2 mb-5">
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : (
         <div className="space-y-4 mb-5">
           {grouped.length === 0 && (
