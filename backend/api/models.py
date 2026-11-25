@@ -67,6 +67,20 @@ class UserProfile(models.Model):
     dietary_preference = models.CharField(max_length=15, choices=DIET_CHOICES, null=True, blank=True)
     activity_level = models.CharField(max_length=20, choices=ACTIVITY_CHOICES, null=True, blank=True)
     preferred_unit = models.CharField(max_length=2, choices=UNIT_CHOICES, default='lb')
+    # When the user actually CHOSE their unit, as opposed to inheriting the
+    # default above.
+    #
+    # The default is lb and onboarding showed a field labelled kg, so anyone
+    # who typed a number without tapping a unit button got their kilograms
+    # read back as pounds -- 80 kg displayed as 176.4 lb, with nothing to
+    # explain it. Onboarding now always sends the unit it displayed, which
+    # fixes it going forward and does nothing for the accounts already in
+    # that state.
+    #
+    # Null means "never confirmed": the value may be a real choice or may be
+    # the default nobody saw. That is a question only the user can settle, so
+    # this records the answer rather than guessing it.
+    unit_confirmed_at = models.DateTimeField(null=True, blank=True)
     # IANA name ("America/New_York"), set by the client from
     # Intl.DateTimeFormat().resolvedOptions().timeZone.
     #

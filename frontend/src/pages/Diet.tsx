@@ -852,7 +852,7 @@ function MacroBar({ label, actual, target, color }: { label: string; actual: num
   )
 }
 
-function MealLogger() {
+export function MealLogger() {
   const { showToast } = useToast()
   const [logs, setLogs] = useState<MealLog[]>([])
   const [activePlan, setActivePlan] = useState<DietPlan | null>(null)
@@ -946,20 +946,44 @@ function MealLogger() {
         </label>
       </div>
 
-      {/* Macro progress vs plan target */}
-      {activePlan && (
+      {/* What was eaten today, and -- when there is a plan -- how it
+          compares. These shared one block gated on `activePlan`, so
+          someone logging meals before they had made a plan could add food
+          all day and never see a total. The TARGETS need a plan. The
+          totals never did. */}
+      {logs.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Today vs Target</p>
-            <span className={`text-sm font-bold ${totals.calories > activePlan.target_calories ? 'text-red-500' : 'text-gray-900'}`}>
-              {totals.calories} / {activePlan.target_calories} kcal
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              {activePlan ? 'Today vs Target' : 'Today'}
+            </p>
+            <span className={`text-sm font-bold ${
+              activePlan && totals.calories > activePlan.target_calories
+                ? 'text-red-500' : 'text-gray-900'}`}>
+              {activePlan
+                ? `${totals.calories} / ${activePlan.target_calories} kcal`
+                : `${totals.calories} kcal`}
             </span>
           </div>
-          <div className="space-y-2">
-            <MacroBar label="Protein" actual={Math.round(totals.protein_g)} target={activePlan.protein_g} color="bg-accent-500" />
-            <MacroBar label="Carbs" actual={Math.round(totals.carbs_g)} target={activePlan.carbs_g} color="bg-blue-400" />
-            <MacroBar label="Fat" actual={Math.round(totals.fat_g)} target={activePlan.fat_g} color="bg-amber-400" />
-          </div>
+          {activePlan ? (
+            <div className="space-y-2">
+              <MacroBar label="Protein" actual={Math.round(totals.protein_g)} target={activePlan.protein_g} color="bg-accent-500" />
+              <MacroBar label="Carbs" actual={Math.round(totals.carbs_g)} target={activePlan.carbs_g} color="bg-blue-400" />
+              <MacroBar label="Fat" actual={Math.round(totals.fat_g)} target={activePlan.fat_g} color="bg-amber-400" />
+            </div>
+          ) : (
+            <div className="flex gap-4 text-sm">
+              {([['Protein', totals.protein_g], ['Carbs', totals.carbs_g],
+                 ['Fat', totals.fat_g]] as const).map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-xs text-gray-400">{label}</p>
+                  <p className="font-semibold text-gray-900">
+                    {Math.round(value)}g
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

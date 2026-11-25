@@ -226,6 +226,16 @@ def profile(request):
     if not ser.is_valid():
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
     ser.save()
+
+    # Sending a unit IS confirming it. The field records the difference
+    # between a unit someone chose and the model default nobody saw, which
+    # is the difference between 80 kg and "176.4 lb" appearing on a profile
+    # with no explanation. Stamped here rather than in the serializer so a
+    # read never writes.
+    if 'preferred_unit' in request.data and prof.unit_confirmed_at is None:
+        prof.unit_confirmed_at = timezone.now()
+        prof.save(update_fields=['unit_confirmed_at'])
+        return Response(UserProfileSerializer(prof).data)
     return Response(ser.data)
 
 

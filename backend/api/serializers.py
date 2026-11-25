@@ -48,7 +48,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'height_cm', 'weight_kg', 'age', 'gender',
             'fitness_goal', 'experience_level', 'dietary_preference', 'activity_level',
-            'personal_notes', 'preferred_unit', 'timezone',
+            'personal_notes', 'preferred_unit', 'unit_confirmed_at', 'timezone',
             'missing_for_planning',
         ]
         read_only_fields = ['missing_for_planning']

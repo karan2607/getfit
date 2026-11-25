@@ -10,6 +10,12 @@ type Step = 'body' | 'goal' | 'diet'
 
 const STEPS: Step[] = ['body', 'goal', 'diet']
 
+//: The unit the weight field is labelled with before anyone chooses. It is
+//: saved as the choice, so the number entered and the number stored always
+//: mean the same thing.
+const DEFAULT_ONBOARDING_UNIT = 'kg' as const
+
+
 export default function Onboarding() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
@@ -60,7 +66,16 @@ export default function Onboarding() {
     }
     setSaving(true)
     try {
-      await api.profile.update(data)
+      // The unit step SHOWS kilograms by default and only recorded a
+      // choice when a button was tapped, so someone who typed 75 into a
+      // field labelled "Weight (kg)" and pressed on sent no unit at all.
+      // The profile then fell back to the model default of lb and read
+      // their kilograms back as pounds. What is displayed is what is
+      // saved.
+      await api.profile.update({
+        ...data,
+        preferred_unit: data.preferred_unit ?? DEFAULT_ONBOARDING_UNIT,
+      })
       const updatedUser = await api.auth.me()
       setUser(updatedUser)
       navigate('/dashboard', { replace: true })
@@ -129,7 +144,7 @@ export default function Onboarding() {
 function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d: Partial<UserProfile>) => void }) {
   // Defaults to kg because that is what this step has always asked for;
   // choosing lb here is what stops Profile silently switching later.
-  const unit = data.preferred_unit ?? 'kg'
+  const unit = data.preferred_unit ?? DEFAULT_ONBOARDING_UNIT
   // Null as well as undefined: the profile field is nullable on the server.
   const shown = data.weight_kg == null
     ? undefined
@@ -143,8 +158,9 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+            <label htmlFor="ob-age" className="block text-sm font-medium text-gray-700 mb-1">Age</label>
             <input
+              id="ob-age"
               type="number"
               min={10}
               max={100}
@@ -155,8 +171,9 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+            <label htmlFor="ob-gender" className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
             <select
+              id="ob-gender"
               value={data.gender ?? ''}
               onChange={(e) => onChange({ gender: e.target.value as UserProfile['gender'] || null })}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 bg-white"
@@ -170,8 +187,9 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
+            <label htmlFor="ob-height" className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
             <input
+              id="ob-height"
               type="number"
               min={100}
               max={250}
@@ -187,11 +205,12 @@ function BodyStep({ data, onChange }: { data: Partial<UserProfile>; onChange: (d
                 the profile fell back to its `lb` default -- enter 80 kg, then
                 find Profile showing 176.4 lb with no explanation. The storage
                 field stays kg either way; only the display unit is a choice. */}
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="ob-weight" className="block text-sm font-medium text-gray-700 mb-1">
               Weight ({unit})
             </label>
             <div className="flex gap-2">
               <input
+                id="ob-weight"
                 type="number"
                 inputMode="decimal"
                 min={unit === 'kg' ? 30 : 66}

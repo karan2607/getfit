@@ -181,3 +181,39 @@ describe('formatDuration', () => {
     expect(formatDuration(null)).toBeTruthy()
   })
 })
+
+describe('weight round-trips', () => {
+  /**
+   * Checked because the unit work listed "toStorageWeight drifts on
+   * round-trip" as a defect. Measured, it is not one: a kg value that
+   * passes through an lb display shifts ONCE by less than half a display
+   * step (under 25 g) and is stable from then on, and the number the user
+   * reads never changes at all.
+   *
+   * Pinned so a future change cannot turn a one-off rounding into a drift
+   * that accumulates every save.
+   */
+  it('converges after a single pass and never moves again', () => {
+    let kg = 100
+    const first = toStorageWeight(toDisplayWeight(kg, 'lb'), 'lb') as number
+    expect(Math.abs(first - kg)).toBeLessThan(0.025)
+
+    let value = first
+    for (let i = 0; i < 20; i++) {
+      value = toStorageWeight(toDisplayWeight(value, 'lb'), 'lb') as number
+    }
+    expect(value).toBeCloseTo(first, 10)
+  })
+
+  it('shows the same number back to the user every time', () => {
+    for (const kg of [40, 62.5, 75, 83.1, 100, 137.4]) {
+      const shown = toDisplayWeight(kg, 'lb')
+      const stored = toStorageWeight(shown, 'lb')
+      expect(toDisplayWeight(stored, 'lb')).toBe(shown)
+    }
+  })
+
+  it('does not touch a value at all in the unit it is stored in', () => {
+    expect(toStorageWeight(toDisplayWeight(82.4, 'kg'), 'kg')).toBe(82.4)
+  })
+})
