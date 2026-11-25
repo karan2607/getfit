@@ -3278,7 +3278,36 @@ def workout_sessions(request):
                 set_number=set_num,
             )
 
+    _record_suggestions(session, _user_unit(request.user))
+
     return Response(_session_data(session), status=status.HTTP_201_CREATED)
+
+
+def _record_suggestions(session, unit):
+    """
+    Stamp each new set with the weight the app is about to recommend.
+
+    Written at session creation, which is when the number is on the screen.
+    Writing it at log time would record whatever the suggestion had become
+    after the client had already typed something, which is not what they
+    were shown.
+
+    Best-effort: a failure here must never stop a workout from starting, and
+    an unstamped set simply shows no recommendation later.
+    """
+    try:
+        suggestions = weights.suggest_for_session(session, unit=unit)
+    except Exception:
+        logger.exception('recording suggestions failed for session %s',
+                         session.id)
+        return
+    for exercise_id, suggestion in (suggestions or {}).items():
+        weight_kg = (suggestion or {}).get('weight_kg')
+        if weight_kg is None:
+            continue
+        SetLog.objects.filter(
+            workout_session=session, exercise_id=exercise_id
+        ).update(suggested_weight_kg=weight_kg)
 
 
 def _session_data(session, actuals=None):
@@ -4519,6 +4548,8 @@ def workout_exercise_history(request, exercise_name):
             'workout_session__started_at', 'set_number',
             'weight_kg', 'reps_completed', 'duration_seconds',
             'speed_kmh', 'incline_pct', 'distance_m',
+            # What the app recommended at the time, beside what was done.
+            'suggested_weight_kg',
             'target_reps', plan_reps=F('exercise__reps'),
         )
     )

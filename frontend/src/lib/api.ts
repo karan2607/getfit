@@ -1045,6 +1045,13 @@ export interface ExerciseHistoryPoint {
   distance_m: number | null
   /** The plan's prescription when the set was logged ("6", "8-12"). */
   target_reps: string | null
+  /**
+   * What the app recommended for this set, recorded when the session was
+   * opened. Null on sets logged before it was recorded -- never recomputed,
+   * because recomputing gives today's answer rather than the one that was
+   * on the screen.
+   */
+  suggested_weight_kg: number | null
 }
 
 /**

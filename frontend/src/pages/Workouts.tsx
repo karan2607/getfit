@@ -2084,7 +2084,14 @@ export function ExerciseDetailsModal({ name, onClose }: { name: string; onClose:
   // What the plan asked for, in its own column beside what was done, so "8-10"
   // and the 10 actually logged read side by side. Hidden when no set has one.
   const showTarget = logs.some((p) => p.target_reps)
-  const columnCount = 1 + (showTarget ? 1 : 0) + fieldsFor(mType).length
+  // What the app itself suggested, beside what was done. Without it a row
+  // reads "95 lb x 8, target 8-10" and there is no way to tell whether the
+  // app said 95 and you matched it or said 110 and you missed by 15.
+  // Hidden until some set carries one, so older history does not grow an
+  // empty column.
+  const showSuggested = logs.some((p) => p.suggested_weight_kg != null)
+  const columnCount =
+    1 + (showTarget ? 1 : 0) + (showSuggested ? 1 : 0) + fieldsFor(mType).length
 
   // Personal best uses the metric for this type, not weight_kg unconditionally.
   const pb = metric
@@ -2156,6 +2163,9 @@ export function ExerciseDetailsModal({ name, onClose }: { name: string; onClose:
                       {showTarget && (
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Target</th>
                       )}
+                      {showSuggested && (
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400">Suggested</th>
+                      )}
                       {/* Columns follow the measurement type instead of always
                           showing Weight/Reps. */}
                       {fieldsFor(mType).map((f) => (
@@ -2186,6 +2196,13 @@ export function ExerciseDetailsModal({ name, onClose }: { name: string; onClose:
                           <td className="px-4 py-2 text-gray-500 text-xs">{p.set_number}</td>
                           {showTarget && (
                             <td className="px-4 py-2 text-right text-gray-500">{p.target_reps ?? '—'}</td>
+                          )}
+                          {showSuggested && (
+                            <td className="px-4 py-2 text-right text-gray-500">
+                              {p.suggested_weight_kg == null
+                                ? '—'
+                                : `${toDisplayField('weight_kg', p.suggested_weight_kg, unit)}${unit}`}
+                            </td>
                           )}
                           {fieldsFor(mType).map((f) => {
                             const raw = p[f]

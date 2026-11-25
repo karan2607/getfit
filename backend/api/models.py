@@ -562,6 +562,25 @@ class SetLog(models.Model):
     speed_kmh = models.FloatField(null=True, blank=True)
     incline_pct = models.FloatField(null=True, blank=True)
     distance_m = models.FloatField(null=True, blank=True)
+    # What the app recommended for this set, recorded when the session was
+    # opened. NEVER read back as history.
+    #
+    # The progress table could show what was done and what the plan asked
+    # for, but not what the app itself suggested -- so "95 lb x 8, target
+    # 8-10" gave no way to tell whether the app said 95 and you matched it
+    # or said 110 and you missed by 15. That comparison is the only thing
+    # that says whether the suggestion engine is any good.
+    #
+    # Recorded rather than recomputed for the same reason `target_reps` is:
+    # recompute it today and you get today's answer, not the one that was on
+    # the screen. Null on sets logged before this existed.
+    #
+    # The danger is spelled out beside `weight_suggestions` in views: a
+    # suggestion written into a SetLog would become history the next
+    # suggestion is computed from, so a recommendation of 110 that was never
+    # lifted would turn into evidence that 110 was lifted. Nothing reads this
+    # field back, and a test holds that line.
+    suggested_weight_kg = models.FloatField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
