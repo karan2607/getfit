@@ -28,7 +28,7 @@ from django.urls import reverse
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from api import views
+from api import photo_audit, views
 from api.models import ExerciseGuide, User
 
 
@@ -216,20 +216,36 @@ class AiKeyValidationTests(SimpleTestCase):
         self.assertEqual(
             views._images_for_exercise('Flat Dumbbell Press', key), kb[key][:2])
 
-    def test_a_valid_key_is_still_refused_when_the_audit_withheld_it(self):
+    def test_an_assignment_beats_a_merely_plausible_ai_key(self):
         """
-        `barbell bench press - medium grip` reads as a sane key for a barbell
-        bench press, and the consistency guard accepts it. The audit does not:
-        two readers agreed the photos in that folder show a CLOSE-grip bench
-        press. A key being plausible is not evidence about what is in the
-        pictures, so the audit wins and the exercise falls back to the folder
-        the readers found actually holds a plain bench press.
+        `barbell bench press - medium grip` reads as a sane key and the
+        consistency guard accepts it. The audit assigned the exercise
+        elsewhere, and that assignment wins: a key being plausible is not
+        evidence about what is in the pictures.
+
+        This used to be about WITHHOLDING -- the audit refused to serve the
+        medium-grip folder at all. Nothing is withheld on a model read any
+        more (see photo_audit.WITHHELD), so what is left is the narrower and
+        more defensible claim: an explicit assignment outranks a guess.
         """
         kb = views._load_exercise_kb()
         key = 'barbell bench press - medium grip'
         self.assertTrue(views._kb_key_is_consistent('Barbell Bench Press', key))
         self.assertEqual(views._images_for_exercise('Barbell Bench Press', key),
                          kb['reverse band bench press'][:2])
+
+    def test_nothing_is_blanked_on_a_model_read(self):
+        """
+        The owner reviewed about 200 folders and found them all right,
+        including ones the audit graded wrong. A blank is the worse error:
+        it shows on every view of that exercise and looks broken rather
+        than imperfect.
+        """
+        kb = views._load_exercise_kb()
+        for key in list(kb)[:200]:
+            if key in views.MISLABELLED_KB_KEYS:
+                continue
+            self.assertTrue(photo_audit.may_serve(key), key)
 
 
 class CandidateShortlistTests(SimpleTestCase):

@@ -4807,7 +4807,11 @@ KB_AI_KEY_MARGIN = 0.15
 #    bump an existing user keeps the pre-audit photos forever -- which is
 #    how this was caught: a staging plan resolved Incline Dumbbell Press to
 #    nothing because a stale row said so.
-KB_MATCH_VERSION = 7
+# 8: nothing is withheld on a model read any more, and an assignment now
+#    outranks a per-request AI key. Cached rows written under v7 may hold a
+#    blank where a photo exists, which is the state this change exists to
+#    end, so they re-resolve.
+KB_MATCH_VERSION = 8
 
 
 def _alias_for(name: str):
@@ -5081,6 +5085,16 @@ def _images_for_exercise(name: str, kb_key=None) -> list:
     guide-generating paths and performed no sanity check on kb_key.
     """
     kb = _load_exercise_kb()
+
+    # An explicit assignment outranks a key the model picked for this one
+    # request. The assignment is reviewable data in exercise_photos.json;
+    # the key is a guess made per call, and `_kb_key_is_consistent` can only
+    # say it is PLAUSIBLE, never that it matches the pictures. The order
+    # used to be held together by withholding, which no longer exists.
+    assigned = photo_audit.key_for(exercise_names.canonical(name))
+    if assigned and assigned != 'none' and assigned in kb:
+        return kb[assigned][:2]
+
     if (kb_key and kb_key in kb and _kb_key_is_consistent(name, kb_key)
             and photo_audit.may_serve(kb_key, name=name)):
         return kb[kb_key][:2]

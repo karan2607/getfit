@@ -27,19 +27,24 @@ logger = logging.getLogger(__name__)
 _AUDIT = None
 _LOCK = threading.Lock()
 
-#: Verdicts that may NOT be shown.
+#: Verdicts that may NOT be shown. Empty, on purpose.
 #:
-#: Only one: a folder the readers agreed is mislabelled. Everything else is
-#: served, INCLUDING 'unresolved'.
+#: The audit withheld the 116 folders two readers agreed were mislabelled,
+#: so those exercises showed no photo at all under their own name. The owner
+#: then reviewed about 200 of the 873 by hand and reported that all of them
+#: looked right -- INCLUDING ones the audit had graded wrong. That is direct
+#: evidence the "wrong" verdict over-fires, and it comes from the only
+#: reader whose judgement the app exists to serve.
 #:
-#: The first cut had this the other way round -- serve only what the audit
-#: confirmed -- and it withheld 478 of the 873 folders, because two readers
-#: disagreeing is common on a 2D photo of an unfamiliar movement. That is
-#: not evidence the photo is wrong; it is evidence the readers could not
-#: agree on a name. Those photos are served today and are mostly fine, and
-#: blanking them would have made the library LESS useful in the name of an
-#: audit meant to make it more so.
-WITHHELD = ('reassigned',)
+#: A blank where a photo should be is the worse error. It is visible on
+#: every single view of that exercise, it looks broken rather than
+#: imperfect, and the photo it replaced was mostly fine. So nothing is
+#: withheld on the strength of a model read.
+#:
+#: What survives is `MISLABELLED_KB_KEYS` in views.py -- four entries, each
+#: checked by a person looking at the images, each reported by a user. That
+#: is the bar for blanking or redirecting an exercise now.
+WITHHELD = ()
 
 
 def _load() -> dict:
