@@ -60,6 +60,11 @@ class Command(BaseCommand):
                             help='scores only, no individual findings')
         parser.add_argument('--fixture', default='*.json',
                             help='glob for which fixtures to score')
+        parser.add_argument(
+            '--edits', action='store_true',
+            help='score EDIT scenarios instead of generation. Live by '
+                 'definition -- it asks each model for a draft. See '
+                 'api/evals/edits.py.')
         parser.add_argument('--live', action='store_true',
                             help='generate fresh plans from the model')
         parser.add_argument('--model', default=None,
@@ -77,6 +82,8 @@ class Command(BaseCommand):
         rules = RULES
         if options['update_baseline']:
             return self._update_baseline()
+        if options.get('edits'):
+            return self._run_edits(options)
         if options.get('rules'):
             wanted = set(options['rules'])
             unknown = wanted - {name for name, _, _ in RULES}
@@ -108,6 +115,98 @@ class Command(BaseCommand):
         self._summary(cards, rules)
 
     # -- baseline ------------------------------------------------------------
+
+    def _run_edits(self, options):
+        """
+        Ask each model for a draft, scenario by scenario, and score it.
+
+        Spends real money on every run, which is why it is a flag and not
+        part of the suite. The scorer is deterministic and unit-tested --
+        the only thing this adds is what the model actually answered.
+        """
+        import json as _json
+
+        from api.evals import edits as edit_evals
+
+        models = [m.strip() for m in (options['model'] or '').split(',')
+                  if m.strip()] or [None]
+
+        plan_text = _json.dumps(edit_evals.PLAN, indent=1)
+        results = {}
+        for model in models:
+            label = model or 'default'
+            rows = []
+            for scenario in edit_evals.SCENARIOS:
+                draft = self._ask_for_draft(model, plan_text, scenario)
+                score = edit_evals.score_edit(draft, scenario)
+                rows.append((scenario['key'], score, draft))
+                self.stderr.write('%s / %-24s scope %.2f  complete %.2f'
+                                  % (label, scenario['key'],
+                                     score['scope'], score['completeness']))
+                for finding in score['findings']:
+                    self.stderr.write('    - %s' % finding)
+            results[label] = rows
+
+        self.stdout.write('')
+        self.stdout.write('%-28s %8s %12s' % ('model', 'scope', 'complete'))
+        for label, rows in results.items():
+            scope = sum(r[1]['scope'] for r in rows) / len(rows)
+            complete = sum(r[1]['completeness'] for r in rows) / len(rows)
+            self.stdout.write('%-28s %8.4f %12.4f' % (label, scope, complete))
+
+        if options['json']:
+            self.stdout.write(_json.dumps(
+                {label: [{'scenario': k, **s, 'draft': d}
+                         for k, s, d in rows]
+                 for label, rows in results.items()}, indent=1))
+
+    def _ask_for_draft(self, model, plan_text, scenario):
+        """
+        One request, returning the draft the model proposed.
+
+        Asked as JSON rather than through the tool so one scorer serves
+        both providers. What is being measured is the INSTRUCTIONS -- the
+        scope rule and the day/exercise naming -- which is what changed.
+        """
+        import json as _json
+
+        from api.claude import ClaudeError, call_claude_json
+        from api.gemini import GeminiError, call_gemini_json
+
+        system = (
+            'You edit a training plan by proposing OPERATIONS, never by '
+            'rewriting the plan. Return JSON: {"changes": [...]}.\n'
+            'Each change has: action (add, remove, replace, update, '
+            'rename_day, move_day), day (the day name), name (the exercise '
+            'this change results in; for rename_day the new day name; for '
+            'move_day the day name), and week.\n'
+            'For replace, `replaces` is the exercise going OUT and `name` '
+            'the one coming IN. For move_day, `to_position` is the 1-based '
+            'slot.\n'
+            'SCOPE: every change says which week it is for. `week` is the '
+            'week number -- normally the week the user is looking at. Use '
+            'week 0 ONLY when the user means their whole programme. A day '
+            'moved in "every week" reorders weeks the user never '
+            'mentioned.\n'
+            'Propose only what was asked for. Nothing else.')
+        user = ('The plan:\n%s\n\nThe user is looking at week %d.\n\n'
+                'They say: "%s"' % (plan_text, scenario['current_week'],
+                                    scenario['request']))
+        try:
+            if model and 'gemini' in model:
+                data = call_gemini_json(system_prompt=system,
+                                        user_prompt=user, model=model)
+            else:
+                kwargs = {'system_prompt': system, 'user_prompt': user}
+                if model:
+                    kwargs['model'] = model
+                data = call_claude_json(**kwargs)
+        except (ClaudeError, GeminiError) as exc:
+            self.stderr.write('  %s failed: %s' % (model or 'default', exc))
+            return []
+        if isinstance(data, dict):
+            return data.get('changes') or []
+        return data if isinstance(data, list) else []
 
     def _update_baseline(self):
         cases = load_fixtures()
