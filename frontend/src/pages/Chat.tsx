@@ -73,7 +73,7 @@ function SessionList({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setConfirmId(s.id) }}
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-gray-400 hover:text-red-500 text-[10px] px-2 py-2 flex-shrink-0 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-gray-400 hover:text-danger-500 text-[10px] px-2 py-2 flex-shrink-0 transition-opacity"
                 aria-label={`Delete chat: ${s.title}`}
                 title="Delete chat"
               >
@@ -227,7 +227,7 @@ function ChatPane({ sessionId }: { sessionId: string }) {
         )}
 
         {error && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+          <div className="text-sm text-danger-600 bg-danger-50 border border-danger-200 rounded-xl px-4 py-3 mb-4">
             {error}
           </div>
         )}
@@ -401,7 +401,7 @@ export default function Chat() {
                 type="button"
                 onClick={() => setPendingDelete(sessionId)}
                 aria-label="Delete this chat"
-                className="flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                className="flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-danger-500 hover:bg-danger-50 transition-colors"
               >
                 🗑
               </button>

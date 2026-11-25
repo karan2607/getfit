@@ -114,7 +114,7 @@ export default function Onboarding() {
         )}
 
         {blockedReason && (
-          <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <p className="mt-4 text-xs text-warning-700 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2">
             {blockedReason}
           </p>
         )}

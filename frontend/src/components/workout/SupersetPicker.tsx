@@ -169,7 +169,7 @@ export default function SupersetPicker({ dayId, onClose, onSaved }: {
                     <button
                       onClick={() => setGroups((prev) =>
                         prev.filter((_, i) => i !== groupIndex))}
-                      className="text-[11px] font-semibold text-red-600"
+                      className="text-[11px] font-semibold text-danger-600"
                     >
                       Ungroup
                     </button>
@@ -205,7 +205,7 @@ export default function SupersetPicker({ dayId, onClose, onSaved }: {
                             onClick={() => setGroups((prev) => prev.map((g, i) =>
                               i === groupIndex ? g.filter((x) => x !== id) : g))}
                             aria-label={`Remove ${nameOf(id)}`}
-                            className="text-[11px] font-semibold text-gray-400 hover:text-red-600 flex-shrink-0"
+                            className="text-[11px] font-semibold text-gray-400 hover:text-danger-600 flex-shrink-0"
                           >
                             Remove
                           </button>

@@ -151,7 +151,7 @@ function Row({ item, onOpen, onDismiss }: RowProps) {
       {/* Revealed behind the row as it slides. */}
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 right-0 w-28 flex items-center justify-end pr-5 bg-red-500 text-white text-xs font-bold"
+        className="absolute inset-y-0 right-0 w-28 flex items-center justify-end pr-5 bg-danger-500 text-white text-xs font-bold"
       >
         Clear
       </div>
@@ -558,7 +558,7 @@ export default function NotificationBell() {
                   </div>
 
                   {threadError && (
-                    <p className="flex-shrink-0 px-3 py-1.5 text-[11px] text-red-600 bg-red-50">
+                    <p className="flex-shrink-0 px-3 py-1.5 text-[11px] text-danger-600 bg-danger-50">
                       {threadError}
                     </p>
                   )}

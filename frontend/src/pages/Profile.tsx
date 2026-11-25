@@ -103,7 +103,7 @@ function PersonalNotesCard({ value, onChange, onSave }: {
             <button
               onClick={handleDelete}
               disabled={saving}
-              className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+              className="text-xs font-semibold text-danger-400 hover:text-danger-600 transition-colors disabled:opacity-50"
             >
               Delete
             </button>

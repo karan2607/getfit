@@ -61,7 +61,7 @@ export default function Signup() {
               placeholder="Alex"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
-            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
+            {errors.name && <p className="text-xs text-danger-500 mt-1">{errors.name.message}</p>}
           </div>
 
           <div>
@@ -72,7 +72,7 @@ export default function Signup() {
               placeholder="you@example.com"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
-            {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
+            {errors.email && <p className="text-xs text-danger-500 mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
@@ -82,7 +82,7 @@ export default function Signup() {
               placeholder="••••••••"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
-            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
+            {errors.password && <p className="text-xs text-danger-500 mt-1">{errors.password.message}</p>}
             {/* Shown as you type rather than after a refused submit: rules you
                 discover by breaking them mean choosing a password, being
                 rejected, and starting again without knowing what else is
@@ -91,7 +91,7 @@ export default function Signup() {
           </div>
 
           {serverError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-danger-600 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
               {serverError}
             </p>
           )}

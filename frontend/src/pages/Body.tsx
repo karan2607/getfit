@@ -84,18 +84,18 @@ export default function Body() {
       <PageHeader title="Body Scanner" subtitle="AI-powered physique assessment from a photo" />
       <div className="p-6 max-w-2xl">
         {showDisclaimer && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
+          <div className="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
             <span className="text-xl flex-shrink-0">⚠️</span>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800 mb-1">AI Estimate Only</p>
-              <p className="text-xs text-amber-700">
+              <p className="text-sm font-semibold text-warning-800 mb-1">AI Estimate Only</p>
+              <p className="text-xs text-warning-700">
                 This tool provides an AI-based estimate for informational purposes only.
                 It is not a medical assessment. Consult a healthcare professional for accurate body composition analysis.
               </p>
             </div>
             <button
               onClick={() => setShowDisclaimer(false)}
-              className="text-amber-400 hover:text-amber-600 flex-shrink-0 text-lg leading-none"
+              className="text-warning-400 hover:text-warning-600 flex-shrink-0 text-lg leading-none"
             >
               ×
             </button>

@@ -64,15 +64,15 @@ export function TokenReveal({
 
   if (!acknowledged) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-        <p className="text-xs text-amber-800">
+      <div className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-3">
+        <p className="text-xs text-warning-800">
           This token can write health data to your account. Do not share it or
           show it on a screen other people can see.
         </p>
         <button
           type="button"
           onClick={() => setAcknowledged(true)}
-          className="mt-2 min-h-[44px] px-4 rounded-xl border border-amber-300 bg-white text-sm font-medium text-amber-900"
+          className="mt-2 min-h-[44px] px-4 rounded-xl border border-warning-300 bg-white text-sm font-medium text-warning-900"
         >
           I understand — show it
         </button>

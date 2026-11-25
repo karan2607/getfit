@@ -347,7 +347,7 @@ describe('NotificationBell', () => {
     expect(fixed).not.toEqual(failed)
     // Filled vs outlined, which holds up before hue does.
     expect(fixed).toContain('bg-ink-600')
-    expect(failed).toContain('bg-red-50')
+    expect(failed).toContain('bg-danger-50')
   })
 
   describe('device alerts', () => {

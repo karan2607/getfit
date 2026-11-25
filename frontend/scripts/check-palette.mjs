@@ -19,6 +19,15 @@ const ROOT = 'src'
 const BANNED = [
   { re: /\bemerald-\d{2,3}\b/g, why: 'emerald is not in the palette; use accent-*' },
   {
+    // Semantic colour goes through a name. Red, amber and blue were each
+    // spread over eight shades across 31 files with nothing deciding
+    // which, so "what colour is an error" had no answer. The tokens hold
+    // the same values; this stops the raw names coming back.
+    re: /\b(?:bg|text|border|ring|from|via|to|divide|outline)-(?:red|amber|blue)-\d{2,3}\b/g,
+    why: 'use the semantic token: red -> danger, amber -> warning, blue -> info',
+  },
+  { re: /\bpurple-\d{2,3}\b/g, why: 'purple is not in the palette; use accent-*' },
+  {
     re: /\b(?:bg|text|border|ring|from|via|to)-\[#[0-9a-fA-F]{3,8}\]/g,
     why: 'raw hex in a class; add a token in tailwind.config.js instead',
   },

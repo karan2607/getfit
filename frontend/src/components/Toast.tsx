@@ -34,7 +34,7 @@ const ICONS: Record<ToastType, string> = {
 const STYLES: Record<ToastType, string> = {
   success: 'bg-accent-600 text-white',
   error: 'bg-rose-600 text-white',
-  info: 'bg-blue-600 text-white',
+  info: 'bg-info-600 text-white',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

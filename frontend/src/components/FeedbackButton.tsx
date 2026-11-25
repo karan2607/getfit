@@ -64,9 +64,9 @@ export default function FeedbackButton() {
 
   const statusStyle: Record<string, string> = {
     new: 'bg-gray-100 text-gray-600',
-    in_progress: 'bg-amber-100 text-amber-700',
+    in_progress: 'bg-warning-100 text-warning-700',
     done: 'bg-accent-100 text-accent-700',
-    failed: 'bg-red-100 text-red-700',
+    failed: 'bg-danger-100 text-danger-700',
     skipped: 'bg-gray-100 text-gray-400',
   }
 

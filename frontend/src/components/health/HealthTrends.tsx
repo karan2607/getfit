@@ -87,7 +87,7 @@ function ChangeBadge({ change, pct, lowerIsBetter }: {
   if (change === null || change === 0) return null
   const improving = lowerIsBetter ? change < 0 : change > 0
   return (
-    <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${improving ? 'text-accent-700 bg-accent-50' : 'text-amber-700 bg-amber-50'}`}>
+    <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${improving ? 'text-accent-700 bg-accent-50' : 'text-warning-700 bg-warning-50'}`}>
       {change > 0 ? '↑' : '↓'} {Math.abs(pct ?? 0).toFixed(0)}%
     </span>
   )
@@ -239,7 +239,7 @@ export default function HealthTrends({ latestSummaryDate }: {
       </div>
 
       {staleDays !== null && staleDays > 7 && (
-        <div className="mb-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <div className="mb-3 text-[11px] text-warning-700 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2">
           Your newest health data is <span className="font-semibold">{staleDays} days old</span>.
           If your sync runs daily, it is probably sending a fixed date instead of
           today — remove the date field from the Shortcut and the server will use today.

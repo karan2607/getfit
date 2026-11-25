@@ -52,12 +52,12 @@ function MacroDonut({ protein, carbs, fat, calories }: { protein: number; carbs:
           <span className="ml-auto font-semibold text-gray-900">{protein}g</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-info-500 flex-shrink-0" />
           <span className="text-gray-600">Carbs</span>
           <span className="ml-auto font-semibold text-gray-900">{carbs}g</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-warning-500 flex-shrink-0" />
           <span className="text-gray-600">Fat</span>
           <span className="ml-auto font-semibold text-gray-900">{fat}g</span>
         </div>
@@ -167,7 +167,7 @@ function PlanList({ onGenerate, onView }: { onGenerate: () => void; onView: (id:
                 )}
                 <button
                   onClick={() => handleDelete(plan.id)}
-                  className="text-xs text-red-400 hover:text-red-600 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  className="text-xs text-danger-400 hover:text-danger-600 font-medium px-3 py-1.5 rounded-lg hover:bg-danger-50 transition-colors"
                 >
                   Delete
                 </button>
@@ -202,8 +202,8 @@ function MealCard({ meal, onClick }: { meal: { meal_type: string; name: string; 
       {meal.description && <p className="text-xs text-gray-500 mt-1 pl-8 line-clamp-2">{meal.description}</p>}
       <div className="flex gap-3 pl-8 mt-1 text-xs text-gray-500">
         <span className="text-accent-600 font-medium">{meal.protein_g}g P</span>
-        <span className="text-blue-500 font-medium">{meal.carbs_g}g C</span>
-        <span className="text-amber-500 font-medium">{meal.fat_g}g F</span>
+        <span className="text-info-500 font-medium">{meal.carbs_g}g C</span>
+        <span className="text-warning-500 font-medium">{meal.fat_g}g F</span>
       </div>
     </div>
   )
@@ -263,8 +263,8 @@ function MealDrawer({ meal, onClose, onEditWithAI }: {
             {[
               { label: 'Calories', value: `${meal.calories} kcal`, color: 'bg-gray-50 text-gray-700' },
               { label: 'Protein', value: `${meal.protein_g}g`, color: 'bg-accent-50 text-accent-700' },
-              { label: 'Carbs', value: `${meal.carbs_g}g`, color: 'bg-blue-50 text-blue-700' },
-              { label: 'Fat', value: `${meal.fat_g}g`, color: 'bg-amber-50 text-amber-700' },
+              { label: 'Carbs', value: `${meal.carbs_g}g`, color: 'bg-info-50 text-info-700' },
+              { label: 'Fat', value: `${meal.fat_g}g`, color: 'bg-warning-50 text-warning-700' },
             ].map((item) => (
               <div key={item.label} className={`${item.color} rounded-xl p-3 text-center`}>
                 <p className="text-lg font-bold">{item.value}</p>
@@ -350,16 +350,16 @@ function MealDrawer({ meal, onClose, onEditWithAI }: {
           {/* Recipe links */}
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Find recipes</p>
           <a href={ytUrl} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-3 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl px-4 py-3 mb-2 transition-colors">
-            <span className="text-red-600 text-lg">▶</span>
+            className="flex items-center gap-3 bg-danger-50 hover:bg-danger-100 border border-danger-100 rounded-xl px-4 py-3 mb-2 transition-colors">
+            <span className="text-danger-600 text-lg">▶</span>
             <div>
               <p className="text-sm font-semibold text-gray-900">Watch on YouTube</p>
               <p className="text-xs text-gray-500">Video recipe</p>
             </div>
           </a>
           <a href={recipeUrl} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-4 py-3 mb-5 transition-colors">
-            <span className="text-blue-600 text-lg font-bold">G</span>
+            className="flex items-center gap-3 bg-info-50 hover:bg-info-100 border border-info-100 rounded-xl px-4 py-3 mb-5 transition-colors">
+            <span className="text-info-600 text-lg font-bold">G</span>
             <div>
               <p className="text-sm font-semibold text-gray-900">Find recipes online</p>
               <p className="text-xs text-gray-500">AllRecipes, BBC Good Food</p>
@@ -760,8 +760,8 @@ function FoodScanCard({ scan }: { scan: FoodScanResult }) {
       </div>
       <div className="flex gap-3 text-xs">
         <span className="text-accent-600 font-medium">{scan.protein_g}g P</span>
-        <span className="text-blue-500 font-medium">{scan.carbs_g}g C</span>
-        <span className="text-amber-500 font-medium">{scan.fat_g}g F</span>
+        <span className="text-info-500 font-medium">{scan.carbs_g}g C</span>
+        <span className="text-warning-500 font-medium">{scan.fat_g}g F</span>
         {scan.fiber_g != null && <span className="text-gray-400">{scan.fiber_g}g fiber</span>}
       </div>
       {scan.notes && <p className="text-xs text-gray-400 mt-2">{scan.notes}</p>}
@@ -860,9 +860,9 @@ function MacroBar({ label, actual, target, color }: { label: string; actual: num
     <div className="flex items-center gap-3 text-xs">
       <span className="w-12 text-gray-500 shrink-0">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-2">
-        <div className={`h-2 rounded-full transition-all ${over ? 'bg-red-400' : color}`} style={{ width: `${pct}%` }} />
+        <div className={`h-2 rounded-full transition-all ${over ? 'bg-danger-400' : color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className={`w-20 text-right font-medium ${over ? 'text-red-500' : 'text-gray-700'}`}>
+      <span className={`w-20 text-right font-medium ${over ? 'text-danger-500' : 'text-gray-700'}`}>
         {actual}g / {target}g
       </span>
     </div>
@@ -976,7 +976,7 @@ export function MealLogger() {
             </p>
             <span className={`text-sm font-bold ${
               activePlan && totals.calories > activePlan.target_calories
-                ? 'text-red-500' : 'text-gray-900'}`}>
+                ? 'text-danger-500' : 'text-gray-900'}`}>
               {activePlan
                 ? `${totals.calories} / ${activePlan.target_calories} kcal`
                 : `${totals.calories} kcal`}
@@ -985,8 +985,8 @@ export function MealLogger() {
           {activePlan ? (
             <div className="space-y-2">
               <MacroBar label="Protein" actual={Math.round(totals.protein_g)} target={activePlan.protein_g} color="bg-accent-500" />
-              <MacroBar label="Carbs" actual={Math.round(totals.carbs_g)} target={activePlan.carbs_g} color="bg-blue-400" />
-              <MacroBar label="Fat" actual={Math.round(totals.fat_g)} target={activePlan.fat_g} color="bg-amber-400" />
+              <MacroBar label="Carbs" actual={Math.round(totals.carbs_g)} target={activePlan.carbs_g} color="bg-info-400" />
+              <MacroBar label="Fat" actual={Math.round(totals.fat_g)} target={activePlan.fat_g} color="bg-warning-400" />
             </div>
           ) : (
             <div className="flex gap-4 text-sm">
@@ -1033,7 +1033,7 @@ export function MealLogger() {
                         {m.fiber_g != null && ` · ${m.fiber_g}g fiber`}
                       </p>
                     </div>
-                    <button onClick={() => handleDelete(m.id)} className="text-gray-300 hover:text-red-400 text-sm transition-colors flex-shrink-0">✕</button>
+                    <button onClick={() => handleDelete(m.id)} className="text-gray-300 hover:text-danger-400 text-sm transition-colors flex-shrink-0">✕</button>
                   </div>
                 ))}
               </div>

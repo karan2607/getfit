@@ -83,12 +83,12 @@ export default function UpcomingWeeks({ plan, onChanged }: {
       </p>
 
       {plan.prepare_error && (
-        <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
+        <div className="mb-3 text-xs text-danger-700 bg-danger-50 border border-danger-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
           <span>Week {next} didn't generate: {plan.prepare_error}</span>
           <button
             onClick={() => prepare(next)}
             disabled={busy}
-            className="font-semibold text-red-700 underline flex-shrink-0 disabled:opacity-50"
+            className="font-semibold text-danger-700 underline flex-shrink-0 disabled:opacity-50"
           >
             Try again
           </button>

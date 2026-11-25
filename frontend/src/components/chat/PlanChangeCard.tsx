@@ -133,7 +133,7 @@ export function PlanChangeDraft({
           {planWide && (
             <p
               role="alert"
-              className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+              className="mb-3 rounded-lg border border-danger-300 bg-danger-50 px-3 py-2 text-sm font-medium text-danger-700"
             >
               This changes every week of your plan, not just the one you are
               looking at. Weeks you have already trained will change too.
@@ -186,7 +186,7 @@ export function PlanChangeDraft({
           {change.warnings?.length ? (
             <ul className="mt-3 space-y-1">
               {change.warnings.map((w, i) => (
-                <li key={i} className="text-xs text-amber-700">⚠ {w.message}</li>
+                <li key={i} className="text-xs text-warning-700">⚠ {w.message}</li>
               ))}
             </ul>
           ) : null}
@@ -235,7 +235,7 @@ export function PlanChangeResult({
   return (
     <div
       className={`mb-4 rounded-2xl border p-4 ${
-        failed ? 'border-red-300 bg-red-50' : 'border-accent-200 bg-accent-50'
+        failed ? 'border-danger-300 bg-danger-50' : 'border-accent-200 bg-accent-50'
       }`}
     >
       <p className="text-sm font-semibold text-ink-600">
@@ -339,7 +339,7 @@ export function PlanChangeResult({
                   nothing to do about it. What it actually means is that the
                   plan came out different from what they confirmed, which is
                   worth saying in those words. */}
-              <p className="text-sm text-red-700 font-medium">
+              <p className="text-sm text-danger-700 font-medium">
                 Applied — but {diff.unapproved.length === 1
                   ? 'one exercise changed that was not'
                   : `${diff.unapproved.length} exercises changed that were not`}{' '}
@@ -347,8 +347,8 @@ export function PlanChangeResult({
               </p>
               <ul className="mt-1 space-y-1">
                 {diff.unapproved.map((e, i) => (
-                  <li key={i} className="text-sm text-red-700">
-                    {e.name} <span className="text-red-500">({e.day})</span>
+                  <li key={i} className="text-sm text-danger-700">
+                    {e.name} <span className="text-danger-500">({e.day})</span>
                   </li>
                 ))}
               </ul>
@@ -361,7 +361,7 @@ export function PlanChangeResult({
           )}
           {missingAdds.length > 0 && (
             <div className={diff.unapproved.length > 0 ? 'mt-3' : ''}>
-              <p className="text-sm text-red-700 font-medium">
+              <p className="text-sm text-danger-700 font-medium">
                 {missingAdds.length === 1
                   ? 'One exercise you confirmed is'
                   : `${missingAdds.length} exercises you confirmed are`}{' '}
@@ -369,8 +369,8 @@ export function PlanChangeResult({
               </p>
               <ul className="mt-1 space-y-1">
                 {missingAdds.map((e, i) => (
-                  <li key={i} className="text-sm text-red-700">
-                    {e.name}{e.day ? <span className="text-red-500"> ({e.day})</span> : null}
+                  <li key={i} className="text-sm text-danger-700">
+                    {e.name}{e.day ? <span className="text-danger-500"> ({e.day})</span> : null}
                   </li>
                 ))}
               </ul>
@@ -380,7 +380,7 @@ export function PlanChangeResult({
             </div>
           )}
           {diff.keep_list_violations.length > 0 && (
-            <p className="text-sm text-red-700 mt-2">
+            <p className="text-sm text-danger-700 mt-2">
               {diff.keep_list_violations.length} protected{' '}
               {diff.keep_list_violations.length === 1 ? 'exercise was' : 'exercises were'}{' '}
               affected.

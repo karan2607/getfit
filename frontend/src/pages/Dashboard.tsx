@@ -11,9 +11,12 @@ function StatCard({ label, value, sub, color = 'emerald' }: {
 }) {
   const colorMap: Record<string, string> = {
     emerald: 'bg-accent-50 text-accent-600',
-    blue: 'bg-blue-50 text-blue-600',
-    amber: 'bg-amber-50 text-amber-600',
-    purple: 'bg-purple-50 text-purple-600',
+    blue: 'bg-info-50 text-info-600',
+    amber: 'bg-warning-50 text-warning-600',
+    // The plan card was the last purple in the app -- a leftover from
+    // before the navy-and-orange palette, not a decision. This is the one
+    // deliberate visual change in the token sweep.
+    accent: 'bg-accent-50 text-accent-600',
   }
   return (
     <div className={`rounded-2xl p-4 ${colorMap[color] ?? colorMap.emerald}`}>
@@ -216,7 +219,7 @@ export default function Dashboard() {
               ? `${savedPlans.length} saved, none active`
               : 'No workout plan')
           }
-          color="purple"
+          color="accent"
         />
       </div>
 
@@ -255,7 +258,7 @@ export default function Dashboard() {
                   disabled={startingWorkout}
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
                     todayInProgressSession
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      ? 'bg-warning-500 hover:bg-warning-600 text-white'
                       : 'bg-accent-600 hover:bg-accent-700 text-white'
                   }`}
                 >
@@ -338,11 +341,11 @@ export default function Dashboard() {
                   <p className="text-gray-400">Protein</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-blue-500">{activeDiet.carbs_g}g</p>
+                  <p className="font-semibold text-info-500">{activeDiet.carbs_g}g</p>
                   <p className="text-gray-400">Carbs</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-amber-500">{activeDiet.fat_g}g</p>
+                  <p className="font-semibold text-warning-500">{activeDiet.fat_g}g</p>
                   <p className="text-gray-400">Fat</p>
                 </div>
               </div>

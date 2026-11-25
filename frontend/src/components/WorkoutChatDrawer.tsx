@@ -495,7 +495,7 @@ export default function WorkoutChatDrawer({
               )}
 
               {error && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+                <div className="text-sm text-danger-600 bg-danger-50 border border-danger-200 rounded-xl px-4 py-3 mb-4">
                   {error}
                 </div>
               )}
@@ -534,18 +534,18 @@ export default function WorkoutChatDrawer({
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           {hasUnsavedSets && isEditDayMode && (
-            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
+            <p className="text-[11px] text-warning-600 bg-warning-50 border border-warning-200 rounded-lg px-2.5 py-1.5 mb-2">
               You have unticked sets. They'll be saved automatically before any
               change is applied.
             </p>
           )}
           {startFailed && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2 flex items-center justify-between gap-3">
+            <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-xl px-3 py-2 mb-2 flex items-center justify-between gap-3">
               <span>Couldn't start this chat.</span>
               <button
                 type="button"
                 onClick={() => setStartAttempt((n) => n + 1)}
-                className="min-h-[44px] px-3 rounded-full border border-red-300 text-sm font-medium text-red-700"
+                className="min-h-[44px] px-3 rounded-full border border-danger-300 text-sm font-medium text-danger-700"
               >
                 Try again
               </button>

@@ -117,29 +117,29 @@ export default function ApiKeyCard() {
 
       {/* The secret, shown exactly once. */}
       {revealed?.key && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-          <p className="text-xs font-semibold text-amber-800 mb-1">
+        <div className="mb-4 rounded-xl border border-warning-200 bg-warning-50 p-3">
+          <p className="text-xs font-semibold text-warning-800 mb-1">
             Copy this now — it will not be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-[11px] bg-white rounded-lg px-2 py-2 break-all border border-amber-200">
+            <code className="flex-1 text-[11px] bg-white rounded-lg px-2 py-2 break-all border border-warning-200">
               {revealed.key}
             </code>
             <button
               onClick={() => copy(revealed.key!)}
-              className="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors flex-shrink-0"
+              className="text-xs font-semibold px-3 py-2 rounded-lg bg-warning-600 text-white hover:bg-warning-700 transition-colors flex-shrink-0"
             >
               {copied ? '✓' : 'Copy'}
             </button>
           </div>
-          <p className="text-[11px] text-amber-700 mt-2">
+          <p className="text-[11px] text-warning-700 mt-2">
             Send it as <code>Authorization: Bearer &lt;key&gt;</code>. Scope:{' '}
             {revealed.scope_display.toLowerCase()} — it cannot change your
             password or reach admin endpoints.
           </p>
           <button
             onClick={() => setRevealed(null)}
-            className="text-[11px] text-amber-700 underline mt-1"
+            className="text-[11px] text-warning-700 underline mt-1"
           >
             I've saved it
           </button>
@@ -208,7 +208,7 @@ export default function ApiKeyCard() {
                 <p className="text-[11px] text-gray-400">
                   <code>{key.prefix}…</code>
                   {' · '}
-                  <span className={key.last_used_at ? '' : 'text-amber-600 font-semibold'}>
+                  <span className={key.last_used_at ? '' : 'text-warning-600 font-semibold'}>
                     {relativeTime(key.last_used_at)}
                   </span>
                   {' · '}{key.scope_display.toLowerCase()}
@@ -216,7 +216,7 @@ export default function ApiKeyCard() {
               </div>
               <button
                 onClick={() => handleRevoke(key)}
-                className="text-xs font-semibold text-red-600 hover:text-red-700 transition-colors flex-shrink-0"
+                className="text-xs font-semibold text-danger-600 hover:text-danger-700 transition-colors flex-shrink-0"
               >
                 Revoke
               </button>

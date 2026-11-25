@@ -50,8 +50,8 @@ export default function TemplatePicker({
   return (
     <div>
       {reason && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm text-amber-800">{reason}</p>
+        <div className="mb-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
+          <p className="text-sm text-warning-800">{reason}</p>
         </div>
       )}
 
@@ -65,7 +65,7 @@ export default function TemplatePicker({
             {/* Say so rather than silently handing back a different plan
                 than the one named. */}
             {t.adjusted && (
-              <p className="text-xs text-amber-700 mt-2">
+              <p className="text-xs text-warning-700 mt-2">
                 Adjusted to avoid exercises you've ruled out.
               </p>
             )}

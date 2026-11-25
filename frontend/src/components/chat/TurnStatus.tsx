@@ -47,7 +47,7 @@ export function InFlight({ elapsed, onStop, status }: {
         <button
           type="button"
           onClick={onStop}
-          className="ml-auto min-h-[44px] px-4 text-sm font-medium text-red-600 hover:text-red-700"
+          className="ml-auto min-h-[44px] px-4 text-sm font-medium text-danger-600 hover:text-danger-700"
         >
           Stop
         </button>

@@ -108,7 +108,7 @@ export default function FeedbackThread() {
       </div>
 
       {loading && <p className="p-4 text-sm text-gray-400">Loading…</p>}
-      {error && <p className="px-4 py-2 text-sm text-red-600 bg-red-50">{error}</p>}
+      {error && <p className="px-4 py-2 text-sm text-danger-600 bg-danger-50">{error}</p>}
 
       {item && <FeedbackConversation item={item} sending={sending} onReply={reply} />}
     </div>

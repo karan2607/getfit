@@ -202,11 +202,11 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
 
                 {/* Tips */}
                 {guide.tips.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                    <p className="text-xs font-semibold text-amber-700 mb-2">Pro tips</p>
+                  <div className="bg-warning-50 border border-warning-100 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-warning-700 mb-2">Pro tips</p>
                     <ul className="space-y-1.5">
                       {guide.tips.map((tip, i) => (
-                        <li key={i} className="flex gap-2 text-xs text-amber-800 leading-relaxed">
+                        <li key={i} className="flex gap-2 text-xs text-warning-800 leading-relaxed">
                           <span className="flex-shrink-0 mt-0.5">•</span>
                           <span>{tip}</span>
                         </li>
@@ -226,9 +226,9 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
             href={ytUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl px-4 py-3 mb-2 transition-colors"
+            className="flex items-center gap-3 bg-danger-50 hover:bg-danger-100 border border-danger-100 rounded-xl px-4 py-3 mb-2 transition-colors"
           >
-            <span className="text-red-600 text-lg">▶</span>
+            <span className="text-danger-600 text-lg">▶</span>
             <div>
               <p className="text-sm font-semibold text-gray-900">Watch on YouTube</p>
               <p className="text-xs text-gray-500">Form tutorial</p>
@@ -238,9 +238,9 @@ export default function ExerciseDrawer({ exercise, onClose }: ExerciseDrawerProp
             href={googleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-4 py-3 transition-colors"
+            className="flex items-center gap-3 bg-info-50 hover:bg-info-100 border border-info-100 rounded-xl px-4 py-3 transition-colors"
           >
-            <span className="text-blue-600 text-lg font-bold">G</span>
+            <span className="text-info-600 text-lg font-bold">G</span>
             <div>
               <p className="text-sm font-semibold text-gray-900">Search on Google</p>
               <p className="text-xs text-gray-500">More examples</p>

@@ -167,7 +167,7 @@ export default function DailyEditor({ summaries, onChanged }: {
                     <button
                       onClick={() => removeDay(s.date)}
                       disabled={busy}
-                      className="ml-auto text-sm font-semibold px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                      className="ml-auto text-sm font-semibold px-3 py-2 rounded-xl text-danger-600 hover:bg-danger-50 disabled:opacity-40 transition-colors"
                     >
                       Delete day
                     </button>

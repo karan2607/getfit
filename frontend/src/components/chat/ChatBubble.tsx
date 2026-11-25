@@ -216,7 +216,7 @@ function InlineDietPlanCard({
   const numDays = plan.meals.reduce((max, m) => Math.max(max, m.day_number ?? 1), 1)
 
   return (
-    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl overflow-hidden">
+    <div className="mt-3 bg-info-50 border border-info-200 rounded-xl overflow-hidden">
       <div className="px-4 py-3 flex items-center justify-between">
         <div>
           <p className="font-semibold text-gray-900 text-sm">{plan.title}</p>
@@ -227,7 +227,7 @@ function InlineDietPlanCard({
         <button
           onClick={handleSave}
           disabled={saving || saved}
-          className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+          className="text-xs bg-info-600 hover:bg-info-700 disabled:opacity-50 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
         >
           {saved ? '✓ Saved' : saving ? 'Saving...' : dietPlanId ? 'Update plan' : 'Save plan'}
         </button>

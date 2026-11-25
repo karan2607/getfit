@@ -52,17 +52,17 @@ const LINES: Record<string, StatusLine> = {
   },
   failed: {
     label: "Couldn't fix",
-    tone: 'text-red-700 bg-red-50 border-red-200',
+    tone: 'text-danger-700 bg-danger-50 border-danger-200',
     fallback: 'The change did not hold. Nothing was shipped.',
   },
   skipped: {
     label: 'Needs you',
-    tone: 'text-amber-700 bg-amber-50 border-amber-200',
+    tone: 'text-warning-700 bg-warning-50 border-warning-200',
     fallback: 'Stopped and left this one for you to decide.',
   },
   in_progress: {
     label: 'Working on it',
-    tone: 'text-blue-700 bg-blue-50 border-blue-200',
+    tone: 'text-info-700 bg-info-50 border-info-200',
     fallback: 'Being worked on now.',
   },
   new: {

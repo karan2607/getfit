@@ -54,7 +54,7 @@ function WorkoutRow({ workout, onDeleted }: {
 
   return (
     <div className="group flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3">
-      <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-lg flex-shrink-0">🏃</div>
+      <div className="w-9 h-9 rounded-xl bg-danger-50 flex items-center justify-center text-lg flex-shrink-0">🏃</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate">{workout.activity_type}</p>
         <p className="text-xs text-gray-400">{fmtDate(workout.start_time)}</p>
@@ -62,9 +62,9 @@ function WorkoutRow({ workout, onDeleted }: {
       <div className="text-right flex-shrink-0 space-y-0.5">
         <p className="text-xs font-medium text-gray-700">{fmtDuration(workout.duration_seconds)}</p>
         <div className="flex items-center gap-2 justify-end">
-          {workout.calories != null && <span className="text-xs text-amber-600">{Math.round(workout.calories)} kcal</span>}
-          {workout.avg_heart_rate != null && <span className="text-xs text-red-500">{Math.round(workout.avg_heart_rate)} bpm</span>}
-          {dist && <span className="text-xs text-blue-500">{dist}</span>}
+          {workout.calories != null && <span className="text-xs text-warning-600">{Math.round(workout.calories)} kcal</span>}
+          {workout.avg_heart_rate != null && <span className="text-xs text-danger-500">{Math.round(workout.avg_heart_rate)} bpm</span>}
+          {dist && <span className="text-xs text-info-500">{dist}</span>}
         </div>
       </div>
       {/* A bogus synced workout had no way out before. */}
@@ -72,7 +72,7 @@ function WorkoutRow({ workout, onDeleted }: {
         <button
           onClick={remove}
           title="Delete this workout"
-          className="text-gray-300 hover:text-red-600 text-sm flex-shrink-0 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+          className="text-gray-300 hover:text-danger-600 text-sm flex-shrink-0 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
         >
           ✕
         </button>
@@ -316,9 +316,9 @@ function CalorieBalanceCard({ balance }: { balance: HealthCalorieBalance | null 
   const rb = balance.remaining_burn
   const reDisplay = re != null ? Math.abs(re).toLocaleString() : '—'
   const rbDisplay = rb != null ? Math.abs(rb).toLocaleString() : '—'
-  const reColor = re == null ? 'text-gray-400' : re >= 0 ? 'text-accent-500' : 'text-red-500'
+  const reColor = re == null ? 'text-gray-400' : re >= 0 ? 'text-accent-500' : 'text-danger-500'
   const reLabel = re != null && re < 0 ? 'Over eat goal' : 'Left to eat'
-  const rbColor = rb == null ? 'text-gray-400' : rb <= 0 ? 'text-accent-500' : 'text-amber-500'
+  const rbColor = rb == null ? 'text-gray-400' : rb <= 0 ? 'text-accent-500' : 'text-warning-500'
   const rbLabel = rb != null && rb <= 0 ? 'Burn goal met' : 'Left to burn'
 
   const divider = <div className="w-px bg-gray-100 self-stretch" />
@@ -374,10 +374,10 @@ function ActivitySuggestionBanner({ suggestion, onUpdate, onDismiss }: {
   }
 
   return (
-    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4 flex items-start gap-3">
-      <span className="text-blue-400 text-lg mt-0.5">💡</span>
+    <div className="bg-info-50 border border-info-100 rounded-2xl p-4 mb-4 flex items-start gap-3">
+      <span className="text-info-400 text-lg mt-0.5">💡</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-blue-800">
+        <p className="text-sm text-info-800">
           Based on your activity
           {suggestion.avg_calories != null && ` (avg ${suggestion.avg_calories} kcal/day`}
           {suggestion.weekly_workouts != null && `, ${suggestion.weekly_workouts} workouts this week)`},
@@ -389,11 +389,11 @@ function ActivitySuggestionBanner({ suggestion, onUpdate, onDismiss }: {
         <button
           onClick={handleUpdate}
           disabled={updating}
-          className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+          className="text-xs font-semibold text-white bg-info-500 hover:bg-info-600 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
         >
           {updating ? 'Updating…' : 'Update'}
         </button>
-        <button onClick={onDismiss} className="text-xs text-blue-400 hover:text-blue-600 font-medium px-2">
+        <button onClick={onDismiss} className="text-xs text-info-400 hover:text-info-600 font-medium px-2">
           Dismiss
         </button>
       </div>
@@ -522,7 +522,7 @@ function HealthDashboard({ provider, connectedAt, lastSyncAt, latestSummaryDate,
           <button
             onClick={handleDisconnect}
             disabled={disconnecting}
-            className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors disabled:opacity-50"
+            className="text-xs text-danger-400 hover:text-danger-600 font-medium transition-colors disabled:opacity-50"
           >
             {disconnecting ? 'Disconnecting…' : 'Disconnect'}
           </button>

@@ -406,7 +406,7 @@ const btnBase = 'w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text
                 <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setBodyPhoto(await compressImage(f)) }} />
                 {bodyPhoto ? `📷 ${bodyPhoto.name}` : '+ Upload body photo'}
               </label>
-              {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-red-400 mt-1">Remove</button>}
+              {bodyPhoto && <button onClick={() => setBodyPhoto(null)} className="text-xs text-gray-400 hover:text-danger-400 mt-1">Remove</button>}
             </div>
 
             <button onClick={handleGetRecommendation} disabled={loadingRec} className={btnBase}>
@@ -1022,7 +1022,7 @@ function PlanDetail({ planId }: { planId: string }) {
                           return (
                             <button
                               onClick={() => navigate(`/workouts/session/${s.id}`)}
-                              className="text-sm bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                              className="text-sm bg-warning-500 hover:bg-warning-600 text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                             >
                               Continue
                             </button>
@@ -1852,7 +1852,7 @@ function ActiveSession({ sessionId }: { sessionId: string }) {
                         const expects = prescriptionMismatch(mType, planEx?.reps)
                         if (!expects) return null
                         return (
-                          <div className="mx-4 mb-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                          <div className="mx-4 mb-1 text-[11px] text-warning-700 bg-warning-50 border border-warning-200 rounded-lg px-2 py-1.5">
                             Plan says <span className="font-semibold">{planEx?.reps}</span> —
                             log the{' '}
                             <span className="font-semibold">
@@ -2436,7 +2436,7 @@ function PlanList({
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(plan.id) }}
-                    className="text-xs text-white bg-red-500 hover:bg-red-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                    className="text-xs text-white bg-danger-500 hover:bg-danger-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
                   >
                     Delete
                   </button>
