@@ -134,6 +134,40 @@ class DeloadAdviceTests(TestCase):
 
         self.assertNotIn('14', advice['recommended_target'] or '')
 
+    def test_the_cap_protects_a_plan_with_no_phase_map_at_all(self):
+        """
+        The phase map is the nice version of this fix, and it is not always
+        there: the production probe account's own 8-week plan has an empty
+        `program_outline`, either dropped by validation or predating the
+        field. `is_deload` can never fire for a plan like that.
+
+        What protects it is the prescription itself. Prescribed 5 against a
+        12-rep history reads as "already at target" with no phase involved,
+        which is the reported case. This test exists so that stays true if
+        the phase handling is ever changed.
+        """
+        bare = WorkoutPlan.objects.create(
+            user=self.user, title='No outline', duration_weeks=8,
+            current_week=8, program_outline=[])
+        day = WorkoutDay.objects.create(
+            plan=bare, day_number=1, week_number=8, name='Push')
+        hard = Exercise.objects.create(
+            day=day, name='Push-ups', sets=3, reps='10-12', order=0,
+            measurement_type=et.BODYWEIGHT_REPS)
+        self.log(hard, 9, [10, 10, 10])
+        self.log(hard, 2, [12, 12, 12])
+        cut = Exercise.objects.create(
+            day=day, name='Push-ups', sets=3, reps='5', order=1,
+            measurement_type=et.BODYWEIGHT_REPS)
+
+        advice = views._build_exercise_advice(
+            self.user, 'Push-ups', et.BODYWEIGHT_REPS, '5', 'lb',
+            exercise=cut)
+
+        target = advice['recommended_target'] or ''
+        self.assertIn('5', target)
+        self.assertNotIn('14', target)
+
     def test_a_normal_week_still_progresses(self):
         """The fix must not flatten ordinary progression."""
         row = self.exercise(self.week7, 'Push-ups', '10-15')

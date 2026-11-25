@@ -35,6 +35,7 @@ cached advice was still repeating "Maintain 90.0lb" days after the logic that
 produced it had been fixed.
 """
 
+import datetime as dt
 import re
 
 from . import exercise_muscles, exercise_names, exercise_types
@@ -68,6 +69,23 @@ _FACTOR_MAX = 1.10
 
 #: Smallest practical jump on most machines and bars.
 _INCREMENT = {'lb': 2.5, 'kg': 1.25}
+
+#: How far from 1.0 a factor has to be before it is worth a plate change.
+#: Below this the adjustment is a nudge and rounding it up to a whole
+#: increment would overstate it; at or above it the intent is real and the
+#: equipment should express it. _BUMP and _PULLBACK both clear it.
+_MIN_INTENT = 0.02
+
+#: Same-muscle work on OTHER days, inside the recovery window.
+#:
+#: `fatigue_factor` only ever looked down a single session, so chest on
+#: Monday and chest again on Tuesday were offered the same weight as chest
+#: after a week off. Small on purpose: recovery between sessions is the
+#: normal case, this is a nudge rather than a verdict, and the floor keeps a
+#: heavy week from turning a working weight into a warm-up.
+_RECENT_HOURS = 72
+_RECENT_STEP = 0.02
+_RECENT_FLOOR = 0.90
 
 #: How many past sessions of this movement are considered for slot matching.
 _SESSIONS_CONSIDERED = 12
@@ -243,6 +261,65 @@ def _past_slots(user, exercise, variants, exclude_session_id):
     return out
 
 
+def recent_muscle_load(user, exercise, now=None, exclude_session_id=None):
+    """
+    A discount for same-muscle work on OTHER days in the last 72 hours.
+
+    Returns (factor, note). Counts distinct movements per session rather
+    than sets, because set counts vary with how a day is written down while
+    "chest was trained yesterday" does not.
+
+    The exercise's OWN history is excluded. That session is the evidence the
+    suggestion is built from -- counting it as fatigue as well would
+    discount every suggestion that had any history at all, which is all of
+    the useful ones.
+    """
+    from django.utils import timezone
+
+    from .models import SetLog
+
+    mine = _primary_muscles(exercise.name)
+    if not mine:
+        return 1.0, None
+
+    now = now or timezone.now()
+    since = now - dt.timedelta(hours=_RECENT_HOURS)
+    own = exercise_names.key(exercise_names.canonical(exercise.name))
+
+    rows = (SetLog.objects
+            .filter(workout_session__user=user,
+                    workout_session__started_at__gte=since,
+                    is_completed=True)
+            .values_list('exercise_name', 'workout_session_id',
+                         'workout_session__started_at'))
+
+    seen, total = set(), 0.0
+    for name, session_id, started in rows:
+        if session_id and str(session_id) == str(exclude_session_id):
+            continue
+        if exercise_names.key(exercise_names.canonical(name)) == own:
+            continue
+        if not (_primary_muscles(name) & mine):
+            continue
+        key = (session_id, (name or '').strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        # Linear decay rather than buckets. Bucketing by whole days put a
+        # session logged "yesterday" at 24.0001 hours into the two-day
+        # band, so training chest yesterday counted for half of training
+        # chest yesterday. A straight line has no boundary to land on and
+        # is monotonic, which is the only property that matters here.
+        hours = (now - started).total_seconds() / 3600.0
+        total += max(0.0, 1.0 - hours / _RECENT_HOURS)
+
+    if not total:
+        return 1.0, None
+    factor = max(_RECENT_FLOOR, 1.0 - _RECENT_STEP * total)
+    return factor, ('%d%% for recent same-muscle work in the last %d hours'
+                    % (round((1 - factor) * 100), _RECENT_HOURS))
+
+
 def live_factor(day_exercises, exercise, today_logs):
     """
     Adjustment from what has actually happened so far today.
@@ -377,6 +454,13 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
         notes.append('%s day vs %s day history'
                      % (day_type(day.name), day_type(chosen['day_name'])))
 
+    # 4b. Same muscles on other days inside the recovery window.
+    recent, recent_note = recent_muscle_load(
+        user, exercise, exclude_session_id=exclude_session_id)
+    if recent_note:
+        factor *= recent
+        notes.append(recent_note)
+
     # 5. Completion trend. Progressing on a set the user could not complete is
     # how a plan becomes undoable, so missed reps pull back.
     if chosen['missed']:
@@ -410,7 +494,7 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
     #
     # So an intent to move becomes one increment. Only the direction is
     # taken from the factor; the size is what the equipment can express.
-    if base_kg > 0:
+    if base_kg > 0 and abs(factor - 1.0) >= _MIN_INTENT:
         step = _INCREMENT.get(unit, 2.5)
         if factor > 1.0 and display <= base_display:
             display = _round_to_increment(base_display + step, unit)
