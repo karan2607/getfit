@@ -4044,13 +4044,59 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
             r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
             exercise_name, re.I) else 'upper'
         step = _increment_for(unit, body)
+        # ONE engine, when we have the plan row to run it on.
+        #
+        # `weights.suggest_weight` has been live all along -- but only on the
+        # session screen, via `suggest_for_session`. The drawer computed its
+        # own answer from history pooled by NAME, with no slot, no fatigue
+        # discount and no day type, so the same lift showed two different
+        # numbers depending on which screen you opened. The engine knows
+        # which of the two is the careful one.
+        #
+        # The prose below stays for callers that have only a name: the
+        # engine needs the row (its day and its order) and cannot run
+        # without one.
+        suggested = None
+        if exercise is not None:
+            from . import weights
+            engine = weights.suggest_weight(
+                user, exercise, target_reps=reps, unit=unit)
+            suggested = engine.get('weight')
+
+        target = f'{low}-{high}' if low and low != high else (high or low)
         if deload:
             # The plan has deliberately pulled the load back. Whatever the
             # history says, the number for this week is the one in the plan.
-            target = f'{low}-{high}' if low and low != high else (high or low)
+            hold = suggested if suggested is not None else last
             out['recommended_weight'] = (
-                f'Deload week — stay at {last}{unit} and stop at the '
+                f'Deload week — stay at {hold}{unit} and stop at the '
                 f'prescribed {target} reps. Recovery is the work.')
+        elif suggested is not None:
+            # The number is the engine's. The sentence keeps the wording the
+            # prose path had earned, because "that is where you last hit the
+            # target reps" tells the client something the number alone does
+            # not -- and it is exactly what the engine's proven-weight floor
+            # has just decided.
+            if suggested > last:
+                top = f' ({high} reps)' if high else ''
+                out['recommended_weight'] = (
+                    f'Go up to {suggested}{unit} — you did {last}{unit} in '
+                    f'this slot last time{top}.')
+            elif suggested < last:
+                if proven is not None and abs(proven - suggested) < 0.01:
+                    out['recommended_weight'] = (
+                        f'Drop to about {suggested}{unit} — that is where '
+                        f'you last hit the target reps. {last}{unit} was too '
+                        f'heavy last session.')
+                else:
+                    out['recommended_weight'] = (
+                        f'Come down to {suggested}{unit} for this slot — you '
+                        f'used {last}{unit} last time.')
+            else:
+                build = (f' Build to {high} reps before adding load.'
+                         if high else '')
+                out['recommended_weight'] = (
+                    f'Stay at {suggested}{unit}.{build}')
         elif direction == 'rerange':
             suggested = prog.get('suggested_value')
             change = (f'new {low}-{high} rep range' if low != high

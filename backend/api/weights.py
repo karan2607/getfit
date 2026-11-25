@@ -397,7 +397,42 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
     # Assisted machines log negative load; scaling a negative number inverts
     # every adjustment, so those get the last weight as-is.
     raw = base_kg * factor if base_kg > 0 else base_kg
+    base_display = _round_to_increment(_to_unit(base_kg, unit), unit)
     display = _round_to_increment(_to_unit(raw, unit), unit)
+
+    # A percentage that rounds away is the same as no advice.
+    #
+    # The bump is 2.5%, and the smallest plate change is 2.5 lb. On a 50 lb
+    # calf raise that is 1.25 lb, which rounds straight back to 50 -- so a
+    # client who topped the range was told to stay, forever, on every light
+    # movement. Below roughly 100 lb the adjustment is always smaller than
+    # the equipment allows, which is precisely where it matters most.
+    #
+    # So an intent to move becomes one increment. Only the direction is
+    # taken from the factor; the size is what the equipment can express.
+    if base_kg > 0:
+        step = _INCREMENT.get(unit, 2.5)
+        if factor > 1.0 and display <= base_display:
+            display = _round_to_increment(base_display + step, unit)
+        elif factor < 1.0 and display >= base_display:
+            display = _round_to_increment(max(base_display - step, step), unit)
+
+    # Never above a weight the target reps have actually been met at, when
+    # the last attempt missed them.
+    #
+    # The percentage pullback alone answered 75 lb to a client who had just
+    # managed 8 reps of a prescribed 15-20 at 90 lb, having done 20 at 50.
+    # 75 will not produce 15 reps either; 50 is the only weight in the
+    # history that has. Evidence beats arithmetic, and a floor is not
+    # applied when the history has none to offer.
+    if chosen['missed'] and base_kg > 0:
+        proven = [p['weight_kg'] for p in past if not p['missed']]
+        if proven:
+            ceiling = _round_to_increment(_to_unit(max(proven), unit), unit)
+            if display > ceiling:
+                display = ceiling
+                notes.append('last weight the target reps were actually met at')
+
     weight_kg = display * KG_PER_LB if unit == 'lb' else display
 
     basis = 'from %s: %s%s x %s' % (
