@@ -28,6 +28,7 @@ own timing, so the loop is written out here.
 
 import json
 import logging
+import time
 
 from . import agent_tools, claude
 
@@ -86,6 +87,20 @@ class AgentRun:
     def __init__(self):
         self.tool_calls = []
         self.rounds = 0
+        #: Where a turn's wall-clock time went, stage by stage.
+        #:
+        #: "Prod chat is slow" has been answered twice with a guess. The
+        #: numbers that settle it are: how long before the first character
+        #: appears, how much of the rest is the model and how much is tool
+        #: calls, and how many tokens each round carried. Nothing recorded
+        #: them together, so each round's usage line sat in the log with no
+        #: timing beside it and no total anywhere.
+        #:
+        #: Measurement only. Nothing here changes a knob; see the summary
+        #: line this produces before tuning anything.
+        self.timings = []
+        self.first_text_ms = None
+        self.started = time.monotonic()
         self.stopped_early = False
         #: True when the model hit max_tokens, so the reply stops mid-thought.
         self.truncated = False
@@ -96,6 +111,29 @@ class AgentRun:
         #: the exact draft they were shown rather than a paraphrase of it in
         #: the reply text.
         self.proposed_change = None
+
+    def elapsed_ms(self):
+        return int((time.monotonic() - self.started) * 1000)
+
+    def note(self, stage, ms, **extra):
+        self.timings.append(dict(extra, stage=stage, ms=int(ms)))
+
+    def summary(self):
+        """One line saying where the turn went, for the log."""
+        model_ms = sum(t['ms'] for t in self.timings if t['stage'] == 'model')
+        tool_ms = sum(t['ms'] for t in self.timings if t['stage'] == 'tool')
+        tokens_in = sum(t.get('in', 0) for t in self.timings)
+        tokens_out = sum(t.get('out', 0) for t in self.timings)
+        slowest = max((t for t in self.timings if t['stage'] == 'tool'),
+                      key=lambda t: t['ms'], default=None)
+        return (
+            'agent turn model=%s rounds=%d total=%dms ttft=%sms '
+            'model=%dms tools=%dms in=%d out=%d slowest_tool=%s'
+            % (self.model, self.rounds, self.elapsed_ms(),
+               self.first_text_ms if self.first_text_ms is not None else '-',
+               model_ms, tool_ms, tokens_in, tokens_out,
+               ('%s/%dms' % (slowest['tool'], slowest['ms'])
+                if slowest else '-')))
 
     def record(self, name, arguments, summary, result=None):
         self.tool_calls.append({
@@ -200,103 +238,121 @@ def run(*, user, system_prompt, history, domain, run_state,
     #: Read-tool results already fetched this turn, keyed by call signature.
     seen = {}
 
-    for round_number in range(MAX_ROUNDS):
-        run_state.rounds = round_number + 1
-        try:
-            with client.messages.stream(
-                model=chosen,
-                max_tokens=8000,
-                output_config={'effort': 'low'},
-                system=system_prompt,
-                tools=tools,
-                messages=messages,
-            ) as stream:
-                for text in stream.text_stream:
-                    yield text
-                message = stream.get_final_message()
-        except Exception as exc:                        # noqa: BLE001
-            logger.error('agent stream failed: %s', exc, exc_info=True)
-            # Every cause used to collapse into 'AI request failed': a rate
-            # limit, a credential problem and a malformed tool schema were
-            # indistinguishable to the user AND in the logs, so nobody could
-            # tell "wait a minute" from "this will never work".
-            raise claude.ClaudeError(_why(exc)) from exc
+    try:
+        for round_number in range(MAX_ROUNDS):
+            run_state.rounds = round_number + 1
+            round_started = time.monotonic()
+            try:
+                with client.messages.stream(
+                    model=chosen,
+                    max_tokens=8000,
+                    output_config={'effort': 'low'},
+                    system=system_prompt,
+                    tools=tools,
+                    messages=messages,
+                ) as stream:
+                    for text in stream.text_stream:
+                        if run_state.first_text_ms is None:
+                            run_state.first_text_ms = run_state.elapsed_ms()
+                        yield text
+                    message = stream.get_final_message()
+            except Exception as exc:                        # noqa: BLE001
+                logger.error('agent stream failed: %s', exc, exc_info=True)
+                # Every cause used to collapse into 'AI request failed': a rate
+                # limit, a credential problem and a malformed tool schema were
+                # indistinguishable to the user AND in the logs, so nobody could
+                # tell "wait a minute" from "this will never work".
+                raise claude.ClaudeError(_why(exc)) from exc
 
-        claude._log_usage('agent', chosen, message.usage)
+            claude._log_usage('agent', chosen, message.usage)
+            run_state.note(
+                'model', (time.monotonic() - round_started) * 1000,
+                round=round_number + 1, model=chosen,
+                **{'in': getattr(message.usage, 'input_tokens', 0) or 0,
+                   'out': getattr(message.usage, 'output_tokens', 0) or 0})
 
-        if message.stop_reason == 'refusal':
-            raise claude.ClaudeError('AI declined this request')
+            if message.stop_reason == 'refusal':
+                raise claude.ClaudeError('AI declined this request')
 
-        if message.stop_reason == 'max_tokens':
-            # call_claude_json checks this; the agent path did not, so a
-            # reply cut off at the ceiling was streamed, saved, and framed
-            # as complete -- a sentence that simply stops mid-word, with
-            # nothing anywhere saying why.
-            run_state.truncated = True
-            logger.warning('agent reply hit max_tokens on round %s',
-                           round_number + 1)
-            return
+            if message.stop_reason == 'max_tokens':
+                # call_claude_json checks this; the agent path did not, so a
+                # reply cut off at the ceiling was streamed, saved, and framed
+                # as complete -- a sentence that simply stops mid-word, with
+                # nothing anywhere saying why.
+                run_state.truncated = True
+                logger.warning('agent reply hit max_tokens on round %s',
+                               round_number + 1)
+                return
 
-        calls = [b for b in message.content
-                 if getattr(b, 'type', '') == 'tool_use']
-        if not calls:
-            return                                  # the model answered
+            calls = [b for b in message.content
+                     if getattr(b, 'type', '') == 'tool_use']
+            if not calls:
+                return                                  # the model answered
 
-        messages.append({'role': 'assistant', 'content': message.content})
+            messages.append({'role': 'assistant', 'content': message.content})
 
-        # All results go back in ONE user message. Splitting them across
-        # several silently teaches the model to stop making parallel calls.
-        results = []
-        for call in calls:
-            arguments = dict(call.input or {})
-            signature = _signature(call.name, arguments)
-            # A status frame, not text: the view must not fold it into the
-            # saved reply. Measured on staging, 30.7s of a 31.9s turn passed
-            # before the first character -- all of it in rounds like this
-            # one, with nothing on screen. Saying what is happening does not
-            # make it faster, but it makes the wait legible instead of
-            # looking like a hang.
-            yield {'status': describe(call.name, arguments)}
+            # All results go back in ONE user message. Splitting them across
+            # several silently teaches the model to stop making parallel calls.
+            results = []
+            for call in calls:
+                arguments = dict(call.input or {})
+                signature = _signature(call.name, arguments)
+                # A status frame, not text: the view must not fold it into the
+                # saved reply. Measured on staging, 30.7s of a 31.9s turn passed
+                # before the first character -- all of it in rounds like this
+                # one, with nothing on screen. Saying what is happening does not
+                # make it faster, but it makes the wait legible instead of
+                # looking like a hang.
+                yield {'status': describe(call.name, arguments)}
 
-            # A repeat of a call already made THIS turn is served from what
-            # it returned the first time. Measured on staging:
-            # `list_workout_plans` ran twice in one turn, and because text
-            # only streams in the final round, that repeat cost a whole
-            # round of silence. Re-running it could also return something
-            # different mid-turn, which is worse than slow.
-            #
-            # Only read tools are cached. A write is never replayed from a
-            # cache: the model asking to propose the same change twice means
-            # two drafts, and quietly returning the first one would hide
-            # that it tried.
-            if signature in seen and call.name not in agent_tools.WRITE_TOOLS:
-                payload, error = seen[signature]
-                run_state.record(call.name, arguments,
-                                 'repeat of an earlier call this turn',
-                                 result=payload)
-            else:
-                payload, error = agent_tools.run_tool(
-                    user, call.name, arguments, session=session, model=chosen)
-                seen[signature] = (payload, error)
-                run_state.record(call.name, arguments,
-                                 error or agent_tools._summarise(payload),
-                                 result=payload)
-            results.append(_result_block(call.id, payload, error))
-        messages.append({'role': 'user', 'content': results})
+                # A repeat of a call already made THIS turn is served from what
+                # it returned the first time. Measured on staging:
+                # `list_workout_plans` ran twice in one turn, and because text
+                # only streams in the final round, that repeat cost a whole
+                # round of silence. Re-running it could also return something
+                # different mid-turn, which is worse than slow.
+                #
+                # Only read tools are cached. A write is never replayed from a
+                # cache: the model asking to propose the same change twice means
+                # two drafts, and quietly returning the first one would hide
+                # that it tried.
+                if signature in seen and call.name not in agent_tools.WRITE_TOOLS:
+                    payload, error = seen[signature]
+                    run_state.record(call.name, arguments,
+                                     'repeat of an earlier call this turn',
+                                     result=payload)
+                else:
+                    tool_started = time.monotonic()
+                    payload, error = agent_tools.run_tool(
+                        user, call.name, arguments, session=session, model=chosen)
+                    run_state.note('tool',
+                                   (time.monotonic() - tool_started) * 1000,
+                                   tool=call.name, failed=bool(error))
+                    seen[signature] = (payload, error)
+                    run_state.record(call.name, arguments,
+                                     error or agent_tools._summarise(payload),
+                                     result=payload)
+                results.append(_result_block(call.id, payload, error))
+            messages.append({'role': 'user', 'content': results})
 
-    # Out of rounds. Say so rather than stopping mid-thought: a turn that
-    # just stops looks identical to a crash from the user's side.
-    #
-    # But say the right thing. This used to claim it had reached no answer
-    # even when it had already drafted a change, so the user read "I stopped
-    # without reaching an answer" directly above a "Proposed change" card
-    # with a working Confirm button on it. Reported as exactly that. A draft
-    # IS the answer; running out of lookups afterwards is a footnote.
-    run_state.stopped_early = True
-    if run_state.proposed_change:
-        yield ('\n\nThe change is drafted below — confirm it to apply. '
-               'I used up my lookups for this turn, so ask again if you '
-               'want me to check anything else first.')
-    else:
-        yield ('\n\nI stopped after several lookups without reaching an answer. '
-               'Could you narrow the question?')
+        # Out of rounds. Say so rather than stopping mid-thought: a turn that
+        # just stops looks identical to a crash from the user's side.
+        #
+        # But say the right thing. This used to claim it had reached no answer
+        # even when it had already drafted a change, so the user read "I stopped
+        # without reaching an answer" directly above a "Proposed change" card
+        # with a working Confirm button on it. Reported as exactly that. A draft
+        # IS the answer; running out of lookups afterwards is a footnote.
+        run_state.stopped_early = True
+        if run_state.proposed_change:
+            yield ('\n\nThe change is drafted below — confirm it to apply. '
+                   'I used up my lookups for this turn, so ask again if you '
+                   'want me to check anything else first.')
+        else:
+            yield ('\n\nI stopped after several lookups without reaching an answer. '
+                   'Could you narrow the question?')
+    finally:
+        # Logged on EVERY exit -- answered, truncated, out of rounds,
+        # or raised. A measurement that only lands on the happy path
+        # misses the turns worth measuring.
+        logger.info('%s', run_state.summary())

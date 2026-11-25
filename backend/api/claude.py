@@ -26,6 +26,7 @@ API notes that are easy to get wrong
 
 import json
 import logging
+import time
 import os
 
 logger = logging.getLogger(__name__)
@@ -79,15 +80,22 @@ def _client():
     )
 
 
-def _log_usage(action, model, usage):
-    """What the call cost. Never raises."""
+def _log_usage(action, model, usage, ms=None):
+    """
+    What the call cost, and how long it took. Never raises.
+
+    The duration is here because the tokens were useless without it: a slow
+    turn and an expensive turn look identical in a log that records only
+    one of them, and "prod chat is slow" was answered twice by guessing.
+    """
     try:
         prompt = getattr(usage, 'input_tokens', 0) or 0
         output = getattr(usage, 'output_tokens', 0) or 0
         price_in, price_out = _PRICES.get(model, (0.0, 0.0))
         cost = prompt / 1e6 * price_in + output / 1e6 * price_out
-        logger.info('claude usage action=%s model=%s in=%d out=%d ~$%.4f',
-                    action, model, prompt, output, cost)
+        logger.info('claude usage action=%s model=%s in=%d out=%d ~$%.4f%s',
+                    action, model, prompt, output, cost,
+                    '' if ms is None else ' %dms' % ms)
     except Exception:                                   # noqa: BLE001
         pass
 
@@ -122,6 +130,7 @@ def call_claude_json(*, system_prompt, user_prompt, model=None,
     handle one failure shape regardless of provider.
     """
     chosen = _model(model)
+    started = time.monotonic()
     try:
         message = _client().messages.create(
             model=chosen,
@@ -134,7 +143,8 @@ def call_claude_json(*, system_prompt, user_prompt, model=None,
         logger.error('Claude request failed: %s', exc, exc_info=True)
         raise ClaudeError('AI request failed') from exc
 
-    _log_usage('messages.create', chosen, message.usage)
+    _log_usage('messages.create', chosen, message.usage,
+               ms=int((time.monotonic() - started) * 1000))
 
     if message.stop_reason == 'refusal':
         raise ClaudeError('AI declined this request')
