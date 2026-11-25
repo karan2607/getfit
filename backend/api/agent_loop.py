@@ -105,7 +105,7 @@ class AgentRun:
         })
         if name == 'propose_plan_change' and isinstance(result, dict):
             if result.get('change_id'):
-                self.proposed_change = result
+                self.proposed_change = agent_tools.card_payload(result)
 
 
 #: What each tool is doing, in the user's terms. The tool name is a poor

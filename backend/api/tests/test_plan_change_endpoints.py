@@ -655,7 +655,13 @@ class OneValidatorForBothDoorsTests(APITestCase):
         pending = self.client.get(
             reverse('workout-plan-propose-change', args=[self.plan.id]),
         ).data['proposed_change']
-        self.assertEqual(sorted(result), sorted(pending))
+        # What the CLIENT gets, which is what the loop surfaces -- the
+        # propose result also carries `after`, the model's own self-check,
+        # which no card renders.
+        from api import agent_tools
+
+        self.assertEqual(sorted(agent_tools.card_payload(result)),
+                         sorted(pending))
 
 
 @skipUnless(connection.vendor == 'postgresql',

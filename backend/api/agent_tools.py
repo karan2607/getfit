@@ -401,7 +401,63 @@ def _tool_propose_plan_change(user, args):
         # card renders either", and without this the chat-path card was
         # missing a key the other one has.
         'keep_list': change.keep_list,
+        # What this draft produces, day by day, before anyone confirms it.
+        'after': _draft_preview(plan, changes),
     }
+
+
+#: Keys in a propose result that are for the MODEL, not for the card.
+#: `after` is the draft's own self-check -- every day of every week it
+#: reaches -- and the card renders the draft itself.
+_MODEL_ONLY_KEYS = ('after',)
+
+
+def card_payload(result):
+    """The part of a propose result the client renders."""
+    if not isinstance(result, dict):
+        return result
+    return {k: v for k, v in result.items() if k not in _MODEL_ONLY_KEYS}
+
+
+def _draft_preview(plan, changes):
+    """
+    The day-by-day result of a draft, for the model to check its own work.
+
+    The fourth attempt at restructuring week 8 succeeded because the user
+    pasted a verification checklist -- exact row counts per day -- and the
+    model checked the draft against the plan before presenting it. The three
+    attempts without that checklist did not. A safeguard that depends on
+    someone remembering to paste it is not a safeguard.
+
+    So the tool answers with what the change produces, from the same
+    `build_payload` the apply path will run. A day that lost four exercises
+    nobody meant to touch shows up here, in the same turn, while the model
+    can still fix it -- rather than in the plan afterwards.
+
+    Only the days the draft touches: the whole plan is what the agent exists
+    to avoid re-reading. Best-effort, because the draft is the thing that
+    matters -- if summarising it fails the user still gets a confirm button.
+    """
+    from . import plan_changes
+
+    try:
+        # Returns (payload, touched_weeks); the payload already holds only
+        # the weeks the draft reaches, which is the scope wanted here.
+        payload, _touched = plan_changes.build_payload(plan, changes)
+    except Exception:
+        logger.exception('draft preview failed for plan %s', plan.id)
+        return []
+
+    out = []
+    for day in payload.get('days') or []:
+        exercises = [e.get('name') for e in (day.get('exercises') or [])]
+        out.append({
+            'week': day.get('week_number'),
+            'day': (day.get('name') or '').strip(),
+            'exercise_count': len(exercises),
+            'exercises': exercises,
+        })
+    return out
 
 
 def _tool_search_exercise_catalogue(user, args):
@@ -503,6 +559,12 @@ _PLAN_TOOL_SPECS = {
             'plan"). There is no way to leave it unsaid, because a day '
             'moved in "every week" reorders weeks the user never mentioned. '
             'List in keep_list any exercise that must survive the change. '
+            'CHECK YOUR OWN WORK: the result carries `after`, which is every '
+            'day of every week this draft reaches, with the exercises each '
+            'will hold. Read it before you reply. If a day lost something '
+            'you did not mean to remove, or a count is wrong, propose a '
+            'corrected draft in this same turn instead of presenting a '
+            'broken one. '
             'Do NOT describe the change in prose: every part of it goes in a '
             'field, or the server cannot carry it out.'),
         'schema': {
