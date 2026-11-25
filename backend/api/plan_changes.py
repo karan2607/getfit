@@ -192,6 +192,8 @@ def diff_snapshots(before, after, approved=None, keep_list=()):
     violations = [e for e in removed + changed
                   if _identity(e['name']) in wanted]
 
+    missing = _missing_adds(after, approved, renames)
+
     return {
         'added': _sorted(added),
         'removed': _sorted(removed),
@@ -203,8 +205,67 @@ def diff_snapshots(before, after, approved=None, keep_list=()):
         'day_changes': _day_diff(before, after),
         'unapproved': _sorted(unapproved),
         'keep_list_violations': _sorted(violations),
-        'clean': not unapproved and not violations,
+        # Changes the draft promised and the plan does not have.
+        'missing_adds': _sorted(missing),
+        'clean': not unapproved and not violations and not missing,
     }
+
+
+def _missing_adds(after, approved, renames=None):
+    """
+    Exercises the draft said it would add that the plan does not have.
+
+    The before/after diff cannot see these. It reports what MOVED, and an
+    exercise that was never added appears in neither snapshot -- so a draft
+    that promised five exercises and delivered one diffed perfectly clean.
+    That happened live on 23 November: four of five pull exercises never
+    landed on the day, and verification said the change was good.
+
+    Matched on canonical identity and scoped to the days the item named, for
+    the same reason the approval check is: apply rewrites names on the way
+    in, so a literal compare would report every successful add as missing.
+    """
+    if not approved:
+        return []
+
+    present = {}
+    for week, days in (after.get('weeks') or {}).items():
+        for day in days:
+            for exercise in day.get('exercises', []):
+                present.setdefault(_identity(exercise['name']), []).append(
+                    (int(week), day['name']))
+
+    missing = []
+    for item in approved:
+        action = (item.get('action') or '').lower()
+        # Only an UNAMBIGUOUS promise to put something there: an explicit
+        # add, or a replace that names what is going out so `name` must be
+        # the one coming in. A remove that worked leaves nothing behind,
+        # which is the point of it, and an item with no action at all is a
+        # declaration of what the change covers rather than an operation --
+        # both halves of a substitution are listed that way, and demanding
+        # the outgoing one still be present would fail every swap.
+        promises = action == ADD or (action == REPLACE and item.get('replaces'))
+        if not promises:
+            continue
+        name = (item.get('name') or '').strip()
+        if not name:
+            continue
+        key = _identity(name)
+        where = present.get(key)
+        if not where:
+            missing.append({'name': name, 'day': item.get('day'),
+                            'week': item.get('week') or 0})
+            continue
+        # It exists somewhere. If the item named a day, it has to be there:
+        # an exercise added to the wrong day is not the change that was
+        # confirmed.
+        day = item.get('day')
+        if day and not any(_same_day(day, actual, renames)
+                           for _week, actual in where):
+            missing.append({'name': name, 'day': day,
+                            'week': item.get('week') or 0})
+    return missing
 
 
 def _sorted(entries):

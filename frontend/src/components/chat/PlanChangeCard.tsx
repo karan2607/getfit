@@ -67,6 +67,13 @@ export interface VerificationDiff {
   changed: Array<{ name: string; day?: string; week?: number }>
   unapproved: Array<{ name: string; day?: string; week?: number }>
   keep_list_violations: Array<{ name: string; day?: string; week?: number }>
+  /**
+   * Exercises the confirmed draft promised to add that the plan does not
+   * have. The before/after diff cannot see these -- something never added
+   * appears in neither snapshot -- so a draft that delivered one of five
+   * exercises used to verify clean.
+   */
+  missing_adds?: Array<{ name: string; day?: string; week?: number }>
   /** Absent on diffs recorded before day changes could be proposed. */
   day_changes?: DayChange[]
   clean: boolean
@@ -206,6 +213,9 @@ export function PlanChangeResult({
   // success. That is the whole reason the diff is computed server-side from
   // recorded snapshots rather than taken from the model's account of itself.
   const failed = !diff.clean
+  // Optional on the wire: a card rendered from a change recorded before
+  // this check existed has no such field.
+  const missingAdds = diff.missing_adds ?? []
 
   return (
     <div
@@ -303,29 +313,57 @@ export function PlanChangeResult({
 
       {failed && (
         <div className="mt-3">
-          {/* "1 change was not approved" was reported as unreadable -- it
-              names a state the user was never shown and gives them nothing
-              to do about it. What it actually means is that the plan came
-              out different from what they confirmed, which is worth saying
-              in those words. */}
-          <p className="text-sm text-red-700 font-medium">
-            Applied — but {diff.unapproved.length === 1
-              ? 'one exercise changed that was not'
-              : `${diff.unapproved.length} exercises changed that were not`}{' '}
-            in what you confirmed:
-          </p>
-          <ul className="mt-1 space-y-1">
-            {diff.unapproved.map((e, i) => (
-              <li key={i} className="text-sm text-red-700">
-                {e.name} <span className="text-red-500">({e.day})</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-ink-500 mt-2">
-            Everything you did confirm went through. Tell the coach to put
-            {diff.unapproved.length === 1 ? ' it' : ' them'} back if that is
-            not what you wanted.
-          </p>
+          {/* Each kind of failure says its own sentence. They used to share
+              one, so a change whose only fault was a missing exercise
+              announced "0 exercises changed that were not in what you
+              confirmed". */}
+          {diff.unapproved.length > 0 && (
+            <>
+              {/* "1 change was not approved" was reported as unreadable --
+                  it names a state the user was never shown and gives them
+                  nothing to do about it. What it actually means is that the
+                  plan came out different from what they confirmed, which is
+                  worth saying in those words. */}
+              <p className="text-sm text-red-700 font-medium">
+                Applied — but {diff.unapproved.length === 1
+                  ? 'one exercise changed that was not'
+                  : `${diff.unapproved.length} exercises changed that were not`}{' '}
+                in what you confirmed:
+              </p>
+              <ul className="mt-1 space-y-1">
+                {diff.unapproved.map((e, i) => (
+                  <li key={i} className="text-sm text-red-700">
+                    {e.name} <span className="text-red-500">({e.day})</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-ink-500 mt-2">
+                Everything you did confirm went through. Tell the coach to put
+                {diff.unapproved.length === 1 ? ' it' : ' them'} back if that is
+                not what you wanted.
+              </p>
+            </>
+          )}
+          {missingAdds.length > 0 && (
+            <div className={diff.unapproved.length > 0 ? 'mt-3' : ''}>
+              <p className="text-sm text-red-700 font-medium">
+                {missingAdds.length === 1
+                  ? 'One exercise you confirmed is'
+                  : `${missingAdds.length} exercises you confirmed are`}{' '}
+                not in your plan:
+              </p>
+              <ul className="mt-1 space-y-1">
+                {missingAdds.map((e, i) => (
+                  <li key={i} className="text-sm text-red-700">
+                    {e.name}{e.day ? <span className="text-red-500"> ({e.day})</span> : null}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-ink-500 mt-2">
+                Ask the coach to add {missingAdds.length === 1 ? 'it' : 'them'} again.
+              </p>
+            </div>
+          )}
           {diff.keep_list_violations.length > 0 && (
             <p className="text-sm text-red-700 mt-2">
               {diff.keep_list_violations.length} protected{' '}

@@ -176,6 +176,80 @@ class DiffTests(TestCase):
         self.assertEqual([e['name'] for e in result['keep_list_violations']],
                          ['Flat Dumbbell Press'])
 
+    # -- a change that never happened is not a clean change ---------------
+
+    def test_an_add_that_never_landed_fails_verification(self):
+        """
+        THE Day-4 case, live on 23 Nov: the draft added five pull exercises
+        to a day, one of them landed, and the diff read CLEAN -- because it
+        compares before against after, and an exercise that was never added
+        appears in neither.
+        """
+        before = self.snap([])
+        after = self.snap([self.ex('1', 'Lat Pulldown')])
+        draft = [{'day': 'Upper Push', 'action': 'add', 'name': n}
+                 for n in ('Lat Pulldown', 'Barbell Row', 'Face Pull',
+                           'Dumbbell Curl', 'Rear Delt Fly')]
+
+        result = diff_snapshots(before, after, approved=draft)
+
+        self.assertFalse(result['clean'])
+        self.assertEqual(
+            sorted(e['name'] for e in result['missing_adds']),
+            ['Barbell Row', 'Dumbbell Curl', 'Face Pull', 'Rear Delt Fly'])
+
+    def test_an_add_that_landed_is_not_reported(self):
+        before = self.snap([])
+        after = self.snap([self.ex('1', 'Lat Pulldown')])
+        result = diff_snapshots(
+            before, after,
+            approved=[{'day': 'Upper Push', 'action': 'add',
+                       'name': 'Lat Pulldown'}])
+        self.assertEqual(result['missing_adds'], [])
+        self.assertTrue(result['clean'])
+
+    def test_a_replacement_counts_as_an_add_of_the_incoming_exercise(self):
+        before = self.snap([self.ex('1', 'Barbell Bench Press')])
+        after = self.snap([])      # removed, and nothing put in its place
+        result = diff_snapshots(
+            before, after,
+            approved=[{'day': 'Upper Push', 'action': 'replace',
+                       'name': 'Machine Chest Press',
+                       'replaces': 'Barbell Bench Press'}])
+        self.assertEqual([e['name'] for e in result['missing_adds']],
+                         ['Machine Chest Press'])
+
+    def test_a_spelling_change_on_the_way_in_is_not_a_missing_add(self):
+        """
+        Apply canonicalises names, so the draft's spelling and the stored
+        row's routinely differ. Matching on the literal string would report
+        every successful add as missing -- the same mistake that made
+        confirmed changes read as unapproved.
+        """
+        before = self.snap([])
+        after = self.snap([self.ex('1', 'Flat Dumbbell Press')])
+        result = diff_snapshots(
+            before, after,
+            approved=[{'day': 'Upper Push', 'action': 'add',
+                       'name': 'Dumbbell Bench Press'}])
+        self.assertEqual(result['missing_adds'], [])
+
+    def test_a_removal_is_not_expected_to_appear(self):
+        before = self.snap([self.ex('1', 'Barbell Bench Press')])
+        after = self.snap([])
+        result = diff_snapshots(
+            before, after,
+            approved=[{'day': 'Upper Push', 'action': 'remove',
+                       'name': 'Barbell Bench Press'}])
+        self.assertEqual(result['missing_adds'], [])
+        self.assertTrue(result['clean'])
+
+    def test_no_draft_means_no_missing_adds(self):
+        before = self.snap([])
+        after = self.snap([])
+        self.assertEqual(
+            diff_snapshots(before, after, approved=None)['missing_adds'], [])
+
     def test_no_draft_means_nothing_can_be_unapproved(self):
         """`approved=None` is "not checked", which is not "approved nothing"."""
         before = self.snap([self.ex('1', 'A')])

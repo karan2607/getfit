@@ -11,7 +11,7 @@ import { PlanChangeDraft, PlanChangeResult } from './PlanChangeCard'
 
 const diff = (over: Partial<Parameters<typeof PlanChangeResult>[0]['diff']> = {}) => ({
   added: [], removed: [], changed: [],
-  unapproved: [], keep_list_violations: [], clean: true,
+  unapproved: [], keep_list_violations: [], missing_adds: [], clean: true,
   ...over,
 })
 
@@ -62,6 +62,43 @@ describe('PlanChangeResult', () => {
     expect(screen.queryByText(/^Done$/)).not.toBeInTheDocument()
     expect(screen.getByText(/not as approved/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Standing Calf Raise/).length).toBeGreaterThan(0)
+  })
+
+  it('names exercises you confirmed that never made it into the plan', () => {
+    // The Day-4 case: a draft added five pull exercises, one landed, and
+    // the before/after diff read clean because the other four appear in
+    // neither snapshot.
+    render(
+      <PlanChangeResult
+        diff={diff({
+          added: [{ name: 'Lat Pulldown', day: 'Pull' }],
+          missing_adds: [
+            { name: 'Barbell Row', day: 'Pull' },
+            { name: 'Face Pull', day: 'Pull' },
+          ],
+          clean: false,
+        })}
+      />,
+    )
+    expect(screen.queryByText(/^Done$/)).not.toBeInTheDocument()
+    expect(screen.getByText(/not in your plan/i)).toBeInTheDocument()
+    expect(screen.getByText(/Barbell Row/)).toBeInTheDocument()
+    expect(screen.getByText(/Face Pull/)).toBeInTheDocument()
+  })
+
+  it('does not claim exercises changed when none did', () => {
+    // With only missing adds, the unapproved sentence would read
+    // "0 exercises changed that were not in what you confirmed".
+    render(
+      <PlanChangeResult
+        diff={diff({
+          missing_adds: [{ name: 'Barbell Row', day: 'Pull' }],
+          clean: false,
+        })}
+      />,
+    )
+    expect(screen.queryByText(/0 exercises/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/that were not/i)).not.toBeInTheDocument()
   })
 
   it('calls out protected exercises that were affected', () => {
