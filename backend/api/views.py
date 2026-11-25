@@ -7169,17 +7169,37 @@ def api_key_revoke(request, key_id):
 # at plan-creation time, before a single session existed.
 
 
-def _week_history_summary(user, exercise_names_list, unit='lb'):
+def _week_history_summary(user, exercises, unit='lb'):
     """
-    One line per exercise describing recent logged performance.
+    One line per exercise describing recent performance, and where to start.
 
-    Reuses `_exercise_history` and `_analyze_progression`, so the week prompt
-    sees exactly what the per-exercise coaching advice sees -- they cannot
-    disagree about what the user lifted.
+    Takes plan ROWS, not names. Names were enough for the trend sentence and
+    not enough for the number: pooled history cannot tell the third chest
+    movement on push day from the same machine opened fresh on an accessory
+    day, so the week prompt was asked to write next week's loading from a
+    worse number than the app shows the client on the day.
+
+    The trend sentence still comes from `_analyze_progression`, so the prompt
+    and the per-exercise advice cannot disagree about what was lifted. The
+    starting weight comes from `weights.suggest_weight`, which is the one
+    engine both screens now use. Exercises that carry no load get no number
+    -- an invented "lb" on a set of push-ups is noise the model would try to
+    honour.
     """
+    from . import weights
+
     out = {}
-    for name in exercise_names_list:
-        measurement_type, prescribed = _exercise_prescription(user, name)
+    for row in exercises:
+        # Tolerates a bare name for any caller that still has only that.
+        if isinstance(row, str):
+            name = row
+            row = _prescription_row(user, name)
+        else:
+            name = row.name
+        measurement_type = ((row.measurement_type if row else None)
+                            or exercise_types.classify(name))
+        prescribed = row.reps if row else None
+
         logs, _metric = _exercise_history(user, name, measurement_type, limit=30)
         if not logs:
             continue
@@ -7187,11 +7207,19 @@ def _week_history_summary(user, exercise_names_list, unit='lb'):
         prog = _analyze_progression(
             logs, target_reps=(low, high),
             measurement_type=measurement_type, unit=unit)
-        summary = prog.get('summary')
-        if summary:
-            out[name] = summary
-        elif prog.get('last_value') is not None:
-            out[name] = 'last session %s' % prog['last_value']
+
+        line = prog.get('summary')
+        if not line and prog.get('last_value') is not None:
+            line = 'last session %s' % prog['last_value']
+        if not line:
+            continue
+
+        if row is not None and row.pk:
+            start = weights.suggest_weight(
+                user, row, target_reps=prescribed, unit=unit).get('weight')
+            if start is not None:
+                line += '; start around %s%s' % (start, unit)
+        out[name] = line
     return out
 
 
@@ -7229,8 +7257,9 @@ def _generate_week(plan_id, week_number, user_note=''):
         unit = _user_unit(plan.user)
         profile = getattr(plan.user, 'profile', None)
         previous = _previous_week_structure(plan, week_number)
-        names = [ex.name for day in previous for ex in day['exercises']]
-        history = _week_history_summary(plan.user, names, unit)
+        # The rows, not their names: the engine needs the slot.
+        rows = [ex for day in previous for ex in day['exercises']]
+        history = _week_history_summary(plan.user, rows, unit)
 
         system, user_prompt = _week_generate_prompt(
             plan, week_number, profile, preferred_unit=unit,
