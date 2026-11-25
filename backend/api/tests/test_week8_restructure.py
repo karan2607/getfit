@@ -115,10 +115,10 @@ class Week8RestructureTests(TestCase):
                          self.before_6)
 
     def test_a_deliberate_programme_wide_move_still_reaches_every_week(self):
-        """`all_weeks` is a real capability, not a formality."""
+        """Week 0 is a real capability, not a formality."""
         result, error = self.propose([
             {'action': 'rename_day', 'day': 'Accessories',
-             'all_weeks': True, 'name': 'Arms'}])
+             'week': 0, 'name': 'Arms'}])
         self.assertEqual(error, '', msg=error)
         self.client.post(
             reverse('workout-plan-apply-change',

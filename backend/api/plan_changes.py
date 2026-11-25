@@ -663,6 +663,14 @@ def _validate_days_exist(plan, draft):
     if not weeks:
         raise DraftError('this plan has no weeks to change')
 
+    # Week 0 is the agent's notation for "every week of the programme".
+    # `_matching_days` expresses that as the ABSENCE of a week, so the two
+    # have to agree here or a programme-wide change is rejected for naming
+    # a day in a week that does not exist.
+    draft = [dict(item, week=None) if isinstance(item, dict)
+             and item.get('week') == 0 else item
+             for item in draft]
+
     # A draft may rename a day and then address it by its NEW name --
     # "rename Cardio to Pull + Abs, then add a Lat Pulldown to Pull + Abs"
     # is one perfectly ordinary restructure. At apply time the rows have

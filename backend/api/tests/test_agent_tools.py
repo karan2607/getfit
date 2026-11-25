@@ -68,13 +68,26 @@ class DomainSplitTests(TestCase):
         turn with a 400 rather than degrading -- so it is worth a test rather
         than a comment.
         """
+        def count(schema):
+            # NESTED properties count too. Counting only the top level put
+            # the workout surface at 24 while the API saw 25 and refused
+            # every turn with "The AI could not read our request" -- the
+            # test passed and the agent was dead. Found on staging.
+            required = set(schema.get('required') or [])
+            total = len([p for p in (schema.get('properties') or {})
+                         if p not in required])
+            for value in (schema.get('properties') or {}).values():
+                if not isinstance(value, dict):
+                    continue
+                if isinstance(value.get('items'), dict):
+                    total += count(value['items'])
+                if value.get('type') == 'object':
+                    total += count(value)
+            return total
+
         for domain in (agent_tools.WORKOUT, agent_tools.FOOD):
-            optional = 0
-            for tool in agent_tools.anthropic_tools(domain):
-                schema = tool['input_schema']
-                required = set(schema.get('required') or [])
-                optional += len([p for p in (schema.get('properties') or {})
-                                 if p not in required])
+            optional = sum(count(tool['input_schema'])
+                           for tool in agent_tools.anthropic_tools(domain))
             self.assertLessEqual(optional, 24, '%s surface' % domain)
 
     def test_nested_object_schemas_are_strict_too(self):

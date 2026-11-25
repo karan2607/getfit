@@ -291,11 +291,12 @@ def _scoped(changes):
     Four attempts to restructure week 8 each flipped weeks 6 and 7 as well,
     and week 6 is still wrong.
 
-    Rather than guessing the week behind the model's back, this refuses the
-    ambiguity: the week number is in the model's context block, so it can
-    always say. `all_weeks: true` is the explicit way to mean the whole
-    programme, and is translated to the absence of a week here so nothing
-    downstream has to learn a new shape.
+    Rather than guessing the week behind the model's back, the schema makes
+    silence impossible: `week` is a required property, and week 0 is the
+    deliberate "every week of the programme". This function is the server
+    side of that -- it translates 0 to the absence of a week, which is what
+    `_matching_days` has always meant, and refuses an item that arrives
+    without one anyway.
     """
     out = []
     for item in changes:
@@ -303,14 +304,18 @@ def _scoped(changes):
             out.append(item)
             continue
         item = dict(item)
-        all_weeks = bool(item.pop('all_weeks', False))
-        if all_weeks:
+        week = item.get('week')
+        # 0 is the deliberate "every week of the programme", and is
+        # translated to the ABSENCE of a week because that is what
+        # `_matching_days` has always meant by it -- nothing downstream
+        # learns a new shape.
+        if week == 0:
             item.pop('week', None)
-        elif item.get('week') in (None, ''):
+        elif week in (None, ''):
             raise mcp.McpError(
                 'every change needs a week -- say which week you are '
-                'editing, or pass all_weeks: true to change it in every '
-                'week of the programme')
+                'editing, or week 0 to change it in every week of the '
+                'programme')
         out.append(item)
     return out
 
@@ -491,13 +496,12 @@ _PLAN_TOOL_SPECS = {
             'the days, then rename them, then change their exercises. Name a '
             'renamed day by the name the user used; the server follows the '
             'rename. '
-            'SCOPE: every change must say which week it is for. Put the '
-            'week number in `week` -- normally the week you were given in '
-            'the context above, which is the one the user is looking at. '
-            'Only when the user means their whole programme ("take bench '
-            'press out of the plan") set `all_weeks: true` instead. A '
-            'change with neither is refused, because a day moved in "every '
-            'week" reorders weeks the user never mentioned. '
+            'SCOPE: every change says which week it is for. `week` is the '
+            'week number -- normally the one in the context above, which is '
+            'the week the user is looking at. Use week 0 ONLY when the user '
+            'means their whole programme ("take bench press out of the '
+            'plan"). There is no way to leave it unsaid, because a day '
+            'moved in "every week" reorders weeks the user never mentioned. '
             'List in keep_list any exercise that must survive the change. '
             'Do NOT describe the change in prose: every part of it goes in a '
             'field, or the server cannot carry it out.'),
@@ -510,13 +514,6 @@ _PLAN_TOOL_SPECS = {
                     'items': {
                         'type': 'object',
                         'properties': {
-                            'all_weeks': {
-                                'type': 'boolean',
-                                'description':
-                                    'Apply this change to every week of the '
-                                    'programme. Only when the user means the '
-                                    'whole plan; otherwise set `week`.',
-                            },
                             'day': {
                                 'type': 'string',
                                 'description': 'The day name, e.g. "Upper Push".',
@@ -551,7 +548,12 @@ _PLAN_TOOL_SPECS = {
                             'week': {
                                 'type': 'integer',
                                 'description':
-                                    'Optional. Omit to apply to every week.',
+                                    'REQUIRED. The week this change is for '
+                                    '-- normally the week in the context '
+                                    'above, which is the one the user is '
+                                    'looking at. Use 0, and only 0, when '
+                                    'the user means every week of the '
+                                    'programme.',
                             },
                             'to_position': {
                                 'type': 'integer',
@@ -563,7 +565,15 @@ _PLAN_TOOL_SPECS = {
                             'reps': {'type': 'string'},
                             'rest_seconds': {'type': 'integer'},
                         },
-                        'required': ['day', 'action', 'name'],
+                        # `week` is REQUIRED so the schema itself makes
+                        # an unscoped change impossible to express. It was
+                        # optional, and a day moved without one moved in
+                        # every week -- four restructures of week 8 each
+                        # reordered weeks 6 and 7, which had been trained.
+                        # Required properties also cost nothing against the
+                        # strict optional-parameter budget, which the
+                        # earlier `all_weeks` flag blew past by one.
+                        'required': ['day', 'action', 'name', 'week'],
                     },
                 },
                 'keep_list': {'type': 'array', 'items': {'type': 'string'}},

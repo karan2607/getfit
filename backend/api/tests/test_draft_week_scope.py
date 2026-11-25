@@ -58,7 +58,20 @@ class DraftScopeTests(TestCase):
         _result, error = self.propose([
             {'day': 'Push', 'action': 'remove',
              'name': 'Barbell Bench Press'}])
-        self.assertIn('all_weeks', error)
+        self.assertIn('week 0', error)
+
+    def test_the_schema_makes_silence_impossible(self):
+        """
+        The server check is a backstop. The real guard is the schema: the
+        model cannot emit an item without a week, so the refusal above
+        should never be reached in practice.
+        """
+        from api import agent_tools
+
+        spec = [t for t in agent_tools.anthropic_tools('workout')
+                if t['name'] == 'propose_plan_change'][0]
+        item = spec['input_schema']['properties']['changes']['items']
+        self.assertIn('week', item['required'])
 
     def test_a_week_scoped_change_is_recorded(self):
         result, error = self.propose([
@@ -67,16 +80,15 @@ class DraftScopeTests(TestCase):
         self.assertEqual(error, '')
         self.assertEqual(result['draft'][0]['week'], 8)
 
-    def test_all_weeks_is_the_explicit_way_to_mean_the_programme(self):
+    def test_week_zero_is_the_explicit_way_to_mean_the_programme(self):
         result, error = self.propose([
-            {'day': 'Push', 'all_weeks': True, 'action': 'remove',
+            {'day': 'Push', 'week': 0, 'action': 'remove',
              'name': 'Barbell Bench Press'}])
         self.assertEqual(error, '')
         # Downstream, "every week" is still expressed as the ABSENCE of a
         # week -- `_matching_days` has not changed and nothing else has to
         # learn a new shape.
         self.assertIsNone(result['draft'][0].get('week'))
-        self.assertNotIn('all_weeks', result['draft'][0])
 
     def test_a_day_move_needs_a_scope_too(self):
         """
