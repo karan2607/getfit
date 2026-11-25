@@ -74,7 +74,20 @@ User = get_user_model()
 @api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({'status': 'ok'})
+    """
+    Liveness, plus which commit is answering.
+
+    The commit is here because a staging deploy silently stopped firing for
+    an hour while pushes kept landing on GitHub, and every verification run
+    against it was really re-testing the old build. A live check is only
+    evidence if you know what it ran against, and asking the server is the
+    only way to know. Render sets RENDER_GIT_COMMIT; anywhere else it is
+    blank, which is honest rather than wrong.
+    """
+    return Response({
+        'status': 'ok',
+        'commit': (os.environ.get('RENDER_GIT_COMMIT') or '')[:7],
+    })
 
 
 # ---------------------------------------------------------------------------
