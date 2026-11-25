@@ -635,7 +635,7 @@ class OneValidatorForBothDoorsTests(APITestCase):
 
     def test_a_good_draft_still_goes_through(self):
         result, error = self.propose_as_agent([
-            {'day': 'Push', 'action': 'remove',
+            {'day': 'Push', 'week': 1, 'action': 'remove',
              'name': 'Dumbbell Lateral Raises'}])
         self.assertFalse(error)
         self.assertTrue(result['change_id'])
@@ -646,9 +646,10 @@ class OneValidatorForBothDoorsTests(APITestCase):
         shape: keep_list was on the reload payload and missing here, so a
         client reading it off the chat card got undefined.
         """
-        result, _error = self.propose_as_agent([
-            {'day': 'Push', 'action': 'remove',
+        result, error = self.propose_as_agent([
+            {'day': 'Push', 'week': 1, 'action': 'remove',
              'name': 'Dumbbell Lateral Raises'}])
+        self.assertEqual(error, '')
         token, _ = Token.objects.get_or_create(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
         pending = self.client.get(

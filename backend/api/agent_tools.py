@@ -279,6 +279,42 @@ def _tool_get_plan_week(user, args):
     }
 
 
+def _scoped(changes):
+    """
+    Every change has to say which week it means.
+
+    A draft item with no `week` applies to that day in EVERY week. For the
+    HTTP endpoint that is right -- a user asking to take bench press out of
+    their programme means out of all of it. For the agent it is not: it is
+    only ever shown ONE week, so "the week in front of me" is the only
+    scope it can see, and omitting the field silently edited all eight.
+    Four attempts to restructure week 8 each flipped weeks 6 and 7 as well,
+    and week 6 is still wrong.
+
+    Rather than guessing the week behind the model's back, this refuses the
+    ambiguity: the week number is in the model's context block, so it can
+    always say. `all_weeks: true` is the explicit way to mean the whole
+    programme, and is translated to the absence of a week here so nothing
+    downstream has to learn a new shape.
+    """
+    out = []
+    for item in changes:
+        if not isinstance(item, dict):
+            out.append(item)
+            continue
+        item = dict(item)
+        all_weeks = bool(item.pop('all_weeks', False))
+        if all_weeks:
+            item.pop('week', None)
+        elif item.get('week') in (None, ''):
+            raise mcp.McpError(
+                'every change needs a week -- say which week you are '
+                'editing, or pass all_weeks: true to change it in every '
+                'week of the programme')
+        out.append(item)
+    return out
+
+
 def _tool_propose_plan_change(user, args):
     """
     Record a draft for the user to confirm. Applies NOTHING.
@@ -307,6 +343,11 @@ def _tool_propose_plan_change(user, args):
         validate_draft(changes, plan=plan)
     except DraftError as exc:
         raise mcp.McpError(str(exc)) from exc
+
+    # Scope AFTER validation, so a draft naming a day that does not exist
+    # hears about the day rather than about a missing week number. The
+    # invented day is the model's mistake; the scope is a formality.
+    changes = _scoped(changes)
 
     # One draft per turn, per plan.
     #
@@ -450,9 +491,13 @@ _PLAN_TOOL_SPECS = {
             'the days, then rename them, then change their exercises. Name a '
             'renamed day by the name the user used; the server follows the '
             'rename. '
-            'Omit `week` to change every week -- "take bench press out" means '
-            'out of the whole programme, not out of one week, and a day moved '
-            'without a `week` moves in every week. '
+            'SCOPE: every change must say which week it is for. Put the '
+            'week number in `week` -- normally the week you were given in '
+            'the context above, which is the one the user is looking at. '
+            'Only when the user means their whole programme ("take bench '
+            'press out of the plan") set `all_weeks: true` instead. A '
+            'change with neither is refused, because a day moved in "every '
+            'week" reorders weeks the user never mentioned. '
             'List in keep_list any exercise that must survive the change. '
             'Do NOT describe the change in prose: every part of it goes in a '
             'field, or the server cannot carry it out.'),
@@ -465,6 +510,13 @@ _PLAN_TOOL_SPECS = {
                     'items': {
                         'type': 'object',
                         'properties': {
+                            'all_weeks': {
+                                'type': 'boolean',
+                                'description':
+                                    'Apply this change to every week of the '
+                                    'programme. Only when the user means the '
+                                    'whole plan; otherwise set `week`.',
+                            },
                             'day': {
                                 'type': 'string',
                                 'description': 'The day name, e.g. "Upper Push".',

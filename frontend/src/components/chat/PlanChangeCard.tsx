@@ -109,6 +109,12 @@ export function PlanChangeDraft({
 }) {
   const [expanded, setExpanded] = useState(true)
 
+  // An item with no week applies to EVERY week. That was a grey "· all
+  // weeks" beside the day name, which is not enough for a change that
+  // reorders weeks the user has already trained -- it is how four
+  // restructures of week 8 each flipped weeks 6 and 7.
+  const planWide = change.draft.some((item) => !item.week)
+
   return (
     <div className="mb-4 rounded-2xl border border-accent-200 bg-white overflow-hidden">
       <button
@@ -124,6 +130,15 @@ export function PlanChangeDraft({
 
       {expanded && (
         <div className="px-4 py-3">
+          {planWide && (
+            <p
+              role="alert"
+              className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+            >
+              This changes every week of your plan, not just the one you are
+              looking at. Weeks you have already trained will change too.
+            </p>
+          )}
           <div className="space-y-3">
             {change.draft.map((item, i) => (
               <div key={i}>

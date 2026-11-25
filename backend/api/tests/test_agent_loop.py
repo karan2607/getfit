@@ -272,7 +272,7 @@ class ProposalSurfacingTests(TestCase):
         client = _client_yielding(
             ([], _Final([_ToolUse('propose_plan_change', {
                 'plan_id': str(self.plan.id),
-                'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}],
+                'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'}],
             })])),
             (['Here is the change.'], _Final([_Text('Here is the change.')])),
         )

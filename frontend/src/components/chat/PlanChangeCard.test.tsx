@@ -48,6 +48,33 @@ describe('PlanChangeDraft', () => {
   })
 })
 
+describe('PlanChangeDraft scope warning', () => {
+  const planWide = {
+    change_id: 'c2',
+    needs_confirmation: true,
+    applied: false,
+    draft: [{ day: 'Legs', action: 'move_day', to_position: 3 }],
+  }
+
+  it('shouts when a change touches every week', () => {
+    // Four restructures of week 8 each reordered weeks 6 and 7 as well.
+    // The card said "· all weeks" in small grey text beside the day name.
+    render(<PlanChangeDraft change={planWide} onConfirm={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByRole('alert')).toHaveTextContent(/every week/i)
+  })
+
+  it('says nothing extra when the change is scoped to one week', () => {
+    render(
+      <PlanChangeDraft
+        change={{ ...planWide, draft: [{ day: 'Legs', week: 8, action: 'move_day', to_position: 3 }] }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('PlanChangeResult', () => {
   it('never reports success when something unapproved changed', () => {
     render(

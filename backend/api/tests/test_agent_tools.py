@@ -258,7 +258,7 @@ class PlanMutationToolTests(TestCase):
         out, error = agent_tools.run_tool(
             self.user, 'propose_plan_change',
             {'plan_id': str(self.plan.id),
-             'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}],
+             'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'}],
              'keep_list': ['Barbell Bench Press']})
 
         self.assertEqual(error, '')
@@ -287,13 +287,13 @@ class PlanMutationToolTests(TestCase):
         from api.models import PlanChange
 
         args = {'plan_id': str(self.plan.id),
-                'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}]}
+                'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'}]}
         first, error = agent_tools.run_tool(self.user, 'propose_plan_change', args)
         self.assertEqual(error, '')
 
         second_args = dict(args, changes=[
-            {'day': 'Upper Push', 'name': 'Machine Chest Press'},
-            {'day': 'Upper Push', 'name': 'Cable Face Pulls'},
+            {'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'},
+            {'day': 'Upper Push', 'week': 1, 'name': 'Cable Face Pulls'},
         ])
         second, error = agent_tools.run_tool(
             self.user, 'propose_plan_change', second_args)
@@ -316,7 +316,7 @@ class PlanMutationToolTests(TestCase):
         agent_tools.run_tool(
             self.user, 'propose_plan_change',
             {'plan_id': str(self.plan.id),
-             'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}]})
+             'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'}]})
 
         # The fixture plan has this day in several weeks; any one of them
         # moves the plan's snapshot, which is the point.
@@ -327,7 +327,7 @@ class PlanMutationToolTests(TestCase):
         agent_tools.run_tool(
             self.user, 'propose_plan_change',
             {'plan_id': str(self.plan.id),
-             'changes': [{'day': 'Upper Push', 'name': 'Cable Face Pulls'}]})
+             'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Cable Face Pulls'}]})
 
         self.assertEqual(
             PlanChange.objects.filter(plan=self.plan,
@@ -337,7 +337,7 @@ class PlanMutationToolTests(TestCase):
         agent_tools.run_tool(
             self.user, 'propose_plan_change',
             {'plan_id': str(self.plan.id),
-             'changes': [{'day': 'Upper Push', 'name': 'Machine Chest Press'}]})
+             'changes': [{'day': 'Upper Push', 'week': 1, 'name': 'Machine Chest Press'}]})
         entry = ToolCallLog.objects.get(tool='propose_plan_change')
         self.assertTrue(entry.ok)
         self.assertIn('Upper Push', json_dumps(entry.arguments))
