@@ -27,8 +27,10 @@ git init -q -b main "$REPO"
 
 log() { printf '%s\n' "$*" >> "$LOG"; }
 # Stand in for the desktop notification, so a test run stays silent and the
-# alert is countable.
-osascript() { ALERTS=$((ALERTS + 1)); }
+# alert is countable. `alert` is the loop's own one-line wrapper around
+# osascript; stubbing the wrapper rather than the command keeps this test
+# honest if notifications ever stop going through osascript.
+alert() { ALERTS=$((ALERTS + 1)); }
 
 eval "$(awk '/^blocked_pass\(\) \{/,/^\}/' scripts/feedback_loop.sh)"
 eval "$(awk '/^unblocked_pass\(\) \{/,/^\}/' scripts/feedback_loop.sh)"

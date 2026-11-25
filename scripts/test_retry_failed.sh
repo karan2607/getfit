@@ -42,7 +42,10 @@ CALLS="$WORK/calls"
 log() { printf '%s\n' "$*" >> "$LOG"; }
 api() { printf '%s' "$QUEUE"; }
 set_status() { printf '%s %s %s\n' "$1" "$2" "${5:-}" >> "$CALLS"; }
-osascript() { printf 'ALERT\n' >> "$CALLS"; }
+# `alert` is the loop's own wrapper around osascript. Stubbing the wrapper
+# rather than the command keeps this honest if notifications ever stop
+# going through osascript.
+alert() { printf 'ALERT\n' >> "$CALLS"; }
 
 eval "$(awk '/^retry_failed\(\) \{/,/^\}/' scripts/feedback_loop.sh)"
 eval "$(awk '/^report_exhausted\(\) \{/,/^\}/' scripts/feedback_loop.sh)"

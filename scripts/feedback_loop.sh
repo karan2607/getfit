@@ -450,6 +450,49 @@ final_paragraph() {
 
 # ---------------------------------------------------------------------------
 # Escalation
+# A desktop notification. The only way this loop reaches a person.
+#
+# Three copies of this osascript line had grown, which is two too many for
+# something that is the difference between a problem being seen and a
+# problem sitting in a log for eleven days.
+alert() {
+  # alert <title> <message>
+  osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true
+}
+
+# Commits that exist here and nowhere else.
+#
+# The loop once committed eight fixes and pushed none of them: the items
+# read "Fixed", the work sat in a local branch for days, and the only
+# record was a line in a log. Every push failure below now alerts, but
+# detecting the STATE rather than the event is what makes this durable --
+# it catches a crash between commit and push, an interrupted run, and
+# whatever the next way to strand a commit turns out to be.
+unpushed_commits() {
+  local branch="${1:-$BRANCH}"
+  git -C "$REPO" rev-list --count "origin/$branch..$branch" 2>/dev/null || printf '0'
+}
+
+check_unpushed() {
+  local ahead
+  ahead="$(unpushed_commits)"
+  [[ "$ahead" =~ ^[0-9]+$ ]] || return 0
+  (( ahead > 0 )) || { rm -f "$UNPUSHED_STATE"; return 0; }
+
+  local now last=0
+  now="$(date +%s)"
+  [[ -r "$UNPUSHED_STATE" ]] && read -r last < "$UNPUSHED_STATE" 2>/dev/null
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+
+  log "  $ahead commit(s) on $BRANCH have never been pushed"
+  if (( now - last >= UNPUSHED_EVERY )); then
+    alert "getfit feedback loop" \
+          "$ahead commit(s) on $BRANCH were never pushed. The fixes are local only."
+    printf '%s\n' "$now" > "$UNPUSHED_STATE"
+  fi
+}
+
+
 # ---------------------------------------------------------------------------
 # A blocked runner that only writes to its own log is a silent runner.
 #
@@ -479,7 +522,8 @@ blocked_pass() {
      && (( last == 0 || now - last >= BLOCK_ALERT_AFTER )); then
     local hours=$(( (now - first) / 3600 ))
     log "  ALERT: blocked for ${hours}h — notifying."
-    osascript -e "display notification \"Uncommitted changes in $REPO have blocked it for ${hours}h. $(git -C "$REPO" status --short | wc -l | tr -d ' ') file(s).\" with title \"getfit feedback loop is stuck\"" >/dev/null 2>&1 || true
+    alert "getfit feedback loop is stuck" \
+          "Uncommitted changes in $REPO have blocked it for ${hours}h. $(git -C "$REPO" status --short | wc -l | tr -d ' ') file(s)."
     last="$now"
   fi
   printf '%s %s\n' "$first" "$last" > "$BLOCK_STATE"
@@ -525,6 +569,10 @@ process_item() {
     return
   fi
   unblocked_pass
+  # Before touching anything, say whether the last run left work stranded.
+  # Checked here rather than only after a push so it also catches a crash
+  # between commit and push, and an interrupted run.
+  check_unpushed
   # Fail loudly on a missing branch rather than silently working on whatever
   # happens to be checked out. Before this the checkout error went to the log
   # and the loop carried on, so a typo in GETFIT_BRANCH meant committing to
@@ -716,6 +764,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" >>"$LOG" 2>&1
 
   if ! git -C "$REPO" push origin "$BRANCH" >>"$LOG" 2>&1; then
     log "  PUSH FAILED — leaving the commit local"
+    alert "getfit feedback loop" \
+          "Push to $BRANCH failed. $sha is committed locally and nowhere else."
     set_status "$id" failed "Committed $sha locally but push failed. Resolve by hand."
     return
   fi
@@ -734,7 +784,13 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" >>"$LOG" 2>&1
 
 Live in production ($sha)."
     else
+      # The item is still marked done below, because the fix IS built and
+      # pushed -- but it is not live, and "Fixed" on something that is not
+      # deployed is the most misleading thing this loop can say. The note
+      # says so; this makes sure somebody hears it.
       log "  promotion to $PROD_BRANCH FAILED; the fix is on $BRANCH only"
+      alert "getfit feedback loop" \
+            "Promotion to $PROD_BRANCH failed. $sha is on $BRANCH but not live."
       notes="$notes
 
 On $BRANCH ($sha). The push to $PROD_BRANCH failed, so this is not live yet."
@@ -847,6 +903,10 @@ run_pass() {
 # left the queue". Once a day at most -- this is a backlog, not an incident.
 EXHAUSTED_STATE="${GETFIT_EXHAUSTED_STATE:-$HOME/.getfit-loop-exhausted}"
 EXHAUSTED_EVERY="${GETFIT_EXHAUSTED_EVERY:-86400}"
+#: Unpushed-commit alarm: where the last warning time is kept, and how
+#: often to repeat it. Same shape as the two alarms above.
+UNPUSHED_STATE="${UNPUSHED_STATE:-$STATE_DIR/unpushed}"
+UNPUSHED_EVERY="${UNPUSHED_EVERY:-21600}"
 
 report_exhausted() {
   local failed now last
@@ -861,7 +921,8 @@ report_exhausted() {
 
   log "  $failed item(s) have left the queue after $(printf '%s' "${MAX_ATTEMPTS:-3}") attempts"
   if (( now - last >= EXHAUSTED_EVERY )); then
-    osascript -e "display notification \"$failed item(s) gave up and left the queue. Run: bash scripts/feedback_loop.sh --retry-failed\" with title \"getfit feedback\"" >/dev/null 2>&1 || true
+    alert "getfit feedback" \
+          "$failed item(s) gave up and left the queue. Run: bash scripts/feedback_loop.sh --retry-failed"
     printf '%s\n' "$now" > "$EXHAUSTED_STATE"
   fi
 }
