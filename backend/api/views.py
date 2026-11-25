@@ -3994,6 +3994,12 @@ def _exercise_history(user, exercise_name, measurement_type, limit=30):
     return logs, metric
 
 
+#: Measurement types that carry a load, so a weight can be suggested at all.
+_WEIGHTED_TYPES = (exercise_types.WEIGHT_REPS,
+                   exercise_types.WEIGHT_DURATION,
+                   exercise_types.WEIGHT_DISTANCE)
+
+
 def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
                            exercise=None):
     """
@@ -4040,8 +4046,26 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
     direction = prog.get('direction')
     last = prog.get('last_value')
     proven = prog.get('best_at_target')
+
+    # The engine needs ONE past session; the trend needs two. Returning
+    # nothing whenever a trend could not be established meant the session
+    # screen offered 95 lb and the drawer offered silence, for the same lift
+    # on the same day -- found on staging with a single day of history, which
+    # is what every new exercise looks like for its first week.
+    early = None
+    if exercise is not None and measurement_type in _WEIGHTED_TYPES:
+        from . import weights
+        early = weights.suggest_weight(
+            user, exercise, target_reps=reps, unit=unit).get('weight')
+
     if not direction or last is None:
-        return blank
+        if early is None:
+            return blank
+        out = dict(blank)
+        out['recommended_weight'] = (
+            f'Deload week — stay at {early}{unit}.' if deload
+            else f'Start at {early}{unit}.')
+        return out
 
     out = dict(blank)
     # The summary is written by the trend analysis, which speaks in
@@ -4050,9 +4074,7 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
     out['coaching_note'] = ('Deload week — hold what you have.' if deload
                             else prog.get('summary'))
 
-    if measurement_type in (exercise_types.WEIGHT_REPS,
-                            exercise_types.WEIGHT_DURATION,
-                            exercise_types.WEIGHT_DISTANCE):
+    if measurement_type in _WEIGHTED_TYPES:
         body = 'lower' if re.search(
             r'\b(squat|deadlift|leg|calf|lunge|hip|glute|hamstring)\b',
             exercise_name, re.I) else 'upper'
@@ -4069,12 +4091,7 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
         # The prose below stays for callers that have only a name: the
         # engine needs the row (its day and its order) and cannot run
         # without one.
-        suggested = None
-        if exercise is not None:
-            from . import weights
-            engine = weights.suggest_weight(
-                user, exercise, target_reps=reps, unit=unit)
-            suggested = engine.get('weight')
+        suggested = early
 
         target = f'{low}-{high}' if low and low != high else (high or low)
         if deload:

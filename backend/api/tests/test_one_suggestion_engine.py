@@ -119,3 +119,58 @@ class BothScreensAgreeTests(TestCase):
         advice = views._build_exercise_advice(
             self.user, 'Machine Chest Press', et.WEIGHT_REPS, '8-12', 'lb')
         self.assertTrue(advice['recommended_weight'])
+
+
+class OneSessionOfHistoryTests(TestCase):
+    """
+    The engine needs one past session; the trend needs two.
+
+    Found on staging: with a single day of logged history the session screen
+    offered 95 lb and the drawer offered nothing, for the same lift on the
+    same day. That is what every exercise looks like in its first week.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='once@test.local',
+                                             password='x')
+        UserProfile.objects.create(user=self.user, preferred_unit='lb')
+        plan = WorkoutPlan.objects.create(
+            user=self.user, title='P', is_active=True, current_week=1)
+        self.day = WorkoutDay.objects.create(
+            plan=plan, day_number=1, week_number=1, name='Full Body A')
+        self.row = Exercise.objects.create(
+            day=self.day, name='Flat Dumbbell Press', sets=3, reps='8-12',
+            order=0, measurement_type=et.WEIGHT_REPS)
+        s = WorkoutSession.objects.create(
+            user=self.user, day_name='Full Body A', exercise_day=self.day,
+            is_completed=True, completed_at=timezone.now() - timedelta(days=2))
+        WorkoutSession.objects.filter(pk=s.pk).update(
+            started_at=timezone.now() - timedelta(days=2))
+        for n in (1, 2, 3):
+            SetLog.objects.create(
+                workout_session=s, exercise=self.row,
+                exercise_name='Flat Dumbbell Press', set_number=n,
+                weight_kg=45 * LB, reps_completed=12, target_reps='8-12',
+                is_completed=True)
+
+    def test_the_drawer_answers_from_a_single_session(self):
+        engine = weights.suggest_weight(self.user, self.row,
+                                        target_reps='8-12', unit='lb')
+        self.assertIsNotNone(engine['weight'])
+
+        advice = views._build_exercise_advice(
+            self.user, 'Flat Dumbbell Press', et.WEIGHT_REPS, '8-12', 'lb',
+            exercise=self.row)
+
+        self.assertIn(engine['weight'],
+                      numbers_in(advice['recommended_weight']),
+                      msg=repr(advice['recommended_weight']))
+
+    def test_it_still_says_nothing_with_no_history_at_all(self):
+        empty = Exercise.objects.create(
+            day=self.day, name='Cable Fly', sets=3, reps='12-15', order=1,
+            measurement_type=et.WEIGHT_REPS)
+        advice = views._build_exercise_advice(
+            self.user, 'Cable Fly', et.WEIGHT_REPS, '12-15', 'lb',
+            exercise=empty)
+        self.assertIsNone(advice['recommended_weight'])
