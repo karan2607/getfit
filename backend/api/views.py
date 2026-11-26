@@ -6,7 +6,7 @@ import uuid
 from datetime import timedelta
 from django.contrib.auth import get_user_model, authenticate
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models import Case, F, IntegerField, Q, Value, When
 
 logger = logging.getLogger(__name__)
@@ -75,18 +75,37 @@ User = get_user_model()
 @permission_classes([AllowAny])
 def health(request):
     """
-    Liveness, plus which commit is answering.
+    Liveness, which commit is answering, and whether the database is there.
 
     The commit is here because a staging deploy silently stopped firing for
     an hour while pushes kept landing on GitHub, and every verification run
-    against it was really re-testing the old build. A live check is only
-    evidence if you know what it ran against, and asking the server is the
-    only way to know. Render sets RENDER_GIT_COMMIT; anywhere else it is
-    blank, which is honest rather than wrong.
+    against it was really re-testing the old build.
+
+    The database check earns its place twice. It reports the truth -- this
+    endpoint answered a confident "ok" in 0.15s on 26 Nov while real
+    requests took thirty seconds, because it touched nothing. And it keeps
+    the pooled connection warm: Render polls this every few seconds, Neon
+    suspends an idle compute, and a query here means the next real request
+    does not pay the wake-up.
+
+    The STATUS CODE stays 200 either way. Render restarts a service whose
+    health check fails, and a brief database blip is not a reason to throw
+    away a warm process -- the body says what is wrong, which is what a
+    person reading it needs.
     """
+    database = 'ok'
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+    except Exception as exc:                            # noqa: BLE001
+        logger.error('health: database unreachable: %s', exc)
+        database = 'unreachable'
+
     return Response({
         'status': 'ok',
         'commit': (os.environ.get('RENDER_GIT_COMMIT') or '')[:7],
+        'database': database,
     })
 
 

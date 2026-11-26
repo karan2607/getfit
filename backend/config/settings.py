@@ -84,6 +84,25 @@ if _db_url.startswith('postgres'):
             'PASSWORD': _r.password,
             'HOST': _r.hostname,
             'PORT': _r.port or 5432,
+            # Reuse the connection between requests.
+            #
+            # Unset, Django opens a new Postgres connection for EVERY
+            # request and closes it at the end. Measured against production
+            # on 26 Nov: /api/health/, which touches no database, answered
+            # in 0.15s while /api/profile/, which makes one query, took
+            # 0.79s. That 0.63s is the TLS and auth handshake to Neon, paid
+            # on every request -- so a screen that makes ten calls spends
+            # six seconds doing nothing but reconnecting.
+            #
+            # 600s rather than unlimited so a connection to a suspended
+            # Neon compute is eventually dropped rather than held forever.
+            'CONN_MAX_AGE': int(os.getenv('CONN_MAX_AGE', '600')),
+            # Neon suspends an idle compute, which leaves a pooled
+            # connection dead. Without this the first request after that
+            # fails with "server closed the connection unexpectedly"
+            # instead of transparently reconnecting -- which is the whole
+            # risk of reusing connections, and Django will handle it.
+            'CONN_HEALTH_CHECKS': True,
         }
     }
 elif not DEBUG:

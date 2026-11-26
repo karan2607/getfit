@@ -29,3 +29,38 @@ class HealthCommitTests(TestCase):
             res = self.client.get(reverse('health'))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['commit'], '')
+
+
+class HealthDatabaseTests(TestCase):
+    """
+    Health answered a confident "ok" in 0.15s on 26 Nov while real requests
+    took thirty seconds, because it touched nothing. A check that cannot
+    fail is not a check.
+    """
+
+    def test_it_reports_the_database(self):
+        res = self.client.get(reverse('health'))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['database'], 'ok')
+
+    def test_a_database_that_is_down_is_reported_not_hidden(self):
+        from django.db import connection
+
+        with mock.patch.object(connection, 'cursor',
+                               side_effect=RuntimeError('no route to host')):
+            res = self.client.get(reverse('health'))
+        self.assertEqual(res.data['database'], 'unreachable')
+
+    def test_it_still_answers_200_when_the_database_is_down(self):
+        """
+        Render restarts a service whose health check fails. A brief blip is
+        not a reason to throw away a warm process; the body says what is
+        wrong.
+        """
+        from django.db import connection
+
+        with mock.patch.object(connection, 'cursor',
+                               side_effect=RuntimeError('no route to host')):
+            res = self.client.get(reverse('health'))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'ok')
