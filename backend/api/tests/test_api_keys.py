@@ -291,7 +291,7 @@ class ScopeTests(APITestCase):
         integration keys until someone lists it on purpose.
         """
         for path in ('/api/auth/login/', '/api/some-new-endpoint/',
-                     '/api/feedback/', '/api/auth/admin/users/'):
+                     '/api/auth/admin/users/'):
             self.assertFalse(scope_allows(self.key, path, 'GET'), msg=path)
 
     def test_scope_allows_passes_non_key_auth_through(self):
@@ -667,7 +667,32 @@ class ReadonlyScopeTests(APITestCase):
         # readonly reads workouts but writes nothing.
         self.assertTrue(scope_allows(self.key, '/api/workouts/plans/', 'GET'))
         self.assertFalse(scope_allows(self.key, '/api/workouts/plans/', 'POST'))
-        self.assertFalse(scope_allows(self.key, '/api/feedback/', 'GET'))
+        # It reads the feedback queue now, and still cannot submit to it.
+        self.assertTrue(scope_allows(self.key, '/api/feedback/', 'GET'))
+        self.assertFalse(scope_allows(self.key, '/api/feedback/', 'POST'))
+
+    def test_a_readonly_key_reads_the_queue_but_cannot_add_to_it(self):
+        """
+        The loop writes code from this table, so only a trusted operator may
+        put anything IN it -- that check lives in the view and is untouched.
+        Reading is different: because submission is superuser-only, every
+        item is already the operator's own, and refusing to let a read-only
+        key read it blocked the one thing that has to act on it.
+        """
+        self.user.is_superuser = True
+        self.user.save(update_fields=['is_superuser'])
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.key.key)
+
+        self.assertEqual(self.client.get(reverse('feedback')).status_code, 200)
+        self.assertEqual(
+            self.client.post(reverse('feedback'), {'body': 'x'},
+                             format='json').status_code, 403)
+
+    def test_an_ordinary_users_readonly_key_still_cannot_see_the_queue(self):
+        """The view's superuser check is the boundary, and it still runs."""
+        self.assertFalse(self.user.is_superuser)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.key.key)
+        self.assertEqual(self.client.get(reverse('feedback')).status_code, 403)
 
     def test_every_unsafe_method_is_denied_across_every_allowed_prefix(self):
         """

@@ -141,6 +141,22 @@ READONLY_SCOPE_ALLOWED = (
     'sessions/',
     'diet/',
     'profile/',
+    # The feedback queue, READ only.
+    #
+    # Submission is superuser-only and enforced in the view, which is the
+    # boundary that matters: the implementation loop writes code from this
+    # table, so the table must only ever hold content a trusted operator
+    # wrote. That makes everything in it the operator's OWN data -- there is
+    # no third party here to be injected by -- so refusing to let a
+    # read-only key READ it protected nothing and blocked the one thing
+    # that has to act on it.
+    #
+    # Still two gates: SAFE_METHODS below means a key like this can never
+    # submit or edit an item, and `_require_superuser` in the view still
+    # decides whether this key's owner may see the queue at all. A
+    # read-only key belonging to an ordinary user gets 403 exactly as
+    # before.
+    'feedback/',
 )
 
 SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
