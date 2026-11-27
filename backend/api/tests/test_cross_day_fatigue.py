@@ -87,16 +87,36 @@ class CrossDayFatigueTests(TestCase):
         self.assertEqual(self.suggest(), rested)
 
     def test_two_days_ago_counts_for_less_than_yesterday(self):
+        """
+        Asserted on the FACTOR, not on the rounded weight. The discount is
+        a nudge of a percent or two, and a machine now moves in 5 lb steps
+        -- so on this exercise both answers round to the same selectable
+        weight, which says nothing about the decay either way.
+        """
         bench = self.other_day_exercise('Barbell Bench Press')
         self.session('Upper', bench, 135, 10, days_ago=2)
-        older = self.suggest()
+        older, _note = weights.recent_muscle_load(self.user, self.row)
 
         SetLog.objects.filter(exercise=bench).delete()
         WorkoutSession.objects.filter(day_name='Upper').delete()
         self.session('Upper', bench, 135, 10, days_ago=1)
-        newer = self.suggest()
+        newer, _note = weights.recent_muscle_load(self.user, self.row)
 
         self.assertLess(newer, older)
+
+    def test_the_discount_reaches_the_number_where_the_step_is_fine(self):
+        """On a dumbbell, where 2.5 lb is a real step, it shows."""
+        own = Exercise.objects.create(
+            day=self.today, name='Flat Dumbbell Press', sets=3, reps='8-12',
+            order=1, measurement_type=et.WEIGHT_REPS)
+        self.session('Push', own, 60, 12, days_ago=14)
+        rested = weights.suggest_weight(self.user, own, target_reps='8-12',
+                                        unit='lb')['weight']
+        bench = self.other_day_exercise('Barbell Bench Press')
+        self.session('Upper', bench, 135, 10, days_ago=1)
+        tired = weights.suggest_weight(self.user, own, target_reps='8-12',
+                                       unit='lb')['weight']
+        self.assertLess(tired, rested)
 
     def test_the_discount_has_a_floor(self):
         """A heavy week must not turn a working weight into a warm-up."""

@@ -67,8 +67,40 @@ _LIVE_STEP = 0.05
 _FACTOR_MIN = 0.70
 _FACTOR_MAX = 1.10
 
-#: Smallest practical jump on most machines and bars.
-_INCREMENT = {'lb': 2.5, 'kg': 1.25}
+#: The smallest change the EQUIPMENT can actually make.
+#:
+#: Reported 26 Nov: "Most of these do not have an option to increase by 2.5
+#: and should not be suggested. Instead for those, it should be increase of
+#: 5. And for ones we can attach 2.5 lbs, or dumbbells, sure."
+#:
+#: A selectorised machine or a cable stack has no 2.5 lb pin position, so a
+#: suggestion of 102.5 lb is one a person standing at the machine cannot
+#: follow. Where small plates attach -- a bar, an EZ bar, a plate-loaded
+#: machine -- and on dumbbells, 2.5 is real.
+_FINE_INCREMENT = {'lb': 2.5, 'kg': 1.25}
+_COARSE_INCREMENT = {'lb': 5.0, 'kg': 2.5}
+
+#: Equipment that takes a small plate, or comes in 2.5 lb steps.
+_FINE_EQUIPMENT = frozenset({'barbell', 'dumbbell', 'e-z curl bar'})
+
+
+def increment_for(exercise_name, unit='lb'):
+    """
+    The smallest weight change worth suggesting for this movement.
+
+    Unknown equipment takes the COARSE step on purpose: a suggestion that
+    cannot be selected is worse than one that is slightly blunt.
+    """
+    profile = exercise_muscles.profile_for(exercise_name or '')
+    equipment = ((profile or {}).get('equipment') or '').strip().lower()
+    table = (_FINE_INCREMENT if equipment in _FINE_EQUIPMENT
+             else _COARSE_INCREMENT)
+    return table.get(unit, table['lb'])
+
+
+#: Kept for callers that have no exercise to hand. Equal to the fine step,
+#: which is what every caller assumed before equipment was consulted.
+_INCREMENT = _FINE_INCREMENT
 
 #: How far from 1.0 a factor has to be before it is worth a plate change.
 #: Below this the adjustment is a nudge and rounding it up to a whole
@@ -167,9 +199,16 @@ def _to_unit(kg, unit):
     return kg / KG_PER_LB if unit == 'lb' else kg
 
 
-def _round_to_increment(value, unit):
-    step = _INCREMENT.get(unit, 2.5)
+def round_to_increment(value, unit, exercise_name=None):
+    """Round to a weight the equipment can make."""
+    step = (increment_for(exercise_name, unit) if exercise_name
+            else _INCREMENT.get(unit, 2.5))
     return round(round(value / step) * step, 2)
+
+
+#: The old private name, kept so existing callers read the same.
+def _round_to_increment(value, unit, exercise_name=None):
+    return round_to_increment(value, unit, exercise_name)
 
 
 def _past_slots(user, exercise, variants, exclude_session_id):
@@ -481,8 +520,9 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
     # Assisted machines log negative load; scaling a negative number inverts
     # every adjustment, so those get the last weight as-is.
     raw = base_kg * factor if base_kg > 0 else base_kg
-    base_display = _round_to_increment(_to_unit(base_kg, unit), unit)
-    display = _round_to_increment(_to_unit(raw, unit), unit)
+    base_display = _round_to_increment(_to_unit(base_kg, unit), unit,
+                                       exercise.name)
+    display = _round_to_increment(_to_unit(raw, unit), unit, exercise.name)
 
     # A percentage that rounds away is the same as no advice.
     #
@@ -495,11 +535,13 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
     # So an intent to move becomes one increment. Only the direction is
     # taken from the factor; the size is what the equipment can express.
     if base_kg > 0 and abs(factor - 1.0) >= _MIN_INTENT:
-        step = _INCREMENT.get(unit, 2.5)
+        step = increment_for(exercise.name, unit)
         if factor > 1.0 and display <= base_display:
-            display = _round_to_increment(base_display + step, unit)
+            display = _round_to_increment(base_display + step, unit,
+                                          exercise.name)
         elif factor < 1.0 and display >= base_display:
-            display = _round_to_increment(max(base_display - step, step), unit)
+            display = _round_to_increment(max(base_display - step, step),
+                                          unit, exercise.name)
 
     # Never above a weight the target reps have actually been met at, when
     # the last attempt missed them.
@@ -512,7 +554,8 @@ def suggest_weight(user, exercise, target_reps=None, unit='lb',
     if chosen['missed'] and base_kg > 0:
         proven = [p['weight_kg'] for p in past if not p['missed']]
         if proven:
-            ceiling = _round_to_increment(_to_unit(max(proven), unit), unit)
+            ceiling = _round_to_increment(_to_unit(max(proven), unit), unit,
+                                          exercise.name)
             if display > ceiling:
                 display = ceiling
                 notes.append('last weight the target reps were actually met at')

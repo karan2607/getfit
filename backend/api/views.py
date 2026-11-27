@@ -1533,6 +1533,70 @@ def is_deload(phase):
     return 'deload' in text.lower() or 'taper' in text.lower()
 
 
+def _week_volume(plan, week_number):
+    """
+    Prescribed work for one week: (sets x midpoint reps, total sets).
+
+    Reps rather than load, because the plan prescribes reps and the load is
+    the thing being decided. A duration or cardio row contributes its sets
+    alone -- it still represents work, and guessing minutes-to-reps would
+    make the comparison noise.
+    """
+    total = 0.0
+    set_count = 0
+    rows = (Exercise.objects
+            .filter(day__plan=plan, day__week_number=week_number)
+            .exclude(measurement_type=exercise_types.WARMUP)
+            .values_list('sets', 'reps'))
+    for sets, reps in rows:
+        low, high = _target_rep_range(reps)
+        midpoint = ((low or 0) + (high or 0)) / 2 or 1
+        total += (sets or 0) * midpoint
+        set_count += sets or 0
+    return total, set_count
+
+
+#: How much lighter a week has to be before it reads as a deload.
+#:
+#: A quarter. Week-to-week variation inside a block is a few percent; a
+#: deload is a different kind of week -- half the volume, or the same sets
+#: at half the reps. Anything subtler is not worth overriding the loading
+#: advice for, and a false positive only holds someone at their current
+#: weight for a week, which is never harmful.
+_DELOAD_DROP = 0.75
+
+
+def looks_like_a_deload(plan, week_number):
+    """
+    Whether this week is a deload, by the phase map or by the work itself.
+
+    The phase map is believed first and needs no corroboration. But a plan
+    can have none -- the owner's does, and so does the generated plan on the
+    production probe account -- and then `is_deload` can never fire, which
+    is why a deload week was still being told to add load after the
+    phase-aware fix shipped.
+
+    So the fallback reads the rows. A deload cuts work against the week
+    before it: fewer sets, fewer reps, or both. That is already in the plan
+    and needs no new field and no model call.
+    """
+    if is_deload(phase_for_week(plan, week_number)):
+        return True
+    if not plan or not week_number or week_number < 2:
+        return False
+    previous, previous_sets = _week_volume(plan, week_number - 1)
+    if not previous:
+        return False
+    volume, sets = _week_volume(plan, week_number)
+
+    # Volume alone cannot tell a deload from intensification: both cut
+    # reps. What separates them is SETS. Intensification keeps or adds sets
+    # while the reps come down and the bar gets heavier; a deload takes
+    # work away in every direction. Without this an intensification week
+    # was told to hold its weight, which is the opposite of the point.
+    return volume <= previous * _DELOAD_DROP and sets <= previous_sets
+
+
 def _week_generate_prompt(plan, week_number, profile, preferred_unit='lb',
                           user_note='', history=None, previous_week=None):
     """
@@ -4089,8 +4153,8 @@ def _build_exercise_advice(user, exercise_name, measurement_type, reps, unit,
         return blank
 
     day = getattr(exercise, 'day', None)
-    deload = is_deload(phase_for_week(getattr(day, 'plan', None),
-                                      getattr(day, 'week_number', 0) or 0))
+    deload = looks_like_a_deload(getattr(day, 'plan', None),
+                                 getattr(day, 'week_number', 0) or 0)
 
     logs, metric = _exercise_history(user, exercise_name, measurement_type)
     if not logs:
